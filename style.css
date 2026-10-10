@@ -37,7 +37,7 @@ svg{display:block}
 .view.active{display:block}
 
 /* ---------- hero ---------- */
-.hero{position:relative;background:#16a24f url(../img/hero.svg) center/cover no-repeat;color:#fff;padding:18px 20px 0}
+.hero{position:relative;background:#16a24f url(hero.svg) center/cover no-repeat;color:#fff;padding:18px 20px 0}
 .hero::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:26px;background:var(--bg);border-radius:28px 28px 0 0}
 .hero > *{position:relative;z-index:1}
 .hero.tall{padding-bottom:104px}

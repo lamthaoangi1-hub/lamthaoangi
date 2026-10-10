@@ -83,10 +83,10 @@
 
   /* ---------------- DATA ---------------- */
   const SHOPS = [
-    { id:'pho', name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', homeCat:'Phở • Việt Nam', img:'img/pho.jpg', rate:4.8, rc:'320+', eta:'15 - 25 phút', ship:'30K', sale:0, group:['Phở','Món Việt'], desc:'Phở bò gia truyền, nước dùng ninh xương 12 tiếng.', menu:[['Phở bò tái nạm',55000],['Phở bò chín',50000],['Phở gà',45000],['Trà đá',10000]] },
-    { id:'comtam', name:'Cơm Tấm Minh Tâm', cat:'Cơm • Món Việt', homeCat:'Cơm • Món Việt', img:'img/comtam.jpg', rate:4.7, rc:'210+', eta:'20 - 30 phút', ship:'30K', sale:15, group:['Cơm','Món Việt'], desc:'Cơm tấm sườn nướng than hoa, bì chả đầy đủ.', menu:[['Cơm tấm sườn nướng',50000],['Cơm tấm sườn bì chả',60000],['Cơm tấm gà nướng',55000],['Trà tắc',10000]] },
-    { id:'trasua', name:'Trà Sữa Tea & More', cat:'Đồ uống • Trà sữa', homeCat:'Đồ uống • Trà sữa', img:'img/trasua.jpg', rate:4.6, rc:'180+', eta:'15 - 25 phút', ship:'25K', sale:10, group:['Đồ uống','Trà sữa'], desc:'Trà sữa trân châu đường đen và các loại topping tự nấu.', menu:[['Trà sữa trân châu đường đen',45000],['Trà sữa matcha',48000],['Trà đào cam sả',42000],['Bánh flan',15000]] },
-    { id:'banhmi', name:'Bánh Mì Sáu Hương', cat:'Bánh mì • Ăn vặt', homeCat:'Bánh mì • Ăn vặt', img:'img/banhmi.jpg', rate:4.5, rc:'120+', eta:'15 - 20 phút', ship:'20K', sale:0, group:['Ăn vặt','Bánh mì'], desc:'Bánh mì nóng giòn, pate nhà làm, nhân thịt nướng thơm lừng.', menu:[['Bánh mì thịt nướng',25000],['Bánh mì pate trứng',20000],['Bánh mì chả cá',22000]] },
+    { id:'pho', name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', homeCat:'Phở • Việt Nam', img:'pho.jpg', rate:4.8, rc:'320+', eta:'15 - 25 phút', ship:'30K', sale:0, group:['Phở','Món Việt'], desc:'Phở bò gia truyền, nước dùng ninh xương 12 tiếng.', menu:[['Phở bò tái nạm',55000],['Phở bò chín',50000],['Phở gà',45000],['Trà đá',10000]] },
+    { id:'comtam', name:'Cơm Tấm Minh Tâm', cat:'Cơm • Món Việt', homeCat:'Cơm • Món Việt', img:'comtam.jpg', rate:4.7, rc:'210+', eta:'20 - 30 phút', ship:'30K', sale:15, group:['Cơm','Món Việt'], desc:'Cơm tấm sườn nướng than hoa, bì chả đầy đủ.', menu:[['Cơm tấm sườn nướng',50000],['Cơm tấm sườn bì chả',60000],['Cơm tấm gà nướng',55000],['Trà tắc',10000]] },
+    { id:'trasua', name:'Trà Sữa Tea & More', cat:'Đồ uống • Trà sữa', homeCat:'Đồ uống • Trà sữa', img:'trasua.jpg', rate:4.6, rc:'180+', eta:'15 - 25 phút', ship:'25K', sale:10, group:['Đồ uống','Trà sữa'], desc:'Trà sữa trân châu đường đen và các loại topping tự nấu.', menu:[['Trà sữa trân châu đường đen',45000],['Trà sữa matcha',48000],['Trà đào cam sả',42000],['Bánh flan',15000]] },
+    { id:'banhmi', name:'Bánh Mì Sáu Hương', cat:'Bánh mì • Ăn vặt', homeCat:'Bánh mì • Ăn vặt', img:'banhmi.jpg', rate:4.5, rc:'120+', eta:'15 - 20 phút', ship:'20K', sale:0, group:['Ăn vặt','Bánh mì'], desc:'Bánh mì nóng giòn, pate nhà làm, nhân thịt nướng thơm lừng.', menu:[['Bánh mì thịt nướng',25000],['Bánh mì pate trứng',20000],['Bánh mì chả cá',22000]] },
   ];
   const shopBy = id => SHOPS.find(s => s.id === id);
 
@@ -107,11 +107,11 @@
   })();
 
   const NOTICES = [
-    { id:1, type:'order', title:'Đơn hàng đã được xác nhận', body:'<b>Phở Bò Lâm Thao</b> đã xác nhận đơn hàng của bạn. Món ăn đang được chuẩn bị!', time:'2 phút trước', img:'img/pho.jpg', unread:true },
-    { id:2, type:'order', title:'Tài xế đang giao hàng', body:'Đơn hàng của bạn đang trên đường đến. Dự kiến giao trong 8 phút nữa.', time:'12 phút trước', img:'img/n-driver.jpg', unread:true },
-    { id:3, type:'promo', title:'Ưu đãi dành riêng cho bạn', body:'Giảm 30K cho đơn từ 100K. Áp dụng cho tất cả quán ăn tại Lâm Thao. Đặt món ngay!', time:'1 giờ trước', img:'img/n-30k.jpg', unread:true },
-    { id:4, type:'order', title:'Đơn hàng đã giao thành công', body:'Đơn hàng từ <b>Cơm Tấm Minh Tâm</b> đã được giao thành công. Cảm ơn bạn đã đặt món!', time:'3 giờ trước', img:'img/comtam.jpg' },
-    { id:5, type:'promo', title:'Ưu đãi mới cho cuối tuần', body:'Nhập mã <b>CUOITUAN</b> giảm 20K cho đơn từ 80K. Thời gian áp dụng: 11/05 - 12/05.', time:'1 ngày trước', img:'img/n-gift.jpg' },
+    { id:1, type:'order', title:'Đơn hàng đã được xác nhận', body:'<b>Phở Bò Lâm Thao</b> đã xác nhận đơn hàng của bạn. Món ăn đang được chuẩn bị!', time:'2 phút trước', img:'pho.jpg', unread:true },
+    { id:2, type:'order', title:'Tài xế đang giao hàng', body:'Đơn hàng của bạn đang trên đường đến. Dự kiến giao trong 8 phút nữa.', time:'12 phút trước', img:'n-driver.jpg', unread:true },
+    { id:3, type:'promo', title:'Ưu đãi dành riêng cho bạn', body:'Giảm 30K cho đơn từ 100K. Áp dụng cho tất cả quán ăn tại Lâm Thao. Đặt món ngay!', time:'1 giờ trước', img:'n-30k.jpg', unread:true },
+    { id:4, type:'order', title:'Đơn hàng đã giao thành công', body:'Đơn hàng từ <b>Cơm Tấm Minh Tâm</b> đã được giao thành công. Cảm ơn bạn đã đặt món!', time:'3 giờ trước', img:'comtam.jpg' },
+    { id:5, type:'promo', title:'Ưu đãi mới cho cuối tuần', body:'Nhập mã <b>CUOITUAN</b> giảm 20K cho đơn từ 80K. Thời gian áp dụng: 11/05 - 12/05.', time:'1 ngày trước', img:'n-gift.jpg' },
     { id:6, type:'system', title:'Cập nhật chính sách bảo mật', body:'Chúng tôi đã cập nhật Chính sách quyền riêng tư nhằm bảo vệ tốt hơn thông tin của bạn.', time:'2 ngày trước', svg:'shieldBig' },
     { id:7, type:'system', title:'Đăng nhập từ thiết bị mới', body:'Tài khoản của bạn vừa được đăng nhập trên thiết bị mới. Nếu không phải bạn, vui lòng đổi mật khẩu.', time:'3 ngày trước', svg:'bellAlert' },
   ];
@@ -221,7 +221,7 @@
       <div class="banner-wrap"><div class="banner" id="banner">
         <div class="txt"><div class="b-logo">Lâm Thao<span>Ăn Gì?</span></div><p id="b-text">${SLIDES[S.home.slide][0]}<br>${SLIDES[S.home.slide][1]}</p></div>
         <button class="cta" data-act="order-now">Đặt món ngay →</button>
-        <div class="pic" style="background-image:url(img/banner-food.jpg)"></div>
+        <div class="pic" style="background-image:url(banner-food.jpg)"></div>
         <div class="dots">${SLIDES.map((_, i) => `<i class="${i === S.home.slide ? 'on' : ''}"></i>`).join('')}</div>
       </div></div>
       <div class="section-head" id="shops-anchor"><h2>Quán ngon gần bạn</h2><button class="see-all" data-act="see-all">Xem tất cả ${ic('chevRight')}</button></div>
@@ -391,7 +391,7 @@
       el.innerHTML = `
         <div class="hero" style="padding-bottom:110px"><div style="padding-top:34px"><div class="page-title" style="font-size:42px">Cá nhân</div><p class="page-sub">Quản lý tài khoản của bạn</p></div></div>
         <div class="profile-card" style="margin-top:-96px">
-          <div class="pc-top" data-menu="account"><div class="avatar"><img src="img/avatar.jpg" alt="${S.user.name}"><span class="cam">${ic('camera')}</span></div>
+          <div class="pc-top" data-menu="account"><div class="avatar"><img src="avatar.jpg" alt="${S.user.name}"><span class="cam">${ic('camera')}</span></div>
             <div class="pc-info"><h2>${S.user.name}</h2><div class="phone">${fmtPhone(S.user.phone)}</div><span class="member">${fx.crown.replace('<svg','<svg width="24" height="24"')}Thành viên bạc ${ic('chevRight')}</span></div></div>
           <div class="stats"><button class="stat pts" data-menu="points"><span class="ic">${fx.coin}</span><span style="text-align:left"><small>Điểm tích lũy</small><b>820 điểm</b></span>${ic('chevRight', 'ch')}</button>
             <button class="stat cp" data-menu="coupons"><span class="ic">${fx.giftSm}</span><span style="text-align:left"><small>Ưu đãi của bạn</small><b>3 mã giảm giá</b></span>${ic('chevRight', 'ch')}</button></div>
