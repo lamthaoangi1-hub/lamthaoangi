@@ -16,7 +16,7 @@
   --card:#fff;
   --bg:#fff;
   --shadow:0 4px 18px rgba(16,19,26,.07);
-  --nav-h:76px;
+  --nav-h:calc(60px + env(safe-area-inset-bottom, 0px));
   --font-h:"Plus Jakarta Sans","Inter",system-ui,sans-serif;
   --font-b:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
   --font-logo:"Baloo 2","Plus Jakarta Sans",sans-serif;
@@ -71,14 +71,15 @@ svg{display:block}
 .search-float{margin:-38px 18px 0;position:relative;z-index:3}
 
 /* ---------- services ---------- */
-.services{display:flex;justify-content:space-between;padding:22px 16px 6px}
-.service{flex:1;display:flex;flex-direction:column;align-items:center;gap:10px;font-weight:600;font-size:15.5px;position:relative;padding-bottom:12px}
-.service .ic{width:66px;height:66px;border-radius:50%;display:grid;place-items:center;background:var(--chip);transition:.2s}
-.service .ic svg{width:40px;height:40px}
+.services{display:flex;justify-content:space-between;padding:16px 12px 4px}
+.service{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;font-weight:600;font-size:12px;line-height:1.2;white-space:nowrap;position:relative;padding-bottom:9px}
+.service .ic{width:48px;height:48px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--chip);transition:.2s}
+.service .ic svg{width:28px;height:28px}
 .service.tint .ic{background:var(--green-l)}
 .service.active .ic{background:var(--green)}
-.service.active::after{content:"";position:absolute;bottom:0;width:74px;height:4px;border-radius:4px;background:var(--green)}
+.service.active::after{content:"";position:absolute;bottom:0;width:40px;height:3px;border-radius:3px;background:var(--green)}
 .service:active .ic{transform:scale(.94)}
+@media (max-width:360px){.service{font-size:11px}}
 
 /* ---------- banner ---------- */
 .banner-wrap{margin:14px 18px 0}
@@ -309,11 +310,11 @@ svg{display:block}
 .hide-desktop-note{display:none}
 
 /* ---------- nav ---------- */
-#nav{position:absolute;left:0;right:0;bottom:0;height:var(--nav-h);background:#fff;border-top:1px solid #eef0f2;display:flex;z-index:20;padding-bottom:env(safe-area-inset-bottom)}
-#nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#8a919b;font-size:14.5px;font-weight:500;position:relative;transition:color .15s}
-#nav button svg{width:34px;height:34px}
+#nav{position:absolute;left:0;right:0;bottom:0;height:var(--nav-h);background:#fff;border-top:1px solid #eef0f2;display:flex;z-index:20;padding-bottom:env(safe-area-inset-bottom, 0px)}
+#nav button{flex:1;min-width:0;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#8a919b;font-size:11px;line-height:1.2;white-space:nowrap;font-weight:500;position:relative;transition:color .15s}
+#nav button svg{width:24px;height:24px;flex:none}
 #nav button.on{color:var(--green);font-weight:700}
-#nav button .badge{position:absolute;top:12px;left:calc(50% + 6px);width:11px;height:11px;border-radius:50%;background:var(--red);border:2px solid #fff}
+#nav button .badge{position:absolute;top:8px;left:calc(50% + 4px);width:9px;height:9px;border-radius:50%;background:var(--red);border:1.5px solid #fff}
 
 /* ---------- bottom sheet / toast ---------- */
 .sheet-backdrop{position:absolute;inset:0;background:rgba(10,14,20,.45);z-index:40;animation:fade .2s both}
@@ -350,8 +351,6 @@ svg{display:block}
 .sheet-btn{width:100%;height:56px;border-radius:28px;background:var(--green);color:#fff;font-family:var(--font-h);font-weight:800;font-size:19px;margin-top:16px}
 
 /* ---------- tinh chỉnh kích thước cho màn hình điện thoại ~390-430px ---------- */
-.service{font-size:14px;gap:8px}
-.service .ic{width:62px;height:62px}
 .order h3{font-size:18px;padding-right:112px}
 .order .price{top:64px;font-size:20px}
 .order .items{font-size:16px;padding-right:84px}
