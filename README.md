@@ -23,3 +23,9 @@ Tài khoản demo: `0901234567` / `123456`
 - Ảnh: thay file trong thư mục `img/` (giữ nguyên tên file).
 
 Font dùng: Plus Jakarta Sans, Inter, Baloo 2 (Google Fonts, cần Internet).
+
+## Banner Đền Hùng và dịch vụ
+
+- Banner đầu trang chủ dùng ảnh cổng Đền Hùng, Phú Thọ, được lưu tại `den-hung.jpg` để không phụ thuộc máy chủ ảnh bên ngoài.
+- Nguồn ảnh: [kiencgvt/den-hung-online — Cong-den-hung.jpg](https://github.com/kiencgvt/den-hung-online/blob/ba599f086870f97ee2ee7cbc3c242b21cda7d634/public/image/Cong-den-hung.jpg).
+- Bốn mục dịch vụ: **Đồ ăn**, **Xe ôm**, **Giao hàng**, **Mua hộ**. Kích thước gọn trên điện thoại; giữ nguyên thanh điều hướng chân trang.

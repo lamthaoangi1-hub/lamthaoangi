@@ -74,6 +74,7 @@
     bellR:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.500a6.500 6.500 0 0 0-6.500 6.500v4.200L3.600 16.300a1 1 0 0 0 .8 1.700h15.200a1 1 0 0 0 .8-1.700l-1.900-3.100V9A6.500 6.500 0 0 0 12 2.500zM9.500 19.500a2.500 2.500 0 0 0 5 0z"/></svg>',
     // service icons (màu)
     svcScooter:'<svg viewBox="0 0 48 48" fill="#fff"><circle cx="24" cy="9" r="4.500"/><path d="M19 15l-4 8h5l3-3 4 4v7h4v-9l-4-5 2-2 4 2 1.500-3-6-3.500z"/><circle cx="12" cy="37" r="5" fill="none" stroke="#fff" stroke-width="3"/><circle cx="37" cy="37" r="5" fill="none" stroke="#fff" stroke-width="3"/><path d="M12 37h15l5-10" stroke="#fff" stroke-width="3" fill="none" stroke-linejoin="round"/><rect x="5" y="22" width="10" height="9" rx="1.500"/></svg>',
+    svcMotorbike:'<svg viewBox="0 0 48 48" fill="none"><circle cx="11" cy="36" r="6" fill="#fff" stroke="#0d6c31" stroke-width="3"/><circle cx="37" cy="36" r="6" fill="#fff" stroke="#0d6c31" stroke-width="3"/><circle cx="24" cy="10" r="4" fill="#1fa24d"/><path d="M20 9a4 4 0 0 1 8 0z" fill="#ffc928"/><path d="M21 16l-5 9h8l4 5h5l-6-10 3-2 5 3 2-3-9-5z" fill="#1fa24d"/><path d="M10 36h15l7-12h3l2 12M8 25h10" stroke="#1fa24d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     svcBasket:'<svg viewBox="0 0 48 48"><circle cx="19" cy="12" r="5" fill="#2e9c3d"/><circle cx="29" cy="9" r="4" fill="#d9362b"/><path d="M33 8l8 3-3 5z" fill="#ffc928"/><path d="M8 20h32l-4 22H12z" fill="#2fa84a"/><rect x="5" y="17" width="38" height="6" rx="2" fill="#27923f"/><path d="M17 26v12M24 26v12M31 26v12" stroke="#a8e0b4" stroke-width="3" stroke-linecap="round"/></svg>',
     svcBox:'<svg viewBox="0 0 48 48"><path d="M24 6L6 14v22l18 8 18-8V14z" fill="#e2a24c"/><path d="M24 6l18 8-18 8-18-8z" fill="#f2bd6b"/><path d="M24 22v22l-18-8V14z" fill="#d18b36"/><path d="M15 10l18 8v7l-4-1.500v-4L11 12z" fill="#fff" opacity=".85"/></svg>',
     svcCar:'<svg viewBox="0 0 48 48"><path d="M5 30c0-4 2-6 4-7l4-8c1-2 3-3 5-3h12c2 0 4 1 5 3l4 8c2 1 4 3 4 7v5H5z" fill="#1fa24d"/><path d="M15 16h18l3.500 7H11.500z" fill="#c9eed4"/><circle cx="14" cy="36" r="5" fill="#0d6c31"/><circle cx="34" cy="36" r="5" fill="#0d6c31"/><circle cx="14" cy="36" r="2" fill="#dff"/><circle cx="34" cy="36" r="2" fill="#dff"/></svg>',
@@ -175,10 +176,9 @@
   const HOME_CATS = ['Tất cả','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'];
   const SERVICES = [
     { k:'food', t:'Đồ ăn', svg:'svcScooter', active:true },
-    { k:'market', t:'Đi chợ', svg:'svcBasket', tint:true },
+    { k:'ride', t:'Xe ôm', svg:'svcMotorbike', tint:true },
     { k:'ship', t:'Giao hàng', svg:'svcBox' },
-    { k:'ride', t:'Di chuyển', svg:'svcCar', tint:true },
-    { k:'more', t:'Xem thêm', svg:'svcMore' },
+    { k:'market', t:'Mua hộ', svg:'svcBasket', tint:true },
   ];
   const SLIDES = [
     ['Món ngon quê mình','Giao nhanh tận nơi'],
@@ -211,10 +211,12 @@
     const el = $('#view-home');
     const scroll = el.scrollTop;
     el.innerHTML = `
-      <div class="hero tall">
+      <div class="hero tall hung">
+        <img class="hero-photo" src="den-hung.jpg" alt="Cổng Đền Hùng, Phú Thọ" fetchpriority="high" decoding="async">
         <div class="hero-top">${locBtn()}${bellBtn()}</div>
         <div style="margin-top:16px">${logo()}</div>
         <p class="tagline">Đặt món dễ dàng – Ngon gần nhà</p>
+        <a class="photo-credit" href="https://github.com/kiencgvt/den-hung-online/blob/ba599f086870f97ee2ee7cbc3c242b21cda7d634/public/image/Cong-den-hung.jpg" target="_blank" rel="noopener noreferrer">Đền Hùng · Nguồn ảnh</a>
       </div>
       <div class="search-float"><label class="search">${ic('search')}<input id="home-q" type="search" placeholder="Bạn muốn ăn gì hôm nay?" value="${S.home.q.replace(/"/g, '&quot;')}" autocomplete="off"><button class="filter-btn" data-act="filter" aria-label="Bộ lọc">${ic('sliders')}</button></label></div>
       <div class="services">${SERVICES.map(s => `<button class="service ${s.active ? 'active' : ''} ${s.tint ? 'tint' : ''}" data-svc="${s.k}"><span class="ic">${fx[s.svg]}</span>${s.t}</button>`).join('')}</div>
@@ -562,7 +564,6 @@
     const svc = t.closest('[data-svc]');
     if (svc) {
       if (svc.dataset.svc === 'food') return;
-      if (svc.dataset.svc === 'more') return openSheet(`<h3>Dịch vụ khác</h3><div class="sub">Các tính năng đang được phát triển</div>${['Đặt bàn','Mã giảm giá','Mua sắm','Dịch vụ tiện ích'].map(x => `<button class="opt" data-sheetmsg="${x} – sắp ra mắt">${ic('plus')}${x}</button>`).join('')}`);
       return toast(svc.querySelector('.ic').nextSibling.textContent + ' – sắp ra mắt');
     }
     const otab = t.closest('[data-otab]'); if (otab) { S.orders.tab = otab.dataset.otab; renderOrders(); return; }
