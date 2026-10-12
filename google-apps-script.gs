@@ -131,7 +131,7 @@ function notifyOrder(body) {
   });
   push(adminIds, 'admin', zaloText(order, shop, 'Vui lòng mở trang quản trị để theo dõi đơn.'));
   push(shopIds, 'shop', zaloText(order, shop, 'Vui lòng mở trang quán để NHẬN ĐƠN.'));
-  push(shipperIds, 'shipper', zaloText(order, shop, 'Shipper: mở trang giao hàng để xem và NHẬN ĐƠN khi quán đã nhận.'));
+  push(shipperIds, 'shipper', '🛎 Có đơn mới! Mở trang shipper để xem và nhận đơn.');
   return out({ ok: true, result: result });
 }
 

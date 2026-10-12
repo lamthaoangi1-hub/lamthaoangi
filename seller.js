@@ -3,15 +3,13 @@ import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFir
 start({ title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
   let tab = 'orders', shop = null, orders = [], err = '', fil = 'active';
-  const NEXT = { pending:['confirmed', 'Nhận đơn'], confirmed:['preparing', 'Bắt đầu làm'], preparing:['ready', 'Món xong – gọi shipper'] };
 
   function orderCard(o) {
     const items = (o.items || []).map(i => `<li>${i.qty} x ${esc(i.name)} <span class="muted">${money(i.price * i.qty)}</span></li>`).join('');
-    const nx = NEXT[o.status];
     return `<div class="card"><div class="row sb"><b>#${esc(o.code)}</b>${badge(o.status)}</div><div class="muted">${fmtTime(o.createdAt)} · ${esc(o.customerName)} · <a href="tel:${esc(o.customerPhone)}">${esc(o.customerPhone)}</a></div>
       <ul class="items">${items}</ul>${o.note ? `<p class="muted">Ghi chú: ${esc(o.note)}</p>` : ''}
       <div class="row sb"><span>Tổng: <b class="total">${money(o.total)}</b> <span class="muted">· tiền mặt${o.shipperName ? ' · Shipper: ' + esc(o.shipperName) : ''}</span></span>
-      <span class="row">${o.status === 'pending' || o.status === 'confirmed' || o.status === 'preparing' ? `<button class="btn sm r" data-cancel="${o.id}">Từ chối/Hủy</button>` : ''}${nx ? `<button class="btn sm" data-next="${o.id}" data-st="${nx[0]}">${nx[1]}</button>` : ''}</span></div></div>`;
+      <span class="muted">Quán chỉ xem đơn – shipper nhận và giao</span></div></div>`;
   }
   function ordersTab() {
     const act = o => ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(o.status);
@@ -56,8 +54,6 @@ start({ title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
     const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; draw(); return; }
     const f = e.target.closest('[data-fil]'); if (f) { fil = f.dataset.fil; draw(); return; }
     try {
-      const nx = e.target.closest('[data-next]'); if (nx) { await fb.patchOrder(nx.dataset.next, { status:nx.dataset.st }); return; }
-      const c = e.target.closest('[data-cancel]'); if (c) { if (confirm('Từ chối/hủy đơn này?')) await fb.patchOrder(c.dataset.cancel, { status:'cancelled' }); return; }
       const sl = e.target.closest('[data-shareloc]');
       if (sl) {
         if (shop.lat != null) return;

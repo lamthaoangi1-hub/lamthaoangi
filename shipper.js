@@ -14,7 +14,7 @@ start({ title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
       ${o.note ? `<p class="muted" style="margin-top:6px">Ghi chú: ${esc(o.note)}</p>` : ''}
       <ul class="items">${items}</ul>
       <div class="row sb"><span>Thu tiền mặt: <b class="total">${money(o.total)}</b> <span class="muted">(ship ${money(o.shipFee)})</span></span>
-      ${kind === 'open' ? (o.status === 'pending' ? '<span class="muted">Chờ quán nhận đơn</span>' : `<button class="btn" data-claim="${o.id}">Nhận đơn</button>`) : o.status === 'delivering' ? `<button class="btn" data-done="${o.id}">Đã giao xong</button>` : ''}</div></div>`;
+      ${kind === 'open' ? `<button class="btn" data-claim="${o.id}">Nhận đơn</button>` : o.status === 'delivering' ? `<button class="btn" data-done="${o.id}">Đã giao xong</button>` : ''}</div></div>`;
   }
   function draw() {
     const active = mine.filter(o => o.status === 'delivering').sort(newestFirst);

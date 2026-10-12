@@ -12,7 +12,7 @@ Website gồm 4 giao diện, dùng chung một cơ sở dữ liệu Firebase:
 Khi `firebase-config.js` **chưa điền**, website tự chạy chế độ DEMO với dữ liệu mẫu (không lưu gì thật).
 
 ## Luồng đơn hàng
-Khách đặt → (Chờ xác nhận; shipper đã thấy đơn ngay) → Quán nhận đơn → Quán đang chuẩn bị → Quán báo món xong (Chờ shipper) → Shipper nhận (Đang giao) → Shipper bấm đã giao (Hoàn thành). Quán và Admin có thể hủy đơn.
+Khách đặt (shipper và quán thấy đơn ngay, shipper nhận Zalo "Có đơn mới") → Shipper nhận đơn (Đang giao) → Shipper bấm đã giao (Hoàn thành). Quán chỉ xem đơn, không đổi được trạng thái. Admin đổi trạng thái hoặc hủy đơn được; khách tự hủy được khi shipper chưa nhận.
 
 ## Thiết lập (làm một lần, ~15 phút)
 

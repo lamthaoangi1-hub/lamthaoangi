@@ -318,7 +318,7 @@
   function trackSheet(o) {
     const s = shopBy(o.shop);
     const idx = o.status ? ({ pending:0, confirmed:1, preparing:1, ready:1, delivering:2, done:3, cancelled:-1 }[o.status] ?? 0) : ({ proc:1, ship:2, done:3 }[o.st] ?? 0);
-    const steps = [['Đã đặt đơn', o.when], ['Quán đã xác nhận', 'Món ăn đang được chuẩn bị'], ['Tài xế đang giao hàng', o.shipperName ? 'Tài xế: ' + o.shipperName : 'Đang trên đường đến bạn'], ['Giao thành công', 'Cảm ơn bạn đã đặt món']];
+    const steps = [['Đã đặt đơn', o.when], ['Đã báo cho quán và tài xế', 'Đang chờ tài xế nhận đơn'], ['Tài xế đang giao hàng', o.shipperName ? 'Tài xế: ' + o.shipperName : 'Đang trên đường đến bạn'], ['Giao thành công', 'Cảm ơn bạn đã đặt món']];
     openSheet(`<h3>Theo dõi đơn #${o.code}</h3><div class="sub">${s.name}${o.status === 'cancelled' ? ' • Đơn đã hủy' : ''}</div>
       <div class="track">${steps.map((st, i) => `<div class="st ${i <= idx ? 'done' : ''}"><i></i><b>${st[0]}</b><small>${st[1]}</small></div>`).join('')}</div>
       <button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`);
@@ -642,7 +642,7 @@
       FB.notifyNewOrder(ref.id);   // Gmail admin + Zalo quán/admin (chạy nền)
       FB.updateMyProfile(S.user.uid, { address:addr }).catch(() => {}); S.user.address = addr;
       CART.q = {}; CART.promo = ''; CART.note = ''; CART.address = null; CART.loc = null;
-      closeSheet(); S.orders.tab = 'proc'; go('orders'); toast('Đặt đơn thành công! Quán sẽ xác nhận sớm.');
+      closeSheet(); S.orders.tab = 'proc'; go('orders'); toast('Đặt đơn thành công! Đang chờ tài xế nhận đơn.');
     } catch (e) { btn.disabled = false; toast(FB.errMsg(e)); }
   }
   function shareLoc(btn) {
@@ -809,9 +809,9 @@
     return days <= 0 ? `Hôm nay, ${hm}` : days === 1 ? `Hôm qua, ${hm}` : `${d.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' })}, ${hm}`;
   };
   const ST_MAP = { pending:'proc', confirmed:'proc', preparing:'proc', ready:'proc', delivering:'ship', done:'done', cancelled:'done' };
-  const ST_LABEL = { pending:'Chờ quán xác nhận', confirmed:'Quán đã nhận đơn', preparing:'Đang chuẩn bị', ready:'Chờ tài xế', delivering:'Đang giao', done:'Hoàn thành', cancelled:'Đã hủy' };
+  const ST_LABEL = { pending:'Chờ tài xế nhận đơn', confirmed:'Quán đã nhận đơn', preparing:'Đang chuẩn bị', ready:'Chờ tài xế', delivering:'Đang giao', done:'Hoàn thành', cancelled:'Đã hủy' };
   const ST_NOTE = {
-    pending:['Đã gửi đơn hàng', 'đang chờ xác nhận đơn của bạn.'], confirmed:['Quán đã xác nhận đơn', 'đã xác nhận đơn hàng của bạn.'],
+    pending:['Đã gửi đơn hàng', 'đang chờ tài xế nhận đơn của bạn.'], confirmed:['Quán đã xác nhận đơn', 'đã xác nhận đơn hàng của bạn.'],
     preparing:['Quán đang chuẩn bị món', 'đang chuẩn bị món cho bạn.'], ready:['Món đã sẵn sàng', 'đã làm xong, đang chờ tài xế đến lấy.'],
     delivering:['Tài xế đang giao hàng', 'Đơn hàng của bạn đang trên đường đến.'], done:['Đơn hàng đã giao thành công', 'Cảm ơn bạn đã đặt món!'], cancelled:['Đơn hàng đã bị hủy', 'đơn hàng đã bị hủy.'],
   };
