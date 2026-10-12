@@ -4,8 +4,8 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWith
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, limit, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { firebaseConfig } from './firebase-config.js';
-import { UPLOAD_URL } from './upload-config.js';
+import { firebaseConfig } from './firebase-config.js?v=20261012b';
+import { UPLOAD_URL } from './upload-config.js?v=20261012b';
 
 export const configured = !!firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(firebaseConfig.apiKey);
 let auth, db;
@@ -79,12 +79,16 @@ export const placeOrder = o => addDoc(collection(db, 'orders'), { ...o, createdA
 /* Báo đơn mới qua Gmail (admin) + Zalo (quán, admin) bằng Google Apps Script. Không chặn việc đặt đơn nếu lỗi. */
 export async function notifyNewOrder(orderId) {
   if (!UPLOAD_URL) return;
-  try {
-    const token = await idToken();
-    const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'notifyOrder', token, orderId }) });
-    const j = await res.json().catch(() => null);
-    console.log('[Báo đơn mới]', j);   // mở F12 → Console để xem kết quả: ok:true là đã gửi, ok:false có kèm lý do
-  } catch (e) { console.warn('Không gửi được thông báo đơn mới', e); }
+  for (let i = 0; i < 3; i++) {   // thử lại tối đa 3 lần nếu mạng/Google chập chờn
+    try {
+      const token = await idToken();
+      const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'notifyOrder', token, orderId }) });
+      const j = await res.json().catch(() => null);
+      console.log('[Báo đơn mới]', j);   // F12 → Console: ok:true là đã gửi
+      if (j && j.ok) return;
+    } catch (e) { console.warn('Không gửi được thông báo đơn mới', e); }
+    await new Promise(r => setTimeout(r, 3000));
+  }
 }
 export const patchOrder = (id, patch) => updateDoc(doc(db, 'orders', id), { ...patch, updatedAt:serverTimestamp() });
 export const createShop = d => addDoc(collection(db, 'shops'), { ...d, createdAt:serverTimestamp() });

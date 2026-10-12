@@ -33,7 +33,8 @@ service cloud.firestore {
     }
 
     match /promos/{id} { allow read: if true; allow write: if isAdmin(); }
-    match /settings/{id} { allow read: if true; allow write: if isAdmin(); }
+    // settings/notify chứa Zalo ID nhận báo đơn: chỉ người đã đăng nhập mới đọc được
+    match /settings/{id} { allow read: if id != 'notify' || signedIn(); allow write: if isAdmin(); }
 
     // Đơn hàng
     match /orders/{id} {
@@ -48,6 +49,9 @@ service cloud.firestore {
         && request.resource.data.status == 'pending'
         && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 40
         && request.resource.data.total is number && request.resource.data.total >= 0
+        // tổng tiền phải khớp: tạm tính - giảm giá + phí ship; quán phải tồn tại
+        && request.resource.data.total == request.resource.data.subtotal - request.resource.data.discount + request.resource.data.shipFee
+        && exists(/databases/$(database)/documents/shops/$(request.resource.data.shopId))
         // bắt buộc có vị trí GPS của khách
         && request.resource.data.lat is number && request.resource.data.lng is number;
 

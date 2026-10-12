@@ -279,7 +279,7 @@
     if (!l.length) return `<div class="empty"><b>Chưa có đơn hàng</b>Các đơn hàng của bạn sẽ hiển thị ở đây.</div>`;
     return l.map((o, i) => {
       const s = shopBy(o.shop), st = ST[o.st];
-      const second = o.st === 'proc' ? `<button class="btn-soft plain" data-contact="${o.code}">${ic('headset')}Liên hệ quán</button>`
+      const second = o.st === 'proc' ? (o.status === 'pending' ? `<button class="btn-soft plain" data-cancelorder="${o.code}" style="color:var(--red)">Hủy đơn</button>` : `<button class="btn-soft plain" data-contact="${o.code}">${ic('headset')}Liên hệ quán</button>`)
         : o.st === 'ship' ? `<button class="btn-soft" data-track="${o.code}">${fx.pinF.replace('<svg','<svg width="24" height="24"')}Theo dõi đơn</button>`
         : `<button class="btn-soft" data-reorder="${o.code}">${ic('refresh')}Đặt lại</button>`;
       return `<article class="order" style="animation-delay:${i * 50}ms">
@@ -761,6 +761,15 @@
     const ntab = t.closest('[data-ntab]'); if (ntab) { S.noti.tab = ntab.dataset.ntab; renderNotifications(); return; }
     const det = t.closest('[data-detail]'); if (det) return orderDetail(orderByCode(det.dataset.detail));
     const trk = t.closest('[data-track]'); if (trk) return trackSheet(orderByCode(trk.dataset.track));
+    const cx = t.closest('[data-cancelorder]');
+    if (cx) {
+      const o = orderByCode(cx.dataset.cancelorder);
+      if (!o || !LIVE) return toast('Không hủy được đơn này');
+      if (!confirm('Hủy đơn #' + o.code + '?')) return;
+      cx.disabled = true;
+      FB.patchOrder(o.id, { status:'cancelled' }).then(() => toast('Đã hủy đơn')).catch(e => { cx.disabled = false; toast(FB.errMsg(e) + ' (có thể shipper vừa nhận đơn)'); });
+      return;
+    }
     const ctc = t.closest('[data-contact]'); if (ctc) return contactSheet(orderByCode(ctc.dataset.contact));
     const re = t.closest('[data-reorder]'); if (re) { reorder(orderByCode(re.dataset.reorder)); return; }
     const nt = t.closest('[data-notice]');
@@ -877,7 +886,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js').then(m => {
+    import('./fb.js?v=20261012b').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -910,7 +919,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js')
+  import('./firebase-config.js?v=20261012b')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });

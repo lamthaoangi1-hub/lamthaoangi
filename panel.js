@@ -1,5 +1,5 @@
 /* Khung dùng chung cho 3 trang quản lý: đăng nhập, kiểm tra quyền, tiện ích hiển thị */
-import * as fb from './fb.js';
+import * as fb from './fb.js?v=20261012b';
 export { fb };
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];

@@ -106,9 +106,9 @@ function notifyOrder(body) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const key = 'notified_' + body.orderId;
-    if (props().getProperty(key)) return out({ ok: true, duplicate: true });
-    props().setProperty(key, String(Date.now()));
+    const cache = CacheService.getScriptCache(), key = 'notified_' + body.orderId;   // cache tự xóa sau 6 giờ, không đầy bộ nhớ như Script properties
+    if (cache.get(key)) return out({ ok: true, duplicate: true });
+    cache.put(key, '1', 21600);
   } finally { lock.releaseLock(); }
 
   const result = { email: false, admin: 0, shop: 0, shipper: 0 };
