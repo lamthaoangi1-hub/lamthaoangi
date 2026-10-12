@@ -349,10 +349,10 @@
     const l = favShops();
     const recent = S.favs.map(id => SHOPS.find(s => s.id === id)).filter(Boolean).slice(0, 3);
     return `
-      ${recent.length && S.fav.cat === 'Tất cả' && !S.fav.q ? `<div class="row-head"><h2 class="h2" style="font-size:25px">Đã lưu gần đây</h2><button class="see-all" data-act="fav-all">Xem tất cả ${ic('chevRight')}</button></div>
+      ${recent.length && S.fav.cat === 'Tất cả' && !S.fav.q ? `<div class="row-head"><h2 class="h2" style="font-size:20px">Đã lưu gần đây</h2><button class="see-all" data-act="fav-all">Xem tất cả ${ic('chevRight')}</button></div>
       <div class="recent">${recent.map(s => `<div class="rcard" data-shop="${s.id}"><div class="ph"><img src="${s.img}" alt="${s.name}"><button class="hb" data-heart="${s.id}" aria-label="Bỏ yêu thích">${fx.heartF}</button></div>
         <div class="in"><h4>${s.name}</h4><div class="cat">${s.cat}</div>${shopMeta(s).replace('class="meta"','class="meta" style="flex-wrap:wrap;gap:4px 10px"')}${shopTags(s)}</div></div>`).join('')}</div>` : ''}
-      <div class="row-head"><h2 class="h2" style="font-size:25px">Tất cả quán yêu thích</h2>
+      <div class="row-head"><h2 class="h2" style="font-size:20px">Tất cả quán yêu thích</h2>
         <label class="sort"><select id="fav-sort"><option value="recent" ${S.fav.sort === 'recent' ? 'selected' : ''}>Mới lưu nhất</option><option value="rate" ${S.fav.sort === 'rate' ? 'selected' : ''}>Đánh giá cao</option><option value="name" ${S.fav.sort === 'name' ? 'selected' : ''}>Tên A - Z</option></select>${ic('chevDown')}</label></div>
       <div class="shop-list" style="padding-top:12px">${l.length ? l.map(favRow).join('') : `<div class="empty"><b>Chưa có quán yêu thích</b>Nhấn vào biểu tượng trái tim ở mỗi quán để lưu lại.</div>`}</div>`;
   }
@@ -360,7 +360,7 @@
     const el = $('#view-favorites'); const sc = el.scrollTop;
     el.innerHTML = `
       <div class="hero mid"><div class="hero-top" style="justify-content:flex-end">${bellBtn().replace('class="bell"','class="bell" style="opacity:0;pointer-events:none"')}</div>
-        <div class="page-title" style="margin-top:-6px;display:flex;align-items:center;gap:8px;font-size:46px;font-family:var(--font-h);letter-spacing:-1px;text-shadow:-2px -2px 0 #0b6a33,2px -2px 0 #0b6a33,-2px 2px 0 #0b6a33,2px 2px 0 #0b6a33">Yêu thích <span style="width:46px;height:46px;color:var(--yellow);filter:drop-shadow(0 2px 0 #0b6a33)">${fx.heartF}</span></div>
+        <div class="page-title" style="margin-top:-6px;display:flex;align-items:center;gap:8px;font-size:30px;font-family:var(--font-h);letter-spacing:-1px;text-shadow:-2px -2px 0 #0b6a33,2px -2px 0 #0b6a33,-2px 2px 0 #0b6a33,2px 2px 0 #0b6a33">Yêu thích <span style="width:46px;height:46px;color:var(--yellow);filter:drop-shadow(0 2px 0 #0b6a33)">${fx.heartF}</span></div>
         <p class="page-sub">Những quán ngon bạn yêu thích<br>luôn ở đây <span style="color:var(--yellow)">💛</span></p></div>
       <div class="fav-search"><label class="search">${ic('search')}<input id="fav-q" type="search" placeholder="Tìm quán ăn, món ăn trong danh sách yêu thích..." value="${S.fav.q}" autocomplete="off"><button class="filter-btn" data-act="filter-fav" aria-label="Bộ lọc">${ic('sliders')}</button></label></div>
       <div class="chips sm">${FAV_CATS.map(([c, i]) => `<button class="chip ${S.fav.cat === c ? 'on' : ''}" data-fcat="${c}">${i ? favIcons[i] : ''}${c}</button>`).join('')}</div>
@@ -387,8 +387,8 @@
   function renderNotifications() {
     $('#view-notifications').innerHTML = `
       <div class="hero short" style="padding-bottom:40px"><div class="hero-top" style="justify-content:flex-end">${bellBtn()}</div>
-        <div class="page-title" style="margin-top:-30px">Thông báo</div><p class="page-sub" style="font-size:16px">Cập nhật mới nhất về đơn hàng, ưu đãi<br>và hoạt động của bạn</p></div>
-      <div class="sheet-top" style="margin-top:-20px"><div class="seg" style="margin-top:6px;gap:10px">${NTABS.map(([k, t]) => `<button style="height:54px;font-size:17px" class="${S.noti.tab === k ? 'on' : ''}" data-ntab="${k}">${t}</button>`).join('')}</div></div>
+        <div class="page-title" style="margin-top:-30px">Thông báo</div><p class="page-sub" style="font-size:14px">Cập nhật mới nhất về đơn hàng, ưu đãi<br>và hoạt động của bạn</p></div>
+      <div class="sheet-top" style="margin-top:-20px"><div class="seg" style="margin-top:6px;gap:10px">${NTABS.map(([k, t]) => `<button style="height:54px;font-size:15px" class="${S.noti.tab === k ? 'on' : ''}" data-ntab="${k}">${t}</button>`).join('')}</div></div>
       <div class="notice-list" id="notice-list">${noticesHtml()}</div>`;
   }
 
@@ -406,7 +406,7 @@
     const el = $('#view-profile');
     if (S.user) {
       el.innerHTML = `
-        <div class="hero" style="padding-bottom:110px"><div style="padding-top:34px"><div class="page-title" style="font-size:42px">Cá nhân</div><p class="page-sub">Quản lý tài khoản của bạn</p></div></div>
+        <div class="hero" style="padding-bottom:110px"><div style="padding-top:34px"><div class="page-title" style="font-size:28px">Cá nhân</div><p class="page-sub">Quản lý tài khoản của bạn</p></div></div>
         <div class="profile-card" style="margin-top:-96px">
           <div class="pc-top" data-menu="account"><div class="avatar"><img src="avatar.jpg" alt="${S.user.name}"><span class="cam">${ic('camera')}</span></div>
             <div class="pc-info"><h2>${S.user.name}</h2><div class="phone">${fmtPhone(S.user.phone)}</div><span class="member">${fx.crown.replace('<svg','<svg width="24" height="24"')}${LIVE ? 'Thành viên' : 'Thành viên bạc'} ${ic('chevRight')}</span></div></div>
@@ -429,7 +429,7 @@
         </div><div class="pad-bottom"></div>`;
     } else {
       el.innerHTML = `
-        <div class="hero" style="padding-bottom:50px"><div style="padding-top:34px"><div class="page-title" style="font-size:42px">Cá nhân</div><p class="page-sub">Đăng nhập để quản lý đơn hàng,<br>địa chỉ và ưu đãi của bạn</p></div></div>
+        <div class="hero" style="padding-bottom:50px"><div style="padding-top:34px"><div class="page-title" style="font-size:28px">Cá nhân</div><p class="page-sub">Đăng nhập để quản lý đơn hàng,<br>địa chỉ và ưu đãi của bạn</p></div></div>
         <div class="guest-card"><div class="guest-top"><div class="ghost">${fx.guestUser}<span class="spark">${fx.spark}</span></div>
           <div><h2>Bạn chưa đăng nhập</h2><p>Đăng nhập hoặc đăng ký để trải nghiệm đầy đủ tính năng và nhận nhiều ưu đãi hấp dẫn từ Lâm Thao Ăn Gì!</p></div></div>
           <div class="guest-btns"><button class="btn primary" data-auth="login">${ic('login')}Đăng nhập</button><button class="btn outline" data-auth="register">${ic('user')}Đăng ký</button></div></div>
@@ -603,9 +603,9 @@
       ${c.promoOff ? `<div class="row-kv"><span>Mã ${esc(c.promo.code)}</span><b>-${money(c.promoOff)}</b></div>` : ''}
       <div class="row-kv"><span>Phí giao hàng</span><b>${c.ship ? money(c.ship) : 'Miễn phí'}</b></div>
       <div class="row-kv"><span>Tổng thanh toán</span><b style="color:var(--green-d)">${money(c.total)}</b></div></div>
-      <div class="sheet-input"><input id="co-addr" placeholder="Địa chỉ nhận hàng (số nhà, thôn/xóm)" value="${esc(addr)}" autocomplete="street-address" style="flex:1;border:0;background:none;font-size:16px;outline:0"></div>
-      <div class="sheet-input"><input id="co-note" placeholder="Ghi chú cho quán (không bắt buộc)" value="${esc(CART.note)}" style="flex:1;border:0;background:none;font-size:16px;outline:0"></div>
-      <div class="sheet-input"><input id="co-promo" placeholder="Mã giảm giá" value="${esc(CART.promo)}" style="flex:1;border:0;background:none;font-size:16px;outline:0;text-transform:uppercase"><button data-applypromo style="color:var(--green-d);font-weight:700">Áp dụng</button></div>
+      <div class="sheet-input"><input id="co-addr" placeholder="Địa chỉ nhận hàng (số nhà, thôn/xóm)" value="${esc(addr)}" autocomplete="street-address" style="flex:1;border:0;background:none;font-size:14px;outline:0"></div>
+      <div class="sheet-input"><input id="co-note" placeholder="Ghi chú cho quán (không bắt buộc)" value="${esc(CART.note)}" style="flex:1;border:0;background:none;font-size:14px;outline:0"></div>
+      <div class="sheet-input"><input id="co-promo" placeholder="Mã giảm giá" value="${esc(CART.promo)}" style="flex:1;border:0;background:none;font-size:14px;outline:0;text-transform:uppercase"><button data-applypromo style="color:var(--green-d);font-weight:700">Áp dụng</button></div>
       <button class="sheet-btn" data-shareloc ${CART.loc ? 'disabled' : ''} style="background:var(--green-l);color:var(--green-d);margin-top:14px">${CART.loc ? '✓ Đã chia sẻ vị trí giao hàng' : '📍 Chia sẻ vị trí giao hàng (bắt buộc)'}</button>
       <div class="sub" style="margin-top:6px;${CART.loc ? '' : 'color:var(--red)'}">${CART.loc ? 'Shipper sẽ thấy đúng vị trí của bạn trên bản đồ.' : 'Bạn cần chia sẻ vị trí mới gửi được đơn. Bấm 1 lần để lưu.'}</div>
       <div class="row-kv" style="margin-top:8px"><span>Khu vực / Thanh toán</span><b>${esc(S.area)} · Tiền mặt</b></div>
@@ -736,7 +736,7 @@
       if (n && n.unread) { n.unread = false; store.set('notices', S.notices); store.set('readn', S.notices.filter(x => !x.unread).map(x => x.id)); $('.unread', nt).classList.add('off'); renderNav(); $$('.bell i').forEach(i => { if (!unreadCount()) i.remove(); }); }
       const d = NOTICES.find(x => String(x.id) === nt.dataset.notice);
       if (d.type === 'order') return go('orders');
-      return openSheet(`<h3>${d.title}</h3><div class="sub">${d.time}</div><p style="margin-top:12px;font-size:17px;line-height:1.5">${d.body}</p><button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đã hiểu</button>`);
+      return openSheet(`<h3>${d.title}</h3><div class="sub">${d.time}</div><p style="margin-top:12px;font-size:15px;line-height:1.5">${d.body}</p><button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đã hiểu</button>`);
     }
     const at = t.closest('[data-atab]');
     if (at) { S.authTab = at.dataset.atab; $$('[data-atab]').forEach(b => b.classList.toggle('on', b === at)); if (S.authTab === 'register') { $('#reg-card').scrollIntoView({ behavior:'smooth', block:'start' }); setTimeout(() => $('#reg-form input').focus({ preventScroll:true }), 400); } else { $('#view-auth').scrollTo({ top:0, behavior:'smooth' }); } return; }
@@ -751,7 +751,7 @@
     const a = act.dataset.act;
     if (a === 'forgot' && LIVE) { e.preventDefault(); return openSheet(`<h3>Quên mật khẩu?</h3><div class="sub">Vui lòng gọi hotline <b>${CONTACT.hotline}</b> để được đặt lại mật khẩu.</div><a class="sheet-btn" style="display:block;text-align:center;text-decoration:none" href="tel:${telHot()}">Gọi hotline</a>`); }
     if (a === 'forgot') { e.preventDefault(); return openSheet(`<h3>Quên mật khẩu?</h3><div class="sub">Nhập số điện thoại để nhận mã đặt lại mật khẩu.</div><div class="sheet-input">${fx.phoneF.replace('<svg','<svg width="24" height="24"')}<input type="tel" placeholder="Số điện thoại" inputmode="numeric"></div><button class="sheet-btn" data-sheetmsg="Đã gửi mã xác nhận (demo)">Gửi mã xác nhận</button>`); }
-    if (a === 'terms' || a === 'privacy') { e.preventDefault(); return openSheet(`<h3>${a === 'terms' ? 'Điều khoản sử dụng' : 'Chính sách bảo mật'}</h3><p style="margin-top:12px;color:var(--ink-2);line-height:1.55;font-size:16px">Nội dung mẫu. Hãy thay bằng ${a === 'terms' ? 'điều khoản sử dụng' : 'chính sách bảo mật'} chính thức của Lâm Thao Ăn Gì.</p><button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`); }
+    if (a === 'terms' || a === 'privacy') { e.preventDefault(); return openSheet(`<h3>${a === 'terms' ? 'Điều khoản sử dụng' : 'Chính sách bảo mật'}</h3><p style="margin-top:12px;color:var(--ink-2);line-height:1.55;font-size:14px">Nội dung mẫu. Hãy thay bằng ${a === 'terms' ? 'điều khoản sử dụng' : 'chính sách bảo mật'} chính thức của Lâm Thao Ăn Gì.</p><button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`); }
     if (a === 'area') return openSheet(`<h3>Chọn khu vực giao hàng</h3>${AREAS.map(x => `<button class="opt ${x === S.area ? 'sel' : ''}" data-setarea="${x}">${ic('mapPin')}${x}${x === S.area ? `<span class="tick">${ic('check')}</span>` : ''}</button>`).join('')}`);
     if (a === 'filter') return openSheet(`<h3>Sắp xếp &amp; lọc</h3>${[['default','Mặc định'],['rate','Đánh giá cao nhất'],['fast','Giao nhanh nhất'],['sale','Đang giảm giá']].map(([k, l]) => `<button class="opt ${S.home.sort === k ? 'sel' : ''}" data-setsort="${k}">${l}${S.home.sort === k ? `<span class="tick">${ic('check')}</span>` : ''}</button>`).join('')}`);
     if (a === 'filter-fav') return openSheet(`<h3>Sắp xếp yêu thích</h3>${[['recent','Mới lưu nhất'],['rate','Đánh giá cao'],['name','Tên A - Z']].map(([k, l]) => `<button class="opt ${S.fav.sort === k ? 'sel' : ''}" data-setfsort="${k}">${l}${S.fav.sort === k ? `<span class="tick">${ic('check')}</span>` : ''}</button>`).join('')}`);
@@ -776,7 +776,7 @@
     if (k === 'address') return openSheet(`<h3>Địa chỉ đã lưu</h3><button class="opt">${ic('mapPin')}<span><b>Nhà</b><br><small style="color:var(--ink-2)">${S.area}</small></span></button><button class="sheet-btn" data-sheetmsg="Thêm địa chỉ mới (demo)">+ Thêm địa chỉ mới</button>`);
     if (k === 'payment') return openSheet(`<h3>Phương thức thanh toán</h3>${['Tiền mặt','Thẻ ngân hàng','Ví điện tử'].map((x, i) => `<button class="opt ${i === 0 ? 'sel' : ''}">${ic('check')}${x}</button>`).join('')}`);
     if (k === 'coupons') return openSheet(`<h3>Mã giảm giá của bạn</h3>${(LIVE ? PROMOS.map(p => [esc(p.code), esc(p.desc)]) : [['GIAM30K','Giảm 30K cho đơn từ 100K'],['CUOITUAN','Giảm 20K cho đơn từ 80K'],['FREESHIP','Miễn phí giao hàng đơn từ 60K']]).map(([c, d]) => `<div class="row-kv"><span><b>${c}</b><br><small style="color:var(--ink-2)">${d}</small></span><button style="color:var(--green-d);font-weight:700" data-copy="${c}">Sao chép</button></div>`).join('')}`);
-    if (k === 'points') return openSheet(`<h3>Điểm tích lũy</h3><div style="font-family:var(--font-h);font-weight:800;font-size:40px;color:var(--green-d);margin-top:10px">${LIVE ? S.points : 820} điểm</div><div class="sub">${LIVE ? 'Tích 1 điểm cho mỗi 1.000đ của đơn đã hoàn thành' : 'Còn 180 điểm để lên hạng Vàng'}</div>`);
+    if (k === 'points') return openSheet(`<h3>Điểm tích lũy</h3><div style="font-family:var(--font-h);font-weight:700;font-size:28px;color:var(--green-d);margin-top:10px">${LIVE ? S.points : 820} điểm</div><div class="sub">${LIVE ? 'Tích 1 điểm cho mỗi 1.000đ của đơn đã hoàn thành' : 'Còn 180 điểm để lên hạng Vàng'}</div>`);
     if (k === 'lang') return openSheet(`<h3>Ngôn ngữ</h3><button class="opt sel">Tiếng Việt<span class="tick">${ic('check')}</span></button><button class="opt" data-sheetmsg="English – sắp ra mắt">English</button>`);
     if (k === 'contact') return openSheet(`<h3>Liên hệ Lâm Thao Ăn Gì</h3><a class="opt" href="tel:${telHot()}">${ic('phone')}Hotline: ${esc(CONTACT.hotline)}</a><a class="opt" href="mailto:${esc(CONTACT.email)}">${ic('mail')}${esc(CONTACT.email)}</a>${CONTACT.zalo ? `<div class="row-kv"><span>Zalo</span><b>${esc(CONTACT.zalo)}</b></div>` : ''}`);
     if (k === 'notif' || k === 'settings') return openSheet(`<h3>${k === 'notif' ? 'Cài đặt thông báo' : 'Cài đặt'}</h3>${['Thông báo đơn hàng','Thông báo ưu đãi','Thông báo hệ thống'].map(x => `<div class="row-kv"><span>${x}</span><b style="color:var(--green-d)">Bật</b></div>`).join('')}`);

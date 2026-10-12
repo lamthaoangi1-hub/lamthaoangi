@@ -39,7 +39,7 @@ export function start({ title, roles, render }) {
     return;
   }
   const loginView = (msg = '') => {
-    app.innerHTML = `<div class="login"><div class="card"><h3 style="font-size:20px">${esc(title)}</h3><p class="muted">Đăng nhập bằng tài khoản đã đăng ký trên website</p>
+    app.innerHTML = `<div class="login"><div class="card"><h3 style="font-size:17px">${esc(title)}</h3><p class="muted">Đăng nhập bằng tài khoản đã đăng ký trên website</p>
       <form id="lf"><label class="f">Số điện thoại<input type="tel" name="p" inputmode="numeric" autocomplete="username" required></label>
       <label class="f">Mật khẩu<input type="password" name="w" autocomplete="current-password" required></label>
       <div class="err" id="le">${esc(msg)}</div><button class="btn" style="width:100%;margin-top:6px">Đăng nhập</button></form>
