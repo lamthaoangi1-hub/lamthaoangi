@@ -67,7 +67,7 @@ export function start({ title, roles, render }) {
 }
 
 /* ---- Trình sửa thực đơn dùng chung (Admin + Nhà bán hàng) ---- */
-export const menuRowHtml = (m = {}) => `<div class="mitem" data-mrow><div class="mrow"><input type="text" placeholder="Tên món" value="${esc(m.name || '')}" data-k="name"><input type="number" min="0" step="1000" placeholder="Giá (đ)" value="${m.price ?? ''}" data-k="price"><label class="sw" style="margin:0"><input type="checkbox" data-k="available" ${m.available === false ? '' : 'checked'}>Còn</label><button type="button" class="btn sm r" data-mdel title="Xóa món">×</button></div><div class="mrow2"><input type="text" placeholder="Nhóm món (VD: Đồ ăn nhanh)" value="${esc(m.cat || '')}" data-k="cat"><input type="url" placeholder="Link ảnh món (không bắt buộc)" value="${esc(m.img || '')}" data-k="img"></div></div>`;
+export const menuRowHtml = (m = {}) => `<div class="mitem" data-mrow><div class="mrow"><input type="text" placeholder="Tên món" value="${esc(m.name || '')}" data-k="name"><input type="number" min="0" step="1000" placeholder="Giá (đ)" value="${m.price ?? ''}" data-k="price"><label class="sw" style="margin:0"><input type="checkbox" data-k="available" ${m.available === false ? '' : 'checked'}>Còn</label><button type="button" class="btn sm r" data-mdel title="Xóa món">×</button></div><div class="mrow2"><input type="text" placeholder="Nhóm món (VD: Đồ ăn nhanh)" value="${esc(m.cat || '')}" data-k="cat">${imgUpHtml(m.img || '')}</div></div>`;
 export const menuEditorHtml = menu => `<div class="mrow hd"><span>Tên món</span><span>Giá</span><span>Còn bán</span><span></span></div><div id="menu-rows">${(menu || []).map(menuRowHtml).join('')}</div><button type="button" class="btn sm o" style="margin-top:10px" data-madd>+ Thêm món</button>`;
 export function bindMenuEditor(root) {
   root.addEventListener('click', e => {
@@ -94,3 +94,39 @@ export function getPos() {
 
 /* Khóa phóng to/thu nhỏ trên iOS Safari */
 ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
+
+/* ---- Tải ảnh lên Google Drive (qua Google Apps Script) ---- */
+async function shrink(file, max = 900) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise(r => c.toBlob(r, 'image/jpeg', 0.82));
+}
+const toB64 = blob => new Promise((ok, no) => { const f = new FileReader(); f.onload = () => ok(String(f.result).split(',')[1]); f.onerror = no; f.readAsDataURL(blob); });
+export async function uploadImage(file) {
+  if (!fb.uploadUrl) throw new Error('Chưa bật lưu ảnh Google Drive. Xem HUONG-DAN.md, mục "Lưu ảnh lên Google Drive".');
+  if (!/^image\//.test(file.type)) throw new Error('Vui lòng chọn file ảnh');
+  const blob = await shrink(file), data = await toB64(blob), token = await fb.idToken();
+  const res = await fetch(fb.uploadUrl, { method:'POST', body:JSON.stringify({ token, name:`lt-${Date.now()}.jpg`, mime:'image/jpeg', data }) });
+  const j = await res.json();
+  if (!j.ok) throw new Error(j.error || 'Tải ảnh thất bại');
+  return j.url;
+}
+export const imgUpHtml = (value = '', id = '') => `<div class="imgup" data-imgup><img class="th" alt="" src="${esc(value)}" ${value ? '' : 'hidden'}><span class="th ph" ${value ? 'hidden' : ''}>Ảnh</span><button type="button" class="btn sm o" data-pick>Tải ảnh lên</button><button type="button" class="btn sm gray" data-clearimg ${value ? '' : 'hidden'}>Xóa ảnh</button><input type="hidden" ${id ? `id="${id}"` : 'data-k="img"'} value="${esc(value)}"><input type="file" accept="image/*" hidden></div>`;
+function setImg(w, url) {
+  $('input[type=hidden]', w).value = url; const im = $('img.th', w); im.src = url; im.hidden = !url; $('.ph', w).hidden = !!url; $('[data-clearimg]', w).hidden = !url;
+}
+export function bindImgUpload(root) {
+  root.addEventListener('click', e => {
+    const p = e.target.closest('[data-pick]'); if (p) $('input[type=file]', p.closest('[data-imgup]')).click();
+    const c = e.target.closest('[data-clearimg]'); if (c) setImg(c.closest('[data-imgup]'), '');
+  });
+  root.addEventListener('change', async e => {
+    const f = e.target; if (f.type !== 'file' || !f.closest('[data-imgup]')) return;
+    const w = f.closest('[data-imgup]'), file = f.files[0]; f.value = ''; if (!file) return;
+    const b = $('[data-pick]', w), old = b.textContent; b.disabled = true; b.textContent = 'Đang tải…';
+    try { setImg(w, await uploadImage(file)); toast('Đã tải ảnh lên Google Drive. Nhớ bấm nút Lưu bên dưới.'); } catch (er) { toast(er.message || 'Tải ảnh thất bại'); }
+    b.disabled = false; b.textContent = old;
+  });
+}

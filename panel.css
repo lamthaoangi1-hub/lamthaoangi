@@ -55,3 +55,6 @@ html{touch-action:manipulation;-webkit-text-size-adjust:100%}
 .mitem{border-bottom:1px dashed var(--line);padding-bottom:8px;margin-bottom:6px}
 .mrow2{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}.mrow2 input{margin:0}
 @media(max-width:560px){.mrow2{grid-template-columns:1fr}}
+[hidden]{display:none!important}
+.imgup{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.imgup .th{width:46px;height:46px;border-radius:10px;object-fit:cover;background:#eef2ef;flex:none;display:grid;place-items:center;font-size:11px;color:var(--ink2)}

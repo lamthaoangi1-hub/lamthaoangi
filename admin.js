@@ -1,4 +1,4 @@
-import { fb, start, track, $, $$, esc, money, fmtTime, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink } from './panel.js';
+import { fb, start, track, $, $$, esc, money, fmtTime, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
@@ -30,7 +30,8 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
       <label class="f">Địa chỉ<input type="text" id="f-address" value="${n('address')}"></label><label class="f">Thời gian giao<input type="text" id="f-eta" value="${n('eta', '15 - 30 phút')}"></label>
       <label class="f">Phí giao hàng (đ)<input type="number" id="f-ship" min="0" step="1000" value="${s.shipFee ?? 15000}"></label><label class="f">Miễn phí ship từ (đ, 0 = không)<input type="number" id="f-free" min="0" step="1000" value="${s.freeShipMin ?? 0}"></label>
       <label class="f">Giảm giá (%)<input type="number" id="f-sale" min="0" max="90" value="${s.sale ?? 0}"></label><label class="f">Điểm đánh giá (0–5, để 0 nếu quán mới)<input type="number" id="f-rate" min="0" max="5" step="0.1" value="${s.rate ?? 0}"></label>
-      <label class="f">Số lượt đánh giá (VD: 120+)<input type="text" id="f-rc" value="${n('rc')}"></label><label class="f">Link ảnh hoặc tên file ảnh<input type="text" id="f-img" value="${n('img')}" placeholder="https://... hoặc pho.jpg"></label></div>
+      <label class="f">Số lượt đánh giá (VD: 120+)<input type="text" id="f-rc" value="${n('rc')}"></label></div>
+      <label class="f">Ảnh / logo quán</label>${imgUpHtml(s.img || '', 'f-img')}
       <label class="f">Mô tả<textarea id="f-desc">${n('desc')}</textarea></label>
       ${s.id ? `<p class="muted" style="margin-top:10px">Vị trí bản đồ: ${s.lat != null ? `đã lưu · <a href="${mapLink(s.lat, s.lng)}" target="_blank" rel="noopener">xem</a> · <button type="button" class="btn sm r" data-resetloc>Đặt lại vị trí</button>` : 'chưa có (chủ quán tự chia sẻ ở trang Nhà bán hàng)'}</p>` : ''}
       <label class="sw"><input type="checkbox" id="f-open" ${s.open === false ? '' : 'checked'}>Đang mở cửa</label>
@@ -64,7 +65,7 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
   track(fb.watchAllOrders((l, e) => { orders = l; if (e) err = fb.errMsg(e); if (tab === 'orders') draw(); }));
   track(fb.watchPromos(l => { promos = l; if (tab === 'promos') draw(); }));
   track(fb.watchSettings(s => { settings = s; if (tab === 'settings') draw(); }));
-  loadUsers(); bindMenuEditor(root);
+  loadUsers(); bindMenuEditor(root); bindImgUpload(root);
 
   root.addEventListener('input', e => { if (e.target.id === 'uq') draw(), $('#uq').focus(); });
   root.addEventListener('change', async e => {

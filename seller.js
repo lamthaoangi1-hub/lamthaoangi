@@ -1,4 +1,4 @@
-import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink } from './panel.js';
+import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js';
 
 start({ title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
@@ -34,9 +34,9 @@ start({ title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
       <label class="sw"><input type="checkbox" id="s-open" ${shop.open === false ? '' : 'checked'}>Đang mở cửa (nhận đơn)</label>
       <label class="f">Mô tả<textarea id="s-desc">${n('desc')}</textarea></label>
       <div class="grid"><label class="f">Địa chỉ<input type="text" id="s-address" value="${n('address')}"></label><label class="f">SĐT quán<input type="tel" id="s-phone" value="${n('phone')}"></label>
-      <label class="f">Thời gian giao (VD: 15 - 25 phút)<input type="text" id="s-eta" value="${n('eta', '15 - 30 phút')}"></label><label class="f">Phí giao hàng (đ)<input type="number" id="s-shipFee" min="0" step="1000" value="${shop.shipFee ?? 15000}"></label>
-      <label class="f">Miễn phí ship từ (đ, 0 = không)<input type="number" id="s-free" min="0" step="1000" value="${shop.freeShipMin ?? 0}"></label><label class="f">Giảm giá (%)<input type="number" id="s-sale" min="0" max="90" value="${shop.sale ?? 0}"></label></div>
-      <label class="f">Link ảnh quán<input type="url" id="s-img" value="${n('img')}" placeholder="https://... hoặc tên file ảnh trong website"></label>
+      <label class="f">Thời gian giao (VD: 15 - 25 phút)<input type="text" id="s-eta" value="${n('eta', '15 - 30 phút')}"></label><label class="f">Giảm giá (%)<input type="number" id="s-sale" min="0" max="90" value="${shop.sale ?? 0}"></label></div>
+      <label class="f">Ảnh / logo quán</label>${imgUpHtml(shop.img || '', 's-img')}
+      <p class="muted" style="margin-top:12px">Phí giao hàng do Admin quy định: <b>${money(shop.shipFee ?? 15000)}</b>${shop.freeShipMin ? `, miễn phí từ ${money(shop.freeShipMin)}` : ''}. Cần đổi, vui lòng liên hệ Admin.</p>
       <button class="btn" style="margin-top:14px" data-saveshop>Lưu cửa hàng</button></div>`;
   }
   function draw() {
@@ -51,7 +51,7 @@ start({ title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
     if (!first && l.filter(o => o.status === 'pending').length > orders.filter(o => o.status === 'pending').length) { beep(); toast('Có đơn mới!'); }
     orders = l; first = false; if (tab === 'orders') draw();
   }));
-  bindMenuEditor(root);
+  bindMenuEditor(root); bindImgUpload(root);
   root.addEventListener('click', async e => {
     const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; draw(); return; }
     const f = e.target.closest('[data-fil]'); if (f) { fil = f.dataset.fil; draw(); return; }
@@ -72,7 +72,7 @@ start({ title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
       if (e.target.closest('[data-savemenu]')) { await fb.patchShop(me.shopId, { menu:readMenu(root) }); toast('Đã lưu thực đơn'); return; }
       if (e.target.closest('[data-saveshop]')) {
         const v = id => $('#' + id).value.trim();
-        await fb.patchShop(me.shopId, { open:$('#s-open').checked, desc:v('s-desc'), address:v('s-address'), phone:v('s-phone'), eta:v('s-eta'), shipFee:Math.max(0, +v('s-shipFee') || 0), freeShipMin:Math.max(0, +v('s-free') || 0), sale:Math.min(90, Math.max(0, +v('s-sale') || 0)), img:v('s-img') });
+        await fb.patchShop(me.shopId, { open:$('#s-open').checked, desc:v('s-desc'), address:v('s-address'), phone:v('s-phone'), eta:v('s-eta'), sale:Math.min(90, Math.max(0, +v('s-sale') || 0)), img:v('s-img') });
         toast('Đã lưu cửa hàng');
       }
     } catch (er) { toast(fb.errMsg(er)); }

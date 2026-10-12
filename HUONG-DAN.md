@@ -38,7 +38,24 @@ Khách đặt → (Chờ xác nhận) → Quán nhận đơn → Quán đang chu
 5. Chủ quán tự sửa: thực đơn, giá, món hết, mở/đóng cửa, phí ship, giảm giá, ảnh. Tên quán, loại, đánh giá do Admin sửa.
 
 ## Ảnh quán
-Ô "ảnh" nhận **link ảnh** (https://...) hoặc **tên file** đã tải cùng thư mục website (ví dụ `pho.jpg`).
+Bấm **Tải ảnh lên** (xem mục "Lưu ảnh lên Google Drive" bên dưới). Các quán cũ đang dùng tên file như `pho.jpg` vẫn hiển thị bình thường.
+
+## Lưu ảnh lên Google Drive (tải ảnh logo quán, ảnh món)
+Admin và chủ quán bấm **Tải ảnh lên** là ảnh được nén rồi lưu vào thư mục Google Drive của bạn, không cần dán link. Thiết lập một lần:
+
+1. Vào https://drive.google.com → tạo thư mục mới, ví dụ **lamthaoangi-anh**. Mở thư mục đó, nhìn thanh địa chỉ: `drive.google.com/drive/folders/`**`1AbC...xyz`** – đoạn chữ sau `folders/` chính là **ID thư mục**, hãy copy lại.
+2. Vào https://script.google.com → **New project** (Dự án mới). Xóa hết code mẫu, dán toàn bộ nội dung file **`google-apps-script.gs`** vào.
+3. Ở dòng `const FOLDER_ID = '...'` thay `DAN_ID_THU_MUC_DRIVE_VAO_DAY` bằng ID thư mục vừa copy (giữ dấu nháy). Bấm biểu tượng đĩa mềm để lưu.
+4. Bấm **Deploy → New deployment** → bánh răng **Select type → Web app**. Điền: *Execute as* = **Me**, *Who has access* = **Anyone** → **Deploy**.
+5. Google hỏi cấp quyền: **Authorize access** → chọn tài khoản → nếu hiện "Google hasn't verified this app" thì bấm **Advanced → Go to ... (unsafe) → Allow**. (Đây là script của chính bạn.)
+6. Copy **Web app URL** (dạng `https://script.google.com/macros/s/.../exec`).
+7. Mở file **`upload-config.js`**, dán URL vào giữa hai dấu nháy: `export const UPLOAD_URL = "https://script.google.com/macros/s/.../exec";` rồi tải file lên GitHub (ghi đè).
+8. Mở trang Admin hoặc Nhà bán hàng, nhấn Ctrl+F5, bấm **Tải ảnh lên**. Sau khi ảnh hiện, **nhớ bấm nút Lưu** của form.
+
+Ghi chú: chỉ tài khoản admin hoặc seller đã đăng nhập mới tải ảnh được (script tự kiểm tra). Ảnh được đặt chế độ "ai có link đều xem được" để khách thấy ảnh trên website. Nếu bạn sửa code script sau này, phải **Deploy → Manage deployments → Edit → New version** thì mới có hiệu lực. Tài khoản Google Workspace của công ty/trường có thể chặn chia sẻ công khai; dùng Gmail cá nhân sẽ không gặp.
+
+## Phí giao hàng
+Chỉ **Admin** sửa được phí giao hàng và mức miễn phí ship của từng quán (Admin → Cửa hàng → Sửa). Chủ quán chỉ xem được, và luật bảo mật cũng chặn chủ quán tự đổi.
 
 ## Giới hạn cần biết
 - **Quên mật khẩu:** chưa có tự đặt lại (vì không dùng email thật). Cách xử lý: xóa tài khoản đó trong Firebase Console → Authentication, rồi khách đăng ký lại.

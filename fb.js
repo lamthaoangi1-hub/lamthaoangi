@@ -5,6 +5,7 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWith
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, limit, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
+import { UPLOAD_URL } from './upload-config.js';
 
 export const configured = !!firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(firebaseConfig.apiKey);
 let auth, db;
@@ -22,6 +23,8 @@ export const errMsg = e => ERR[e?.code] || e?.message || 'Có lỗi xảy ra';
 
 export const ts = () => serverTimestamp();
 export const currentUser = () => auth?.currentUser || null;
+export const uploadUrl = UPLOAD_URL;
+export const idToken = () => auth.currentUser.getIdToken();
 
 async function fetchProfile(uid) {
   for (let i = 0; i < 4; i++) {

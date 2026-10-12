@@ -25,8 +25,9 @@ service cloud.firestore {
       allow read: if true;
       allow create, delete: if isAdmin();
       // Vị trí GPS (lat, lng): chủ quán chỉ được lưu 1 lần; chỉ Admin mới đặt lại được
+      // Phí giao hàng (shipFee, freeShipMin) CHỈ Admin được sửa
       allow update: if isAdmin() || (isSeller() && me().shopId == shopId
-        && changedOnly(['menu', 'open', 'desc', 'eta', 'shipFee', 'freeShipMin', 'sale', 'img', 'phone', 'address', 'lat', 'lng', 'locAcc', 'locAt'])
+        && changedOnly(['menu', 'open', 'desc', 'eta', 'sale', 'img', 'phone', 'address', 'lat', 'lng', 'locAcc', 'locAt'])
         && (resource.data.get('lat', null) == null
             || (request.resource.data.lat == resource.data.lat && request.resource.data.lng == resource.data.lng)));
     }
