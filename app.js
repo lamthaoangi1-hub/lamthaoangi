@@ -179,7 +179,7 @@
   const locBtn = () => `<button class="loc" data-act="area">${fx.pinF}<span>${S.area}</span>${ic('chevDown')}</button>`;
   const logo = (size = '') => `<span class="logo-wrap"><span class="logo ${size}"><span class="l1">Lâm Thao</span><span class="l2">Ăn Gì?</span></span><span class="logo-fork" style="${size === 'sm' ? 'width:28px;height:42px;right:-24px' : ''}">${fx.fork}</span></span>`;
 
-  const shopTags = s => `<div class="tags">${s.open === false ? '<span class="tag sale">Đóng cửa</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}</div>`;
+  const shopTags = s => `<div class="tags">${s.open === false ? '<span class="tag sale">Đóng cửa</span>' : ''}${s.featured ? '<span class="tag feat">⭐ Nổi bật</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}</div>`;
   const shopMeta = s => `<div class="meta"><span class="rate">${fx.star}${s.rate ? s.rate.toFixed(1) + (s.rc ? ' (' + s.rc + ')' : '') : 'Mới'}</span><span class="sep"></span><span class="eta">${ic('truck')}${s.eta}</span></div>`;
 
   /* ---------------- HOME ---------------- */
@@ -196,6 +196,23 @@
     ['Ăn ngon – Giá tốt','Đặt là có ngay'],
     ['Quán quen gần nhà','Mở cửa cả ngày'],
   ];
+
+  /* Banner trang chủ: slide chào mừng + các quán Nổi bật / đang Giảm giá (admin chọn) */
+  const bannerSlides = () => {
+    const promo = SHOPS.filter(s => s.open !== false && (s.featured || s.sale))
+      .sort((a, b) => (b.featured - a.featured) || (a.order - b.order))
+      .slice(0, 6)
+      .map(s => ({ shop:s.id, img:s.img, off:s.sale, l1:s.name, l2:s.sale ? `Giảm ${s.sale}% toàn thực đơn` : (s.ship ? `Freeship từ ${s.ship}` : (s.homeCat || 'Quán nổi bật')) }));
+    return promo.length ? [{ l1:SLIDES[0][0], l2:SLIDES[0][1] }, ...promo] : SLIDES.map(([l1, l2]) => ({ l1, l2 }));
+  };
+  const bannerInner = () => {
+    const L = bannerSlides(), i = S.home.slide % L.length, s = L[i];
+    return `<div class="txt"><div class="b-logo">Lâm Thao<span>Ăn Gì?</span></div><p id="b-text"><span>${s.l1}</span><span>${s.l2}</span></p></div>
+        <button class="cta" ${s.shop ? `data-shop="${s.shop}"` : 'data-act="order-now"'}>Đặt món ngay →</button>
+        <div class="pic" style="background-image:url(banner-food.jpg)"></div>
+        ${s.shop ? `<img class="shoplogo" src="${s.img}" alt="">${s.off ? `<span class="off">-${s.off}%</span>` : ''}` : ''}
+        <div class="dots">${L.map((_, j) => `<i class="${j === i ? 'on' : ''}"></i>`).join('')}</div>`;
+  };
 
   function filteredShops() {
     let list = SHOPS.filter(s => S.home.cat === 'Tất cả' || s.group.includes(S.home.cat) || norm(s.cat).includes(norm(S.home.cat)));
@@ -230,12 +247,7 @@
       </div>
       <div class="search-float"><label class="search">${ic('search')}<input id="home-q" type="search" placeholder="Bạn muốn ăn gì hôm nay?" value="${S.home.q.replace(/"/g, '&quot;')}" autocomplete="off"><button class="filter-btn" data-act="filter" aria-label="Bộ lọc">${ic('sliders')}</button></label></div>
       <div class="services">${SERVICES.map(s => `<button class="service ${s.active ? 'active' : ''} ${s.tint ? 'tint' : ''}" data-svc="${s.k}"><span class="ic">${fx[s.svg]}</span>${s.t}</button>`).join('')}</div>
-      <div class="banner-wrap"><div class="banner" id="banner">
-        <div class="txt"><div class="b-logo">Lâm Thao<span>Ăn Gì?</span></div><p id="b-text">${SLIDES[S.home.slide][0]}<br>${SLIDES[S.home.slide][1]}</p></div>
-        <button class="cta" data-act="order-now">Đặt món ngay →</button>
-        <div class="pic" style="background-image:url(banner-food.jpg)"></div>
-        <div class="dots">${SLIDES.map((_, i) => `<i class="${i === S.home.slide ? 'on' : ''}"></i>`).join('')}</div>
-      </div></div>
+      <div class="banner-wrap"><div class="banner" id="banner">${bannerInner()}</div></div>
       <div class="section-head" id="shops-anchor"><h2>Quán ngon gần bạn</h2><button class="see-all" data-act="see-all">Xem tất cả ${ic('chevRight')}</button></div>
       <div class="chips" id="home-chips">${HOME_CATS.map(c => `<button class="chip ${c === S.home.cat ? 'on' : ''}" data-cat="${c}">${c}</button>`).join('')}</div>
       <div class="shop-list" id="home-list">${shopListHtml()}</div>`;
@@ -248,10 +260,9 @@
     clearInterval(slideTimer);
     slideTimer = setInterval(() => {
       if (S.tab !== 'home') return;
-      S.home.slide = (S.home.slide + 1) % SLIDES.length;
-      const t = $('#b-text'); if (!t) return;
-      t.innerHTML = `${SLIDES[S.home.slide][0]}<br>${SLIDES[S.home.slide][1]}`;
-      $$('.dots i').forEach((d, i) => d.classList.toggle('on', i === S.home.slide));
+      const b = $('#banner'); if (!b) return;
+      S.home.slide = (S.home.slide + 1) % bannerSlides().length;
+      b.innerHTML = bannerInner();
     }, 3800);
   }
 
@@ -809,7 +820,7 @@
     const free = +d.freeShipMin || 0, cat = d.cat || '';
     return {
       id:d.id, _d:d, name:esc(d.name), cat:esc(cat), homeCat:esc(cat), img:esc(d.img || 'hero.svg'), rate:+d.rate || 0, rc:esc(d.rc || ''),
-      eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, sale:+d.sale || 0,
+      eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, sale:+d.sale || 0, order:(d.order == null || isNaN(+d.order)) ? 9999 : +d.order, featured:!!d.featured,
       group:((d.group && d.group.length) ? d.group : [cat.split('•')[0].trim()]).map(esc), desc:esc(d.desc || ''),
       menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false, esc(m.cat || ''), esc(m.img || '')]), lat:d.lat ?? null, lng:d.lng ?? null, open:d.open !== false, phone:esc(d.phone || ''), address:esc(d.address || ''),
     };
@@ -849,7 +860,8 @@
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
         shopsLoaded = true;
-        SHOPS = l.map(mapShop).sort((a, b) => (b.open !== false) - (a.open !== false) || a.name.localeCompare(b.name, 'vi'));
+        SHOPS = l.map(mapShop).sort((a, b) => (b.open !== false) - (a.open !== false) || a.order - b.order || a.name.localeCompare(b.name, 'vi'));
+        if (S.tab === 'home' && $('#banner')) $('#banner').innerHTML = bannerInner();
         if (shopPageOpen) { if (SHOPS.some(x => x.id === SP.id)) renderShopPage(); }
         if (S.tab === 'home' && $('#home-list')) $('#home-list').innerHTML = shopListHtml();
         else if (S.tab === 'favorites' && $('#fav-body')) { $('#fav-body').innerHTML = favBody(); bindFavSort(); }

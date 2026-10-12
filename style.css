@@ -464,3 +464,9 @@ html{touch-action:manipulation;-webkit-text-size-adjust:100%}
 .sp-cartbar.empty{background:#5f7a6b;box-shadow:none}
 .sp-cartbar:disabled{opacity:.85}
 .sp-cartbar,.sp-cartbar span,.sp-cartbar b{color:#fff}
+
+/* quán nổi bật + banner theo quán */
+.tag.feat{background:#fff4cc;color:#8a5a00}
+.banner p span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.banner .shoplogo{position:absolute;z-index:3;right:22px;top:50%;transform:translateY(-50%);width:80px;height:80px;border-radius:50%;border:3px solid #fff;object-fit:cover;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.banner .off{position:absolute;z-index:4;right:12px;top:10px;background:#e53935;color:#fff;font-weight:700;font-size:12px;border-radius:10px;padding:3px 8px;font-family:var(--font-h)}
