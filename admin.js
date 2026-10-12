@@ -1,12 +1,18 @@
 import { fb, start, track, $, $$, esc, money, fmtTime, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js';
+import { parseWorkbook } from './import-sheet.js';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
   { name:'Cơm Tấm Minh Tâm', cat:'Cơm • Món Việt', group:['Cơm', 'Món Việt'], desc:'Cơm tấm sườn nướng.', img:'comtam.jpg', eta:'20 - 30 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Cơm tấm sườn nướng', price:50000, available:true }] },
 ];
 
+const loadXLSX = () => window.XLSX ? Promise.resolve(window.XLSX) : new Promise((ok, no) => {
+  const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.onload = () => ok(window.XLSX); s.onerror = () => no(new Error('Không tải được thư viện đọc Excel, kiểm tra mạng')); document.head.appendChild(s);
+});
+
 start({ title:'Quản trị', roles:['admin'], render(root, me) {
-  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '';
+  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false;
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
 
   const ordersView = () => {
@@ -19,7 +25,10 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
       <select data-ost="${o.id}" style="width:auto">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${o.status === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></div></div>`).join('') : '<div class="empty">Chưa có đơn</div>'}`;
   };
 
-  const shopsView = () => edit ? shopForm() : `<div class="row sb" style="margin-bottom:10px"><b>${shops.length} cửa hàng</b><span class="row"><button class="btn sm o" data-seed>+ Thêm 2 quán mẫu</button><button class="btn sm" data-newshop>+ Thêm cửa hàng</button></span></div>
+  const importView = () => `<div class="card"><h3>Nhập quán từ Excel cũ</h3><p class="muted">Tick những quán muốn đưa sang web mới. Quán đã có trên web mới được bỏ tick sẵn để tránh trùng.</p>
+    <table><tr><th></th><th>Quán</th><th>Món</th><th>Ghi chú</th></tr>${imp.map((x, i) => `<tr><td><input type="checkbox" data-impck="${i}" ${x.on ? 'checked' : ''}></td><td><b>${esc(x.data.name)}</b></td><td>${x.data.menu.length}</td><td class="muted">${esc(x.notes.join('; '))}</td></tr>`).join('')}</table>
+    <div class="row" style="margin-top:12px"><button class="btn" data-impgo ${impBusy ? 'disabled' : ''}>${impBusy ? 'Đang nhập…' : `Nhập ${imp.filter(x => x.on).length} quán đã chọn`}</button><button class="btn o" data-impcancel ${impBusy ? 'disabled' : ''}>Hủy</button></div></div>`;
+  const shopsView = () => edit ? shopForm() : imp ? importView() : `<div class="row sb" style="margin-bottom:10px"><b>${shops.length} cửa hàng</b><span class="row"><input type="file" id="imp-file" accept=".xlsx,.xls" hidden><button class="btn sm o" data-impfile>⬆ Nhập từ Excel cũ</button><button class="btn sm o" data-seed>+ Thêm 2 quán mẫu</button><button class="btn sm" data-newshop>+ Thêm cửa hàng</button></span></div>
     ${shops.length ? `<div class="card"><table><tr><th>Quán</th><th>Món</th><th>Trạng thái</th><th></th></tr>${shops.map(s => `<tr><td><b>${esc(s.name)}</b><br><span class="muted">${esc(s.cat || '')}</span></td><td>${(s.menu || []).length}</td><td>${s.open === false ? '<span class="badge bad">Đóng cửa</span>' : '<span class="badge ok">Mở cửa</span>'}</td><td style="text-align:right"><button class="btn sm o" data-editshop="${s.id}">Sửa</button> <button class="btn sm r" data-delshop="${s.id}">Xóa</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Chưa có cửa hàng. Bấm “Thêm cửa hàng”.</div>'}`;
 
   function shopForm() {
@@ -72,6 +81,15 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
     const t = e.target;
     try {
       if (t.id === 'ofil') { ofil = t.value; draw(); }
+      if (t.dataset.impck !== undefined) { imp[+t.dataset.impck].on = t.checked; draw(); }
+      if (t.id === 'imp-file' && t.files[0]) {
+        toast('Đang đọc file…');
+        const X = await loadXLSX(), wb = X.read(await t.files[0].arrayBuffer(), { type: 'array' }), sheets = {};
+        wb.SheetNames.forEach(n => { sheets[n] = X.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: null }); });
+        imp = parseWorkbook(sheets, shops.map(s => s.name)).shops;
+        if (!imp.length) { imp = null; toast('Không thấy dữ liệu quán trong file (cần tab “Quán”)'); }
+        t.value = ''; draw();
+      }
       if (t.dataset.ost) await fb.patchOrder(t.dataset.ost, { status:t.value });
       if (t.dataset.urole) { await fb.patchUser(t.dataset.urole, { role:t.value }); toast('Đã đổi vai trò'); users.find(u => u.uid === t.dataset.urole).role = t.value; }
       if (t.dataset.ushop) { await fb.patchUser(t.dataset.ushop, { shopId:t.value }); toast('Đã gán cửa hàng'); users.find(u => u.uid === t.dataset.ushop).shopId = t.value; }
@@ -87,6 +105,15 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
       else if (g('[data-resetloc]')) { if (confirm('Đặt lại vị trí quán? Chủ quán sẽ chia sẻ lại được 1 lần.')) { await fb.patchShop(edit.id, { lat:null, lng:null, locAcc:null, locAt:null }); edit.lat = null; edit.lng = null; toast('Đã đặt lại vị trí'); draw(); } }
       else if (g('[data-cancel]')) { edit = null; draw(); }
       else if (g('[data-delshop]')) { const s = shops.find(x => x.id === g('[data-delshop]').dataset.delshop); if (confirm(`Xóa cửa hàng “${s.name}”?`)) { await fb.removeShop(s.id); toast('Đã xóa'); } }
+      else if (g('[data-impfile]')) { $('#imp-file').click(); }
+      else if (g('[data-impcancel]')) { imp = null; draw(); }
+      else if (g('[data-impgo]')) {
+        const pick = imp.filter(x => x.on); if (!pick.length) return toast('Chưa chọn quán nào');
+        impBusy = true; let n = 0; draw();
+        try { for (const x of pick) { await fb.createShop(x.data); toast(`Đang nhập ${++n}/${pick.length}…`); } }
+        finally { impBusy = false; draw(); }
+        imp = null; toast(`Đã nhập ${n} quán`); draw();
+      }
       else if (g('[data-seed]')) { for (const s of SAMPLE) await fb.createShop(s); toast('Đã thêm quán mẫu'); }
       else if (g('[data-saveshop]')) {
         const v = id => $('#' + id).value.trim();
