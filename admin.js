@@ -12,7 +12,7 @@ const loadXLSX = () => window.XLSX ? Promise.resolve(window.XLSX) : new Promise(
 });
 
 start({ title:'Quản trị', roles:['admin'], render(root, me) {
-  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false;
+  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller';
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
 
   const ordersView = () => {
@@ -51,11 +51,24 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
       <div class="row" style="margin-top:16px"><button class="btn" data-saveshop>Lưu</button><button class="btn gray" data-cancel>Hủy</button></div></div>`;
   }
 
-  const usersView = () => `<div class="card"><div class="row"><input type="tel" id="uq" placeholder="Tìm theo số điện thoại" style="max-width:260px;margin:0"><button class="btn sm" data-ureload>Tải lại danh sách</button></div>
-    <p class="muted" style="margin-top:8px">Người dùng tự đăng ký trên website (vai trò “customer”). Chọn vai trò & cửa hàng cho họ tại đây: Nhà bán hàng cần gán cửa hàng.</p></div>
-    <div class="card" style="overflow:auto"><table><tr><th>Tên</th><th>SĐT</th><th>Vai trò</th><th>Cửa hàng</th></tr>${users.filter(u => !$('#uq')?.value || (u.phone || '').includes($('#uq').value)).map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td>
-      <td><select data-urole="${u.uid}" style="width:auto">${['customer', 'seller', 'shipper', 'admin'].map(r => `<option ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select></td>
-      <td><select data-ushop="${u.uid}" style="width:auto"><option value="">—</option>${shops.map(s => `<option value="${s.id}" ${u.shopId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></td></tr>`).join('')}</table></div>`;
+  const ROLES = [['seller', 'Nhà bán hàng'], ['shipper', 'Shipper'], ['customer', 'Khách hàng'], ['admin', 'Admin']];
+  const flat = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+  const roleSel = u => `<select data-urole="${u.uid}" style="width:auto">${ROLES.map(([r, l]) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const userTable = (role, list) => {
+    const isS = role === 'seller';
+    return `<div class="card" style="overflow:auto"><table><tr><th>Tên</th><th>SĐT</th>${isS ? '<th>Cửa hàng</th>' : ''}<th>Vai trò</th></tr>${list.length ? list.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td>${isS ? `<td><select data-ushop="${u.uid}" style="width:auto"><option value="">— chọn quán —</option>${shops.map(s => `<option value="${s.id}" ${u.shopId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>${u.shopId ? '' : '<br><span class="badge warn">Chưa gán quán</span>'}</td>` : ''}<td>${roleSel(u)}</td></tr>`).join('') : `<tr><td colspan="${isS ? 4 : 3}" class="muted">Chưa có ai trong nhóm này</td></tr>`}</table></div>`;
+  };
+  const usersView = () => {
+    const q = flat($('#uq')?.value.trim());
+    const match = u => !q || flat(u.phone).includes(q) || flat(u.name).includes(q);
+    const cnt = r => users.filter(u => u.role === r).length;
+    const pills = [['all', 'Tất cả', users.length], ...ROLES.map(([r, l]) => [r, l, cnt(r)])];
+    const groups = ufil === 'all' ? ROLES : ROLES.filter(([r]) => r === ufil);
+    return `<div class="card"><div class="row"><input type="search" id="uq" placeholder="Tìm theo tên hoặc số điện thoại" style="max-width:280px;margin:0"><button class="btn sm" data-ureload>Tải lại danh sách</button></div>
+    <p class="muted" style="margin-top:8px">Khách tự đăng ký trên website (vai trò “Khách hàng”). Đổi vai trò tại đây; <b>Nhà bán hàng</b> cần gán cửa hàng, hoặc dùng nút “Cấp TK” ở tab Cửa hàng.</p></div>
+    <div class="tabs" style="position:static;border:0;padding:0;background:none;margin:2px 0 10px">${pills.map(([k, l, n]) => `<button class="${ufil === k ? 'on' : ''}" data-ufil="${k}">${l} (${n})</button>`).join('')}</div>
+    ${groups.map(([r, l]) => `${ufil === 'all' ? `<h3 style="margin:14px 0 6px">${l} (${cnt(r)})</h3>` : ''}${userTable(r, users.filter(u => u.role === r && match(u)))}`).join('')}`;
+  };
 
   const promosView = () => `<div class="card"><h3>Thêm mã giảm giá</h3><div class="grid"><label class="f">Mã<input type="text" id="p-code" placeholder="GIAM30K"></label><label class="f">Mô tả<input type="text" id="p-desc" placeholder="Giảm 30K cho đơn từ 100K"></label>
     <label class="f">Giảm (đ)<input type="number" id="p-off" min="0" step="1000"></label><label class="f">Đơn tối thiểu (đ)<input type="number" id="p-min" min="0" step="1000"></label></div><button class="btn" style="margin-top:12px" data-addpromo>Thêm</button>
@@ -96,7 +109,7 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
         t.value = ''; draw();
       }
       if (t.dataset.ost) await fb.patchOrder(t.dataset.ost, { status:t.value });
-      if (t.dataset.urole) { await fb.patchUser(t.dataset.urole, { role:t.value }); toast('Đã đổi vai trò'); users.find(u => u.uid === t.dataset.urole).role = t.value; }
+      if (t.dataset.urole) { await fb.patchUser(t.dataset.urole, { role:t.value }); users.find(u => u.uid === t.dataset.urole).role = t.value; if (ufil !== 'all') ufil = t.value; toast('Đã đổi vai trò' + (t.value === 'seller' ? ' – hãy chọn cửa hàng cho họ' : '')); draw(); }
       if (t.dataset.ushop) { await fb.patchUser(t.dataset.ushop, { shopId:t.value }); toast('Đã gán cửa hàng'); users.find(u => u.uid === t.dataset.ushop).shopId = t.value; }
       if (t.dataset.pact) { const { id, ...rest } = promos.find(p => p.id === t.dataset.pact); await fb.savePromo(id, { ...rest, active:t.checked }); toast('Đã cập nhật'); }
     } catch (er) { toast(fb.errMsg(er)); }
@@ -149,6 +162,7 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
         if (edit.id) await fb.patchShop(edit.id, d); else await fb.createShop(d);
         edit = null; toast('Đã lưu cửa hàng'); draw();
       }
+      else if (g('[data-ufil]')) { ufil = g('[data-ufil]').dataset.ufil; draw(); }
       else if (g('[data-ureload]')) { await loadUsers(); toast('Đã tải lại'); }
       else if (g('[data-addpromo]')) {
         const v = id => $('#' + id).value.trim(); if (!v('p-code')) return toast('Nhập mã');
