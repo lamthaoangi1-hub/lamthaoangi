@@ -80,7 +80,9 @@ export async function notifyNewOrder(orderId) {
   if (!UPLOAD_URL) return;
   try {
     const token = await idToken();
-    await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'notifyOrder', token, orderId }) });
+    const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'notifyOrder', token, orderId }) });
+    const j = await res.json().catch(() => null);
+    console.log('[Báo đơn mới]', j);   // mở F12 → Console để xem kết quả: ok:true là đã gửi, ok:false có kèm lý do
   } catch (e) { console.warn('Không gửi được thông báo đơn mới', e); }
 }
 export const patchOrder = (id, patch) => updateDoc(doc(db, 'orders', id), { ...patch, updatedAt:serverTimestamp() });

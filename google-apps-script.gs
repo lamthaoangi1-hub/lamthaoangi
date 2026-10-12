@@ -114,6 +114,7 @@ function notifyOrder(body) {
   const result = { email: false, zaloAdmin: 0, zaloShop: false };
   const shop = getDoc('shops/' + order.shopId, body.token) || {};
 
+  console.log('notifyOrder: đơn ' + order.code + ' | quán ' + order.shopId + ' | zaloId quán: ' + (shop.zaloId || '(chưa có)') + ' | ZALO_ADMIN_IDS: ' + (props().getProperty('ZALO_ADMIN_IDS') || '(chưa có)'));
   try { sendOrderEmail(order, shop); result.email = true; } catch (e) { console.error('Gmail: ' + e); }
 
   const text = zaloText(order, shop);
