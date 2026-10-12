@@ -20,7 +20,7 @@ main{max-width:980px;margin:0 auto;padding:14px 14px 60px}
 .row.sb{justify-content:space-between}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 label.f{display:block;font-size:13px;font-weight:600;color:#4b525c;margin-top:10px}
-input[type=text],input[type=tel],input[type=password],input[type=number],input[type=url],select,textarea{width:100%;margin-top:4px;padding:10px 12px;border:1px solid #d5dae0;border-radius:10px;background:#fff;font-size:15px}
+input[type=text],input[type=tel],input[type=password],input[type=number],input[type=url],select,textarea{width:100%;margin-top:4px;padding:10px 12px;border:1px solid #d5dae0;border-radius:10px;background:#fff;font-size:16px}
 textarea{min-height:70px;resize:vertical}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--g);border-color:var(--g)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;border-radius:10px;background:var(--g);color:#fff;font-weight:700;font-size:14px}
@@ -51,3 +51,7 @@ th{font-size:12px;color:var(--ink2);text-transform:uppercase;letter-spacing:.3px
 .sw{display:flex;align-items:center;gap:8px;margin-top:10px;font-weight:600}
 .sw input{width:20px;height:20px;accent-color:var(--g)}
 @media(max-width:560px){.mrow{grid-template-columns:1fr 90px 60px 32px}}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%}
+.mitem{border-bottom:1px dashed var(--line);padding-bottom:8px;margin-bottom:6px}
+.mrow2{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}.mrow2 input{margin:0}
+@media(max-width:560px){.mrow2{grid-template-columns:1fr}}

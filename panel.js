@@ -67,7 +67,7 @@ export function start({ title, roles, render }) {
 }
 
 /* ---- Trình sửa thực đơn dùng chung (Admin + Nhà bán hàng) ---- */
-export const menuRowHtml = (m = {}) => `<div class="mrow" data-mrow><input type="text" placeholder="Tên món" value="${esc(m.name || '')}" data-k="name"><input type="number" min="0" step="1000" placeholder="Giá (đ)" value="${m.price ?? ''}" data-k="price"><label class="sw" style="margin:0"><input type="checkbox" data-k="available" ${m.available === false ? '' : 'checked'}>Còn</label><button type="button" class="btn sm r" data-mdel title="Xóa món">×</button></div>`;
+export const menuRowHtml = (m = {}) => `<div class="mitem" data-mrow><div class="mrow"><input type="text" placeholder="Tên món" value="${esc(m.name || '')}" data-k="name"><input type="number" min="0" step="1000" placeholder="Giá (đ)" value="${m.price ?? ''}" data-k="price"><label class="sw" style="margin:0"><input type="checkbox" data-k="available" ${m.available === false ? '' : 'checked'}>Còn</label><button type="button" class="btn sm r" data-mdel title="Xóa món">×</button></div><div class="mrow2"><input type="text" placeholder="Nhóm món (VD: Đồ ăn nhanh)" value="${esc(m.cat || '')}" data-k="cat"><input type="url" placeholder="Link ảnh món (không bắt buộc)" value="${esc(m.img || '')}" data-k="img"></div></div>`;
 export const menuEditorHtml = menu => `<div class="mrow hd"><span>Tên món</span><span>Giá</span><span>Còn bán</span><span></span></div><div id="menu-rows">${(menu || []).map(menuRowHtml).join('')}</div><button type="button" class="btn sm o" style="margin-top:10px" data-madd>+ Thêm món</button>`;
 export function bindMenuEditor(root) {
   root.addEventListener('click', e => {
@@ -77,6 +77,7 @@ export function bindMenuEditor(root) {
 }
 export const readMenu = root => $$('[data-mrow]', root).map(r => ({
   name: $('[data-k=name]', r).value.trim(), price: Math.max(0, Math.round(Number($('[data-k=price]', r).value) || 0)), available: $('[data-k=available]', r).checked,
+  cat: $('[data-k=cat]', r).value.trim(), img: $('[data-k=img]', r).value.trim(),
 })).filter(m => m.name);
 
 /* ---- Vị trí (GPS) ---- */
@@ -90,3 +91,6 @@ export function getPos() {
     { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
   });
 }
+
+/* Khóa phóng to/thu nhỏ trên iOS Safari */
+['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));

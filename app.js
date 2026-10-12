@@ -124,6 +124,8 @@
   const GHOST = {};
   let shopsLoaded = false;
   const CART = { shop:null, q:{}, promo:'', note:'', address:null, loc:null };
+  const SP = { id:null, cat:'Tất cả' };
+  let shopPageOpen = false;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const telHot = () => CONTACT.hotline.replace(/\s/g, '');
 
@@ -220,12 +222,11 @@
     const el = $('#view-home');
     const scroll = el.scrollTop;
     el.innerHTML = `
-      <div class="hero tall hung">
+      <div class="hero tall hung compact">
         <img class="hero-photo" src="den-hung.jpg" alt="Cổng Đền Hùng, Phú Thọ" fetchpriority="high" decoding="async">
         <div class="hero-top">${locBtn()}${bellBtn()}</div>
-        <div style="margin-top:16px">${logo()}</div>
+        <div style="margin-top:8px">${logo('sm')}</div>
         <p class="tagline">Đặt món dễ dàng – Ngon gần nhà</p>
-        <a class="photo-credit" href="https://github.com/kiencgvt/den-hung-online/blob/ba599f086870f97ee2ee7cbc3c242b21cda7d634/public/image/Cong-den-hung.jpg" target="_blank" rel="noopener noreferrer">Đền Hùng · Nguồn ảnh</a>
       </div>
       <div class="search-float"><label class="search">${ic('search')}<input id="home-q" type="search" placeholder="Bạn muốn ăn gì hôm nay?" value="${S.home.q.replace(/"/g, '&quot;')}" autocomplete="off"><button class="filter-btn" data-act="filter" aria-label="Bộ lọc">${ic('sliders')}</button></label></div>
       <div class="services">${SERVICES.map(s => `<button class="service ${s.active ? 'active' : ''} ${s.tint ? 'tint' : ''}" data-svc="${s.k}"><span class="ic">${fx[s.svg]}</span>${s.t}</button>`).join('')}</div>
@@ -513,21 +514,54 @@
   }
 
   /* ---------------- SHOP DETAIL ---------------- */
-  function shopSheet(s) {
-    if (LIVE && CART.shop !== s.id) { CART.shop = s.id; CART.q = {}; CART.promo = ''; }
-    const menuHtml = s.menu.map((m, i) => LIVE
-      ? `<div class="row-kv" style="align-items:center"><span>${m[0]}${m[2] === false ? ' <small style="color:var(--red)">(hết món)</small>' : ''}<br><small style="color:var(--ink-2)">${money(m[1])}</small></span>${m[2] === false || s.open === false ? '' : `<span class="qty"><button data-qty="${i}" data-d="-1" aria-label="Bớt">−</button><i id="qty-${i}">${CART.q[i] || 0}</i><button data-qty="${i}" data-d="1" aria-label="Thêm">+</button></span>`}</div>`
-      : `<div class="row-kv"><span>${m[0]}</span><b>${money(m[1])}</b></div>`).join('');
-    openSheet(`<img class="sheet-img" src="${s.img}" alt="${s.name}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-top:14px"><div><h3>${s.name}</h3><div class="sub">${s.cat}</div></div>
-      <button class="heart on-wrap ${isFav(s.id) ? 'on' : ''}" style="position:static" data-heart="${s.id}" data-sheet="1" aria-label="Yêu thích">${ic('heart')}</button></div>
-      ${shopMeta(s)}${shopTags(s)}<p style="margin-top:12px;color:var(--ink-2);font-size:16px;line-height:1.45">${s.desc}</p>
-      ${s.address ? `<p style="margin-top:6px;color:var(--ink-2);font-size:15px">${ic('mapPin', 'inl')} ${s.address}</p>` : ''}
-      <div style="margin-top:12px;font-family:var(--font-h);font-weight:800;font-size:19px">${LIVE ? 'Thực đơn' : 'Món nổi bật'}</div>
-      ${menuHtml || '<div class="empty" style="padding:20px">Quán chưa cập nhật thực đơn</div>'}
-      ${LIVE ? '<button class="sheet-btn" id="cart-btn" data-cart>Chọn món để đặt</button>' : '<button class="sheet-btn" data-sheetmsg="Đã mở trang đặt món (demo)">Đặt món ngay</button>'}`);
-    if (LIVE) updateCartUI();
+  /* ---------------- TRANG QUÁN (toàn màn hình) ---------------- */
+  function menuGroups(s) {
+    const g = new Map();
+    s.menu.forEach((m, i) => { const c = m[3] || 'Món khác'; if (!g.has(c)) g.set(c, []); g.get(c).push(i); });
+    return g;
   }
+  function spCtl(s, i) {
+    const m = s.menu[i];
+    if (m[2] === false) return '<span class="sp-out">Hết món</span>';
+    if (s.open === false) return '';
+    const q = CART.q[i] || 0;
+    return q ? `<span class="qty"><button data-qty="${i}" data-d="-1" aria-label="Bớt">−</button><i>${q}</i><button data-qty="${i}" data-d="1" aria-label="Thêm">+</button></span>`
+      : `<button class="sp-add" data-qty="${i}" data-d="1" aria-label="Thêm món">+</button>`;
+  }
+  function spItem(s, i) {
+    const m = s.menu[i];
+    return `<div class="sp-item ${m[2] === false ? 'off' : ''}">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy">` : `<div class="ph">${(m[0] || '?').trim().charAt(0).toUpperCase()}</div>`}
+      <div class="in"><b>${m[0]}</b><span>${money(m[1])}</span></div><div id="ctl-${i}">${spCtl(s, i)}</div></div>`;
+  }
+  function renderShopPage() {
+    const s = SHOPS.find(x => x.id === SP.id), page = $('#shop-page'); if (!s) return;
+    const sc = page.scrollTop, groups = menuGroups(s), names = [...groups.keys()];
+    if (SP.cat !== 'Tất cả' && !groups.has(SP.cat)) SP.cat = 'Tất cả';
+    const shown = names.filter(n => SP.cat === 'Tất cả' || n === SP.cat);
+    page.innerHTML = `<div class="sp-top"><button class="sp-back" data-shopback>${ic('chevLeft')}Tất cả quán</button>
+        <button class="heart ${isFav(s.id) ? 'on' : ''}" data-heart="${s.id}" data-sheet="1" aria-label="Yêu thích">${ic('heart')}</button></div>
+      <div class="sp-card"><div class="sp-head"><img class="sp-logo" src="${s.img}" alt="${s.name}">
+        <div><h2>${s.name}${s.open === false ? '<span class="sp-closed">Đóng cửa</span>' : ''}</h2><div class="sp-cat">${s.cat}</div>
+        ${s.address ? `<div class="sp-addr">${ic('mapPin')}<span>${s.address}</span></div>` : ''}</div></div>
+        <div class="sp-info">${s.rate ? `<div class="sp-rate">${fx.star}Đánh giá quán (${s.rate.toFixed(1)}${s.rc ? ' · ' + s.rc + ' lượt' : ''})</div>` : ''}
+          ${shopMeta(s)}${shopTags(s)}${s.desc ? `<p class="sp-desc">${s.desc}</p>` : ''}</div></div>
+      ${names.length > 1 ? `<div class="sp-chips">${['Tất cả', ...names].map(n => `<button class="${n === SP.cat ? 'on' : ''}" data-spcat="${n}">${n}</button>`).join('')}</div>` : ''}
+      ${shown.map(n => `<div class="sp-group"><h3>${n}<small>(${groups.get(n).length})</small></h3>${groups.get(n).map(i => spItem(s, i)).join('')}</div>`).join('') || '<div class="empty">Quán chưa cập nhật thực đơn</div>'}
+      <div class="sp-spacer"></div>
+      <button class="sp-cartbar empty" id="cart-bar" data-cart><span id="cb-l">Giỏ hàng (0 món)</span><b id="cb-t">0đ</b></button>`;
+    page.scrollTop = sc;
+    updateCartUI();
+  }
+  function openShopPage(s) {
+    if (!s || !s.menu) return;
+    if (LIVE && CART.shop !== s.id) { CART.shop = s.id; CART.q = {}; CART.promo = ''; }
+    SP.id = s.id; SP.cat = 'Tất cả';
+    const page = $('#shop-page');
+    renderShopPage(); page.classList.add('open'); page.scrollTop = 0;
+    if (!shopPageOpen) history.pushState({ sp:1 }, '', '#shop');
+    shopPageOpen = true;
+  }
+  function hideShopPage() { shopPageOpen = false; $('#shop-page').classList.remove('open'); closeSheet(); }
 
   /* ---------------- GIỎ HÀNG & ĐẶT ĐƠN (chế độ LIVE) ---------------- */
   function cartData() {
@@ -551,10 +585,11 @@
     return { sub, disc, promo, promoOff, ship, total:sub - disc - promoOff + ship };
   }
   function updateCartUI() {
-    const b = $('#cart-btn'), { s, lines } = cartData(); if (!b || !s) return;
-    if (s.open === false) { b.textContent = 'Quán đang đóng cửa'; b.disabled = true; return; }
+    const bar = $('#cart-bar'), { s, lines } = cartData(); if (!bar || !s) return;
     const n = lines.reduce((a, l) => a + l.qty, 0);
-    b.disabled = !n; b.textContent = n ? `Xem giỏ hàng · ${n} món · ${money(calc(s, lines, '').sub)}` : 'Chọn món để đặt';
+    if (s.open === false) { $('#cb-l').textContent = 'Quán đang đóng cửa'; $('#cb-t').textContent = ''; bar.classList.add('empty'); bar.disabled = true; return; }
+    $('#cb-l').textContent = `Giỏ hàng (${n} món)`; $('#cb-t').textContent = money(calc(s, lines, '').sub);
+    bar.classList.toggle('empty', !n); bar.disabled = false;
   }
   function checkoutSheet() {
     const { s, lines } = cartData(); if (!s || !lines.length) return toast('Giỏ hàng đang trống');
@@ -571,16 +606,17 @@
       <div class="sheet-input"><input id="co-addr" placeholder="Địa chỉ nhận hàng (số nhà, thôn/xóm)" value="${esc(addr)}" autocomplete="street-address" style="flex:1;border:0;background:none;font-size:16px;outline:0"></div>
       <div class="sheet-input"><input id="co-note" placeholder="Ghi chú cho quán (không bắt buộc)" value="${esc(CART.note)}" style="flex:1;border:0;background:none;font-size:16px;outline:0"></div>
       <div class="sheet-input"><input id="co-promo" placeholder="Mã giảm giá" value="${esc(CART.promo)}" style="flex:1;border:0;background:none;font-size:16px;outline:0;text-transform:uppercase"><button data-applypromo style="color:var(--green-d);font-weight:700">Áp dụng</button></div>
-      <button class="sheet-btn" data-shareloc ${CART.loc ? 'disabled' : ''} style="background:var(--green-l);color:var(--green-d);margin-top:14px">${CART.loc ? '✓ Đã chia sẻ vị trí giao hàng' : '📍 Chia sẻ vị trí giao hàng'}</button>
-      <div class="sub" style="margin-top:6px">${CART.loc ? 'Shipper sẽ thấy đúng vị trí của bạn trên bản đồ.' : 'Không bắt buộc, nhưng giúp shipper tìm nhà nhanh hơn. Bấm 1 lần để lưu.'}</div>
+      <button class="sheet-btn" data-shareloc ${CART.loc ? 'disabled' : ''} style="background:var(--green-l);color:var(--green-d);margin-top:14px">${CART.loc ? '✓ Đã chia sẻ vị trí giao hàng' : '📍 Chia sẻ vị trí giao hàng (bắt buộc)'}</button>
+      <div class="sub" style="margin-top:6px;${CART.loc ? '' : 'color:var(--red)'}">${CART.loc ? 'Shipper sẽ thấy đúng vị trí của bạn trên bản đồ.' : 'Bạn cần chia sẻ vị trí mới gửi được đơn. Bấm 1 lần để lưu.'}</div>
       <div class="row-kv" style="margin-top:8px"><span>Khu vực / Thanh toán</span><b>${esc(S.area)} · Tiền mặt</b></div>
-      <button class="sheet-btn" data-placeorder>Đặt đơn · ${money(c.total)}</button>`);
+      <button class="sheet-btn" data-placeorder ${CART.loc ? '' : 'disabled'}>${CART.loc ? 'Đặt đơn · ' + money(c.total) : 'Chia sẻ vị trí để đặt đơn'}</button>`);
   }
   const readCheckout = () => { CART.address = $('#co-addr')?.value ?? CART.address; CART.note = $('#co-note')?.value ?? CART.note; CART.promo = ($('#co-promo')?.value ?? CART.promo).trim(); };
   async function placeOrderNow(btn) {
     readCheckout();
     const { s, lines } = cartData(); if (!s || !lines.length) return;
     if (s.open === false) return toast('Quán đang đóng cửa');
+    if (!CART.loc) return toast('Vui lòng chia sẻ vị trí giao hàng để gửi đơn');
     const addr = (CART.address || '').trim();
     if (addr.length < 5) return toast('Vui lòng nhập địa chỉ nhận hàng');
     const c = calc(s, lines, CART.promo);
@@ -588,7 +624,7 @@
     try {
       await FB.placeOrder({
         code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone,
-        address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '', shopLat:s.lat ?? null, shopLng:s.lng ?? null, lat:CART.loc ? CART.loc.lat : null, lng:CART.loc ? CART.loc.lng : null, locAcc:CART.loc ? CART.loc.acc : null,
+        address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '', shopLat:s.lat ?? null, shopLng:s.lng ?? null, lat:CART.loc.lat, lng:CART.loc.lng, locAcc:CART.loc.acc,
         items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff, promoCode:c.promo ? c.promo.code : '',
         shipFee:c.ship, total:c.total, payment:'cash', status:'pending',
       });
@@ -605,7 +641,7 @@
       CART.loc = { lat:+p.coords.latitude.toFixed(6), lng:+p.coords.longitude.toFixed(6), acc:Math.round(p.coords.accuracy) };
       readCheckout(); checkoutSheet(); toast('Đã lưu vị trí của bạn');
     }, e => {
-      btn.disabled = false; btn.textContent = '📍 Chia sẻ vị trí giao hàng';
+      btn.disabled = false; btn.textContent = '📍 Chia sẻ vị trí giao hàng (bắt buộc)';
       toast(e.code === 1 ? 'Bạn đã chặn quyền vị trí. Hãy cho phép "Vị trí" cho trang web rồi thử lại.' : 'Không lấy được vị trí, hãy bật GPS rồi thử lại.');
     }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
   }
@@ -641,7 +677,7 @@
   }
   function go(tab, push = true) {
     if (!renderers[tab]) tab = 'home';
-    S.tab = tab; closeSheet();
+    S.tab = tab; hideShopPage();
     $$('.view').forEach(v => v.classList.remove('active'));
     renderers[tab]();
     const v = $('#view-' + tab); v.classList.add('active');
@@ -652,14 +688,17 @@
     renderNav();
     if (push && location.hash !== '#' + tab) history.pushState(null, '', '#' + tab);
   }
-  window.addEventListener('popstate', () => go(location.hash.slice(1) || 'home', false));
+  window.addEventListener('popstate', () => { if (shopPageOpen) { hideShopPage(); return; } go(location.hash.slice(1) || 'home', false); });
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
 
   /* ---------------- EVENTS ---------------- */
   document.addEventListener('click', e => {
     const t = e.target;
     const qb = t.closest('[data-qty]');
-    if (qb) { const i = +qb.dataset.qty; CART.q[i] = Math.max(0, (CART.q[i] || 0) + +qb.dataset.d); const el = $('#qty-' + i); if (el) el.textContent = CART.q[i]; updateCartUI(); return; }
-    if (t.closest('[data-cart]')) return checkoutSheet();
+    if (qb) { if (!LIVE) return toast('Đây là bản demo, chưa đặt món được'); const i = +qb.dataset.qty, s0 = SHOPS.find(x => x.id === CART.shop); CART.q[i] = Math.max(0, (CART.q[i] || 0) + +qb.dataset.d); const c = $('#ctl-' + i); if (c && s0) c.innerHTML = spCtl(s0, i); updateCartUI(); return; }
+    if (t.closest('[data-shopback]')) { history.back(); return; }
+    const spc = t.closest('[data-spcat]'); if (spc) { SP.cat = spc.dataset.spcat; renderShopPage(); return; }
+    if (t.closest('[data-cart]')) { if (!LIVE) return toast('Đây là bản demo, chưa đặt món được'); return checkoutSheet(); }
     const ap = t.closest('[data-applypromo]');
     if (ap) { readCheckout(); const { s, lines } = cartData(); if (CART.promo && !calc(s, lines, CART.promo).promo) toast('Mã không hợp lệ hoặc chưa đủ điều kiện'); return checkoutSheet(); }
     const po = t.closest('[data-placeorder]'); if (po) return placeOrderNow(po);
@@ -674,7 +713,7 @@
     }
     const sm = t.closest('[data-sheetmsg]'); if (sm) { toast(sm.dataset.sheetmsg); closeSheet(); return; }
     const goBtn = t.closest('[data-go]'); if (goBtn) { go(goBtn.dataset.go); return; }
-    const shop = t.closest('[data-shop]'); if (shop) { shopSheet(shopBy(shop.dataset.shop)); return; }
+    const shop = t.closest('[data-shop]'); if (shop) { openShopPage(SHOPS.find(x => x.id === shop.dataset.shop)); return; }
 
     const cat = t.closest('[data-cat]');
     if (cat) { S.home.cat = cat.dataset.cat; $$('#home-chips .chip').forEach(c => c.classList.toggle('on', c === cat)); $('#home-list').innerHTML = shopListHtml(); return; }
@@ -772,7 +811,7 @@
       id:d.id, _d:d, name:esc(d.name), cat:esc(cat), homeCat:esc(cat), img:esc(d.img || 'hero.svg'), rate:+d.rate || 0, rc:esc(d.rc || ''),
       eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, sale:+d.sale || 0,
       group:((d.group && d.group.length) ? d.group : [cat.split('•')[0].trim()]).map(esc), desc:esc(d.desc || ''),
-      menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false]), lat:d.lat ?? null, lng:d.lng ?? null, open:d.open !== false, phone:esc(d.phone || ''), address:esc(d.address || ''),
+      menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false, esc(m.cat || ''), esc(m.img || '')]), lat:d.lat ?? null, lng:d.lng ?? null, open:d.open !== false, phone:esc(d.phone || ''), address:esc(d.address || ''),
     };
   }
   function mapOrder(o) {
@@ -811,6 +850,7 @@
         if (err) return toast('Không tải được danh sách quán');
         shopsLoaded = true;
         SHOPS = l.map(mapShop).sort((a, b) => (b.open !== false) - (a.open !== false) || a.name.localeCompare(b.name, 'vi'));
+        if (shopPageOpen) { if (SHOPS.some(x => x.id === SP.id)) renderShopPage(); }
         if (S.tab === 'home' && $('#home-list')) $('#home-list').innerHTML = shopListHtml();
         else if (S.tab === 'favorites' && $('#fav-body')) { $('#fav-body').innerHTML = favBody(); bindFavSort(); }
         else if (S.tab === 'orders') rebuildOrders();
