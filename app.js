@@ -607,20 +607,41 @@
     if (!S.user) { closeSheet(); toast('Vui lòng đăng nhập để đặt món'); S.authTab = 'login'; return go('auth'); }
     const c = calc(s, lines, CART.promo);
     const addr = CART.address ?? S.user.address ?? '';
-    openSheet(`<h3>Xác nhận đơn hàng</h3><div class="sub">${s.name}</div>
-      <div style="margin-top:8px">${lines.map(l => `<div class="row-kv"><span>${l.qty} x ${l.name}</span><b>${money(l.price * l.qty)}</b></div>`).join('')}
-      <div class="row-kv"><span>Tạm tính</span><b>${money(c.sub)}</b></div>
-      ${c.disc ? `<div class="row-kv"><span>Giảm giá quán (${s.sale}%)</span><b>-${money(c.disc)}</b></div>` : ''}
-      ${c.promoOff ? `<div class="row-kv"><span>Mã ${esc(c.promo.code)}</span><b>-${money(c.promoOff)}</b></div>` : ''}
-      <div class="row-kv"><span>Phí giao hàng</span><b>${c.ship ? money(c.ship) : 'Miễn phí'}</b></div>
-      <div class="row-kv"><span>Tổng thanh toán</span><b style="color:var(--green-d)">${money(c.total)}</b></div></div>
-      <div class="sheet-input"><input id="co-addr" placeholder="Địa chỉ nhận hàng (số nhà, thôn/xóm)" value="${esc(addr)}" autocomplete="street-address" style="flex:1;border:0;background:none;font-size:14px;outline:0"></div>
-      <div class="sheet-input"><input id="co-note" placeholder="Ghi chú cho quán (không bắt buộc)" value="${esc(CART.note)}" style="flex:1;border:0;background:none;font-size:14px;outline:0"></div>
-      <div class="sheet-input"><input id="co-promo" placeholder="Mã giảm giá" value="${esc(CART.promo)}" style="flex:1;border:0;background:none;font-size:14px;outline:0;text-transform:uppercase"><button data-applypromo style="color:var(--green-d);font-weight:700">Áp dụng</button></div>
-      <button class="sheet-btn" data-shareloc ${CART.loc ? 'disabled' : ''} style="background:var(--green-l);color:var(--green-d);margin-top:14px">${CART.loc ? '✓ Đã chia sẻ vị trí giao hàng' : '📍 Chia sẻ vị trí giao hàng (bắt buộc)'}</button>
-      <div class="sub" style="margin-top:6px;${CART.loc ? '' : 'color:var(--red)'}">${CART.loc ? 'Shipper sẽ thấy đúng vị trí của bạn trên bản đồ.' : 'Bạn cần chia sẻ vị trí mới gửi được đơn. Bấm 1 lần để lưu.'}</div>
-      <div class="row-kv" style="margin-top:8px"><span>Khu vực / Thanh toán</span><b>${esc(S.area)} · Tiền mặt</b></div>
-      <button class="sheet-btn" data-placeorder ${CART.loc ? '' : 'disabled'}>${CART.loc ? 'Đặt đơn · ' + money(c.total) : 'Chia sẻ vị trí để đặt đơn'}</button>`);
+    const qtyN = lines.reduce((n, l) => n + l.qty, 0);
+    openSheet(`<div class="co">
+      <div class="co-head"><h3>Xác nhận đơn hàng</h3><div class="co-shop">🏪 ${esc(s.name)}</div></div>
+
+      <section class="co-card"><div class="co-title">Món đã chọn <span>${qtyN} món</span></div>
+        ${lines.map(l => `<div class="co-item"><span class="co-qty">${l.qty}×</span><span class="co-name">${esc(l.name)}</span><b>${money(l.price * l.qty)}</b></div>`).join('')}
+      </section>
+
+      <section class="co-card"><div class="co-title">Thông tin giao hàng</div>
+        <label class="co-f"><span>Địa chỉ nhận hàng <i>*</i></span><input id="co-addr" placeholder="Số nhà, thôn/xóm…" value="${esc(addr)}" autocomplete="street-address"></label>
+        <div class="co-hint">Khu vực: ${esc(S.area)}</div>
+        <label class="co-f"><span>Ghi chú cho quán</span><input id="co-note" placeholder="Ít cay, không hành… (không bắt buộc)" value="${esc(CART.note)}"></label>
+      </section>
+
+      <section class="co-card"><div class="co-title">Mã giảm giá</div>
+        <div class="co-promo"><input id="co-promo" placeholder="Nhập mã" value="${esc(CART.promo)}"><button type="button" data-applypromo>Áp dụng</button></div>
+      </section>
+
+      <section class="co-card co-loc ${CART.loc ? 'ok' : 'need'}">
+        <div class="co-loc-ic">${CART.loc ? '✓' : '📍'}</div>
+        <div class="co-loc-tx"><b>${CART.loc ? 'Đã chia sẻ vị trí giao hàng' : 'Cần chia sẻ vị trí giao hàng'}</b><span>${CART.loc ? 'Shipper sẽ thấy đúng vị trí của bạn trên bản đồ.' : 'Bắt buộc để gửi đơn. Bấm 1 lần để lưu.'}</span></div>
+        ${CART.loc ? '' : '<button type="button" class="co-loc-btn" data-shareloc>Chia sẻ vị trí</button>'}
+      </section>
+
+      <section class="co-card co-sum">
+        <div class="co-row"><span>Tạm tính</span><b>${money(c.sub)}</b></div>
+        ${c.disc ? `<div class="co-row off"><span>Giảm giá quán (${s.sale}%)</span><b>-${money(c.disc)}</b></div>` : ''}
+        ${c.promoOff ? `<div class="co-row off"><span>Mã ${esc(c.promo.code)}</span><b>-${money(c.promoOff)}</b></div>` : ''}
+        <div class="co-row"><span>Phí giao hàng</span><b>${c.ship ? money(c.ship) : 'Miễn phí'}</b></div>
+        <div class="co-total"><span>Tổng thanh toán</span><b>${money(c.total)}</b></div>
+        <div class="co-pay">💵 Thanh toán tiền mặt khi nhận hàng</div>
+      </section>
+
+      <div class="co-foot"><button class="sheet-btn" data-placeorder ${CART.loc ? '' : 'disabled'}>${CART.loc ? 'Đặt đơn · ' + money(c.total) : 'Chia sẻ vị trí để đặt đơn'}</button></div>
+    </div>`);
   }
   const readCheckout = () => { CART.address = $('#co-addr')?.value ?? CART.address; CART.note = $('#co-note')?.value ?? CART.note; CART.promo = ($('#co-promo')?.value ?? CART.promo).trim(); };
   async function placeOrderNow(btn) {

@@ -470,3 +470,45 @@ html{touch-action:manipulation;-webkit-text-size-adjust:100%}
 .banner p span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .banner .shoplogo{position:absolute;z-index:3;right:22px;top:50%;transform:translateY(-50%);width:80px;height:80px;border-radius:50%;border:3px solid #fff;object-fit:cover;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .banner .off{position:absolute;z-index:4;right:12px;top:10px;background:#e53935;color:#fff;font-weight:700;font-size:12px;border-radius:10px;padding:3px 8px;font-family:var(--font-h)}
+
+/* ---------- form xác nhận đơn hàng ---------- */
+.co{display:flex;flex-direction:column;gap:12px}
+.co-head h3{font-size:20px}
+.co-shop{display:flex;align-items:center;gap:6px;margin-top:4px;color:var(--ink-2);font-size:14px;font-weight:600}
+.co-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px 16px}
+.co-title{display:flex;justify-content:space-between;align-items:center;font-family:var(--font-h);font-weight:700;font-size:15px;margin-bottom:6px}
+.co-title span{font-family:inherit;font-weight:600;font-size:13px;color:var(--ink-2)}
+.co-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:15px}
+.co-item:first-of-type{border-top:0}
+.co-qty{flex:none;min-width:34px;text-align:center;background:var(--green-l);color:var(--green-d);font-weight:700;font-size:13px;border-radius:8px;padding:3px 6px}
+.co-name{flex:1;line-height:1.35;word-break:break-word}
+.co-item b{flex:none;font-weight:700}
+.co-f{display:block;margin-top:10px}
+.co-f span{display:block;font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:5px}
+.co-f span i{color:var(--red);font-style:normal}
+.co-f input{width:100%;height:48px;background:#f2f3f5;border:1.5px solid transparent;border-radius:14px;padding:0 14px;font-size:15px;outline:0;transition:border-color .15s,background .15s}
+.co-f input:focus{background:#fff;border-color:var(--green)}
+.co-hint{font-size:12.5px;color:var(--ink-3);margin-top:6px}
+.co-promo{display:flex;gap:8px}
+.co-promo input{flex:1;min-width:0;height:48px;background:#f2f3f5;border:1.5px dashed #cfd5dc;border-radius:14px;padding:0 14px;font-size:15px;text-transform:uppercase;outline:0}
+.co-promo input:focus{background:#fff;border-color:var(--green)}
+.co-promo button{flex:none;height:48px;padding:0 18px;border-radius:14px;background:var(--green-l);color:var(--green-d);font-weight:700;font-size:14px}
+.co-loc{display:flex;align-items:center;gap:12px}
+.co-loc.need{background:var(--orange-l);border-color:#ffd9a8}
+.co-loc.ok{background:var(--green-xl);border-color:#bfe6cf}
+.co-loc-ic{flex:none;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#fff;font-size:18px;font-weight:700;color:var(--green-d)}
+.co-loc-tx{flex:1;min-width:0}
+.co-loc-tx b{display:block;font-size:14.5px}
+.co-loc-tx span{display:block;font-size:12.5px;color:var(--ink-2);margin-top:2px;line-height:1.35}
+.co-loc-btn{flex:none;height:40px;padding:0 14px;border-radius:20px;background:var(--orange);color:#fff;font-weight:700;font-size:13.5px}
+.co-loc-btn:disabled{opacity:.6}
+.co-sum{background:#fafbfc}
+.co-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:14.5px;color:var(--ink-2)}
+.co-row b{color:var(--ink);font-weight:600}
+.co-row.off b{color:var(--green-d)}
+.co-total{display:flex;justify-content:space-between;align-items:baseline;border-top:1.5px dashed #d9dee4;margin-top:8px;padding-top:12px}
+.co-total span{font-family:var(--font-h);font-weight:700;font-size:16px}
+.co-total b{font-family:var(--font-h);font-weight:800;font-size:22px;color:var(--green-d)}
+.co-pay{margin-top:10px;font-size:13px;color:var(--ink-2);background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 12px}
+.co-foot{position:sticky;bottom:-28px;margin:2px -20px -28px;padding:12px 20px 22px;background:linear-gradient(to top,#fff 80%,rgba(255,255,255,0));z-index:2}
+.co-foot .sheet-btn{margin-top:0}
