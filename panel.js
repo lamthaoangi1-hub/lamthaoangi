@@ -78,3 +78,15 @@ export function bindMenuEditor(root) {
 export const readMenu = root => $$('[data-mrow]', root).map(r => ({
   name: $('[data-k=name]', r).value.trim(), price: Math.max(0, Math.round(Number($('[data-k=price]', r).value) || 0)), available: $('[data-k=available]', r).checked,
 })).filter(m => m.name);
+
+/* ---- Vị trí (GPS) ---- */
+export const mapLink = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}`;
+export const dirLink = (lat, lng) => `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=motorcycle`;
+export function getPos() {
+  return new Promise((ok, no) => {
+    if (!navigator.geolocation) return no(new Error('Thiết bị không hỗ trợ định vị'));
+    navigator.geolocation.getCurrentPosition(p => ok({ lat:+p.coords.latitude.toFixed(6), lng:+p.coords.longitude.toFixed(6), acc:Math.round(p.coords.accuracy) }), e => no(new Error(
+      e.code === 1 ? 'Bạn đã chặn quyền vị trí. Hãy bấm biểu tượng ổ khóa cạnh địa chỉ trang, cho phép "Vị trí" rồi thử lại.' : e.code === 3 ? 'Lấy vị trí quá lâu, hãy bật GPS/ra chỗ thoáng rồi thử lại.' : 'Không lấy được vị trí, hãy bật GPS rồi thử lại.')),
+    { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
+  });
+}

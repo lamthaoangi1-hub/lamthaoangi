@@ -1,4 +1,4 @@
-import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep } from './panel.js';
+import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, mapLink, dirLink } from './panel.js';
 
 start({ title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
   let tab = 'open', open = [], mine = [], err = '';
@@ -9,8 +9,8 @@ start({ title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
     const items = (o.items || []).map(i => `<li>${i.qty} x ${esc(i.name)}</li>`).join('');
     return `<div class="card"><div class="row sb"><b>#${esc(o.code)}</b>${badge(o.status)}</div>
       <div class="muted">${fmtTime(o.createdAt)}</div>
-      <p style="margin-top:8px"><b>Lấy hàng:</b> ${esc(o.shopName)}<br><span class="muted">${esc(o.shopAddress || 'Chưa có địa chỉ quán')} · ${tel(o.shopPhone)}</span>${o.shopAddress ? ` <a href="${map(o.shopAddress)}" target="_blank" rel="noopener">Bản đồ</a>` : ''}</p>
-      <p style="margin-top:8px"><b>Giao tới:</b> ${esc(o.customerName)} · ${tel(o.customerPhone)}<br><span class="muted">${esc(o.address)}</span> <a href="${map(o.address)}" target="_blank" rel="noopener">Bản đồ</a></p>
+      <p style="margin-top:8px"><b>Lấy hàng:</b> ${esc(o.shopName)}<br><span class="muted">${esc(o.shopAddress || 'Chưa có địa chỉ quán')} · ${tel(o.shopPhone)}</span>${o.shopLat != null ? `<br><a class="btn sm" style="margin-top:6px" href="${dirLink(o.shopLat, o.shopLng)}" target="_blank" rel="noopener">📍 Chỉ đường tới quán</a>` : (o.shopAddress ? ` <a href="${map(o.shopAddress)}" target="_blank" rel="noopener">Bản đồ</a>` : '')}</p>
+      <p style="margin-top:8px"><b>Giao tới:</b> ${esc(o.customerName)} · ${tel(o.customerPhone)}<br><span class="muted">${esc(o.address)}</span>${o.lat != null ? `<br><a class="btn sm" style="margin-top:6px" href="${dirLink(o.lat, o.lng)}" target="_blank" rel="noopener">📍 Chỉ đường tới khách (vị trí khách chia sẻ)</a>` : ` <a href="${map(o.address)}" target="_blank" rel="noopener">Bản đồ</a>`}</p>
       ${o.note ? `<p class="muted" style="margin-top:6px">Ghi chú: ${esc(o.note)}</p>` : ''}
       <ul class="items">${items}</ul>
       <div class="row sb"><span>Thu tiền mặt: <b class="total">${money(o.total)}</b> <span class="muted">(ship ${money(o.shipFee)})</span></span>

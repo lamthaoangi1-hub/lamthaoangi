@@ -123,7 +123,7 @@
   let LIVE = false, FB = null, PROMOS = [], CONTACT = { hotline:'0900 000 000', email:'lamthaoangi1@gmail.com', zalo:'' };
   const GHOST = {};
   let shopsLoaded = false;
-  const CART = { shop:null, q:{}, promo:'', note:'', address:null };
+  const CART = { shop:null, q:{}, promo:'', note:'', address:null, loc:null };
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const telHot = () => CONTACT.hotline.replace(/\s/g, '');
 
@@ -571,6 +571,8 @@
       <div class="sheet-input"><input id="co-addr" placeholder="Địa chỉ nhận hàng (số nhà, thôn/xóm)" value="${esc(addr)}" autocomplete="street-address" style="flex:1;border:0;background:none;font-size:16px;outline:0"></div>
       <div class="sheet-input"><input id="co-note" placeholder="Ghi chú cho quán (không bắt buộc)" value="${esc(CART.note)}" style="flex:1;border:0;background:none;font-size:16px;outline:0"></div>
       <div class="sheet-input"><input id="co-promo" placeholder="Mã giảm giá" value="${esc(CART.promo)}" style="flex:1;border:0;background:none;font-size:16px;outline:0;text-transform:uppercase"><button data-applypromo style="color:var(--green-d);font-weight:700">Áp dụng</button></div>
+      <button class="sheet-btn" data-shareloc ${CART.loc ? 'disabled' : ''} style="background:var(--green-l);color:var(--green-d);margin-top:14px">${CART.loc ? '✓ Đã chia sẻ vị trí giao hàng' : '📍 Chia sẻ vị trí giao hàng'}</button>
+      <div class="sub" style="margin-top:6px">${CART.loc ? 'Shipper sẽ thấy đúng vị trí của bạn trên bản đồ.' : 'Không bắt buộc, nhưng giúp shipper tìm nhà nhanh hơn. Bấm 1 lần để lưu.'}</div>
       <div class="row-kv" style="margin-top:8px"><span>Khu vực / Thanh toán</span><b>${esc(S.area)} · Tiền mặt</b></div>
       <button class="sheet-btn" data-placeorder>Đặt đơn · ${money(c.total)}</button>`);
   }
@@ -586,14 +588,26 @@
     try {
       await FB.placeOrder({
         code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone,
-        address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '',
+        address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '', shopLat:s.lat ?? null, shopLng:s.lng ?? null, lat:CART.loc ? CART.loc.lat : null, lng:CART.loc ? CART.loc.lng : null, locAcc:CART.loc ? CART.loc.acc : null,
         items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff, promoCode:c.promo ? c.promo.code : '',
         shipFee:c.ship, total:c.total, payment:'cash', status:'pending',
       });
       FB.updateMyProfile(S.user.uid, { address:addr }).catch(() => {}); S.user.address = addr;
-      CART.q = {}; CART.promo = ''; CART.note = ''; CART.address = null;
+      CART.q = {}; CART.promo = ''; CART.note = ''; CART.address = null; CART.loc = null;
       closeSheet(); S.orders.tab = 'proc'; go('orders'); toast('Đặt đơn thành công! Quán sẽ xác nhận sớm.');
     } catch (e) { btn.disabled = false; toast(FB.errMsg(e)); }
+  }
+  function shareLoc(btn) {
+    if (CART.loc) return;
+    if (!navigator.geolocation) return toast('Thiết bị không hỗ trợ định vị');
+    btn.disabled = true; btn.textContent = 'Đang lấy vị trí…';
+    navigator.geolocation.getCurrentPosition(p => {
+      CART.loc = { lat:+p.coords.latitude.toFixed(6), lng:+p.coords.longitude.toFixed(6), acc:Math.round(p.coords.accuracy) };
+      readCheckout(); checkoutSheet(); toast('Đã lưu vị trí của bạn');
+    }, e => {
+      btn.disabled = false; btn.textContent = '📍 Chia sẻ vị trí giao hàng';
+      toast(e.code === 1 ? 'Bạn đã chặn quyền vị trí. Hãy cho phép "Vị trí" cho trang web rồi thử lại.' : 'Không lấy được vị trí, hãy bật GPS rồi thử lại.');
+    }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
   }
   function reorder(o) {
     if (!LIVE) return toast('Đã thêm món vào giỏ hàng');
@@ -649,6 +663,7 @@
     const ap = t.closest('[data-applypromo]');
     if (ap) { readCheckout(); const { s, lines } = cartData(); if (CART.promo && !calc(s, lines, CART.promo).promo) toast('Mã không hợp lệ hoặc chưa đủ điều kiện'); return checkoutSheet(); }
     const po = t.closest('[data-placeorder]'); if (po) return placeOrderNow(po);
+    const sl = t.closest('[data-shareloc]'); if (sl) return shareLoc(sl);
     const heart = t.closest('[data-heart]');
     if (heart) {
       e.stopPropagation(); toggleFav(heart.dataset.heart);
@@ -757,7 +772,7 @@
       id:d.id, _d:d, name:esc(d.name), cat:esc(cat), homeCat:esc(cat), img:esc(d.img || 'hero.svg'), rate:+d.rate || 0, rc:esc(d.rc || ''),
       eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, sale:+d.sale || 0,
       group:((d.group && d.group.length) ? d.group : [cat.split('•')[0].trim()]).map(esc), desc:esc(d.desc || ''),
-      menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false]), open:d.open !== false, phone:esc(d.phone || ''), address:esc(d.address || ''),
+      menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false]), lat:d.lat ?? null, lng:d.lng ?? null, open:d.open !== false, phone:esc(d.phone || ''), address:esc(d.address || ''),
     };
   }
   function mapOrder(o) {

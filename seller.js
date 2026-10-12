@@ -1,4 +1,4 @@
-import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu } from './panel.js';
+import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink } from './panel.js';
 
 start({ title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
@@ -26,7 +26,11 @@ start({ title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   }
   function shopTab() {
     const n = (k, d = '') => esc(shop[k] ?? d);
-    return `<div class="card"><h3>${esc(shop.name)}</h3>
+    const has = shop.lat != null && shop.lng != null;
+    const locCard = `<div class="card"><h3>Vị trí quán trên bản đồ</h3>
+      <p class="muted" style="margin:4px 0 10px">${has ? `Đã lưu vị trí quán${shop.locAcc ? ` (sai số khoảng ${shop.locAcc} m)` : ''}. Shipper sẽ thấy nút chỉ đường tới quán. <a href="${mapLink(shop.lat, shop.lng)}" target="_blank" rel="noopener">Xem trên bản đồ</a>. Muốn đổi vị trí, hãy nhờ Admin đặt lại.` : 'Hãy đứng tại quán, bật GPS rồi bấm nút bên dưới. Chỉ bấm được 1 lần: sau khi lưu nút sẽ bị khóa.'}</p>
+      <button class="btn" data-shareloc ${has ? 'disabled' : ''}>${has ? '✓ Đã chia sẻ vị trí quán' : '📍 Chia sẻ vị trí quán'}</button></div>`;
+    return locCard + `<div class="card"><h3>${esc(shop.name)}</h3>
       <label class="sw"><input type="checkbox" id="s-open" ${shop.open === false ? '' : 'checked'}>Đang mở cửa (nhận đơn)</label>
       <label class="f">Mô tả<textarea id="s-desc">${n('desc')}</textarea></label>
       <div class="grid"><label class="f">Địa chỉ<input type="text" id="s-address" value="${n('address')}"></label><label class="f">SĐT quán<input type="tel" id="s-phone" value="${n('phone')}"></label>
@@ -54,6 +58,17 @@ start({ title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
     try {
       const nx = e.target.closest('[data-next]'); if (nx) { await fb.patchOrder(nx.dataset.next, { status:nx.dataset.st }); return; }
       const c = e.target.closest('[data-cancel]'); if (c) { if (confirm('Từ chối/hủy đơn này?')) await fb.patchOrder(c.dataset.cancel, { status:'cancelled' }); return; }
+      const sl = e.target.closest('[data-shareloc]');
+      if (sl) {
+        if (shop.lat != null) return;
+        sl.disabled = true; sl.textContent = 'Đang lấy vị trí…';
+        try {
+          const p = await getPos();
+          await fb.patchShop(me.shopId, { lat:p.lat, lng:p.lng, locAcc:p.acc, locAt:Date.now() });
+          shop = { ...shop, lat:p.lat, lng:p.lng, locAcc:p.acc }; draw(); toast('Đã lưu vị trí quán');
+        } catch (er) { sl.disabled = false; sl.textContent = '📍 Chia sẻ vị trí quán'; toast(er.message || fb.errMsg(er)); }
+        return;
+      }
       if (e.target.closest('[data-savemenu]')) { await fb.patchShop(me.shopId, { menu:readMenu(root) }); toast('Đã lưu thực đơn'); return; }
       if (e.target.closest('[data-saveshop]')) {
         const v = id => $('#' + id).value.trim();
