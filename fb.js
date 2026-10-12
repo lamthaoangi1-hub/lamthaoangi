@@ -75,6 +75,14 @@ export const watchAllOrders = cb => watch(query(collection(db, 'orders'), limit(
 
 /* ---- ghi ---- */
 export const placeOrder = o => addDoc(collection(db, 'orders'), { ...o, createdAt:serverTimestamp(), updatedAt:serverTimestamp() });
+/* Báo đơn mới qua Gmail (admin) + Zalo (quán, admin) bằng Google Apps Script. Không chặn việc đặt đơn nếu lỗi. */
+export async function notifyNewOrder(orderId) {
+  if (!UPLOAD_URL) return;
+  try {
+    const token = await idToken();
+    await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'notifyOrder', token, orderId }) });
+  } catch (e) { console.warn('Không gửi được thông báo đơn mới', e); }
+}
 export const patchOrder = (id, patch) => updateDoc(doc(db, 'orders', id), { ...patch, updatedAt:serverTimestamp() });
 export const createShop = d => addDoc(collection(db, 'shops'), { ...d, createdAt:serverTimestamp() });
 export const patchShop = (id, patch) => updateDoc(doc(db, 'shops', id), patch);

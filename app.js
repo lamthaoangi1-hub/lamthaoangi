@@ -633,12 +633,13 @@
     const c = calc(s, lines, CART.promo);
     btn.disabled = true;
     try {
-      await FB.placeOrder({
+      const ref = await FB.placeOrder({
         code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone,
         address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '', shopLat:s.lat ?? null, shopLng:s.lng ?? null, lat:CART.loc.lat, lng:CART.loc.lng, locAcc:CART.loc.acc,
         items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff, promoCode:c.promo ? c.promo.code : '',
         shipFee:c.ship, total:c.total, payment:'cash', status:'pending',
       });
+      FB.notifyNewOrder(ref.id);   // Gmail admin + Zalo quán/admin (chạy nền)
       FB.updateMyProfile(S.user.uid, { address:addr }).catch(() => {}); S.user.address = addr;
       CART.q = {}; CART.promo = ''; CART.note = ''; CART.address = null; CART.loc = null;
       closeSheet(); S.orders.tab = 'proc'; go('orders'); toast('Đặt đơn thành công! Quán sẽ xác nhận sớm.');

@@ -54,13 +54,33 @@ Admin và chủ quán bấm **Tải ảnh lên** là ảnh được nén rồi l
 
 Ghi chú: chỉ tài khoản admin hoặc seller đã đăng nhập mới tải ảnh được (script tự kiểm tra). Ảnh được đặt chế độ "ai có link đều xem được" để khách thấy ảnh trên website. Nếu bạn sửa code script sau này, phải **Deploy → Manage deployments → Edit → New version** thì mới có hiệu lực. Tài khoản Google Workspace của công ty/trường có thể chặn chia sẻ công khai; dùng Gmail cá nhân sẽ không gặp.
 
+## Thông báo đơn mới qua Gmail và Zalo
+Mỗi khi khách đặt đơn, website gọi Google Apps Script (cùng script lưu ảnh) để: **gửi email cho Admin** và **nhắn Zalo cho quán + Admin**. Gmail dùng ngay; Zalo cần thiết lập thêm một lần.
+
+**A. Cập nhật script (bắt buộc)**
+1. Mở script cũ trên https://script.google.com, xóa hết code, dán toàn bộ **`google-apps-script.gs`** mới.
+2. Kiểm tra `ADMIN_EMAIL` (Gmail nhận đơn) và (tuỳ chọn) `SITE_URL`. Lưu.
+3. Chạy hàm **`testNotify`** (chọn hàm → Run) → cấp quyền gửi mail → Gmail Admin sẽ nhận 1 mail thử.
+4. **Deploy → Manage deployments → Edit (bút chì) → Version: New version → Deploy.** URL giữ nguyên nên không phải sửa `upload-config.js`.
+5. Tải toàn bộ file website mới lên GitHub (ghi đè), Ctrl+F5.
+
+**B. Bật Zalo (Zalo Bot, tạo ở Zalo Bot Creator)**
+1. Lấy **token bot** (dạng `123456:abcxyz`) từ Zalo Bot Creator. Trong Apps Script: **Project Settings → Script properties → Add** → tên `ZALO_BOT_TOKEN`, giá trị là token.
+2. Admin và chủ quán mở Zalo, tìm bot và **nhắn cho bot một tin bất kỳ** (bot chỉ nhắn được cho người đã nhắn nó trước).
+3. Chạy hàm **`listZaloChats`** → xem **View → Logs**: mỗi dòng là `chat_id | tên | nội dung tin`.
+   - Dán chat_id của Admin vào Script property **`ZALO_ADMIN_IDS`** (nhiều người cách nhau dấu phẩy).
+   - Dán chat_id của chủ quán vào **Admin → Cửa hàng → Sửa → "Zalo ID của quán"** rồi Lưu.
+4. Chạy lại **`testNotify`** để thử nhận tin Zalo + Gmail.
+
+Lưu ý: không được cài webhook cho bot này (webhook và getUpdates loại trừ nhau), script chỉ dùng getUpdates để lấy chat_id. Nếu Zalo lỗi, đơn vẫn đặt bình thường và mail vẫn gửi (xem lỗi ở Apps Script → Executions). Gmail thường gửi tối đa khoảng 100 mail/ngày.
+
 ## Phí giao hàng
 Chỉ **Admin** sửa được phí giao hàng và mức miễn phí ship của từng quán (Admin → Cửa hàng → Sửa). Chủ quán chỉ xem được, và luật bảo mật cũng chặn chủ quán tự đổi.
 
 ## Giới hạn cần biết
 - **Quên mật khẩu:** chưa có tự đặt lại (vì không dùng email thật). Cách xử lý: xóa tài khoản đó trong Firebase Console → Authentication, rồi khách đăng ký lại.
 - **Giá đơn hàng** do trình duyệt khách tính; luật bảo mật chặn sửa trái phép đơn của người khác nhưng chưa kiểm tra giá theo thực đơn. Với quy mô địa phương là đủ; muốn chặt hơn cần thêm Cloud Functions.
-- **Thông báo đẩy** chưa có: quán/shipper cần mở trang để nhận tiếng báo đơn mới.
+- **Thông báo đẩy** trên điện thoại chưa có: đơn mới được báo qua Gmail/Zalo (xem mục trên); quán/shipper vẫn nên mở trang để nghe tiếng "ting".
 - **Thanh toán** hiện chỉ tiền mặt khi nhận hàng.
 - Gói miễn phí Firebase (Spark) giới hạn 50.000 lượt đọc/ngày – đủ cho vài chục đến vài trăm đơn mỗi ngày.
 - Dịch vụ Xe ôm, Giao hàng, Mua hộ vẫn hiển thị "sắp ra mắt".
