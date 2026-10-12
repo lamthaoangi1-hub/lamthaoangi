@@ -38,7 +38,7 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
     return `<div class="card"><h3>${s.id ? 'Sửa cửa hàng' : 'Thêm cửa hàng'}</h3>
       <div class="grid"><label class="f">Tên quán *<input type="text" id="f-name" value="${n('name')}"></label><label class="f">Loại (VD: Phở • Món Việt)<input type="text" id="f-cat" value="${n('cat')}"></label>
       <label class="f">Nhóm lọc (cách nhau dấu phẩy)<input type="text" id="f-group" value="${esc((s.group || []).join(', '))}" placeholder="Phở, Món Việt"></label><label class="f">SĐT quán<input type="tel" id="f-phone" value="${n('phone')}"></label>
-      <label class="f">Zalo ID của quán (nhận báo đơn mới)<input type="text" id="f-zalo" value="${n('zaloId')}" placeholder="user_id Zalo OA"></label><label class="f">Địa chỉ<input type="text" id="f-address" value="${n('address')}"></label><label class="f">Thời gian giao<input type="text" id="f-eta" value="${n('eta', '15 - 30 phút')}"></label>
+      <label class="f">Địa chỉ<input type="text" id="f-address" value="${n('address')}"></label><label class="f">Thời gian giao<input type="text" id="f-eta" value="${n('eta', '15 - 30 phút')}"></label>
       <label class="f">Phí giao hàng (đ)<input type="number" id="f-ship" min="0" step="1000" value="${s.shipFee ?? 15000}"></label><label class="f">Miễn phí ship từ (đ, 0 = không)<input type="number" id="f-free" min="0" step="1000" value="${s.freeShipMin ?? 0}"></label>
       <label class="f">Giảm giá (%)<input type="number" id="f-sale" min="0" max="90" value="${s.sale ?? 0}"></label><label class="f">Điểm đánh giá (0–5, để 0 nếu quán mới)<input type="number" id="f-rate" min="0" max="5" step="0.1" value="${s.rate ?? 0}"></label>
       <label class="f">Số lượt đánh giá (VD: 120+)<input type="text" id="f-rc" value="${n('rc')}"></label></div>
@@ -55,8 +55,9 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
   const flat = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
   const roleSel = u => `<select data-urole="${u.uid}" style="width:auto">${ROLES.map(([r, l]) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   const userTable = (role, list) => {
-    const isS = role === 'seller';
-    return `<div class="card" style="overflow:auto"><table><tr><th>Tên</th><th>SĐT</th>${isS ? '<th>Cửa hàng</th>' : ''}<th>Vai trò</th></tr>${list.length ? list.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td>${isS ? `<td><select data-ushop="${u.uid}" style="width:auto"><option value="">— chọn quán —</option>${shops.map(s => `<option value="${s.id}" ${u.shopId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>${u.shopId ? '' : '<br><span class="badge warn">Chưa gán quán</span>'}</td>` : ''}<td>${roleSel(u)}</td></tr>`).join('') : `<tr><td colspan="${isS ? 4 : 3}" class="muted">Chưa có ai trong nhóm này</td></tr>`}</table></div>`;
+    const isS = role === 'seller', hasZ = isS || role === 'shipper', cols = 3 + (isS ? 1 : 0) + (hasZ ? 1 : 0);
+    const zalo = u => `<td><input type="text" data-uzalo="${u.uid}" value="${esc(u.zaloId || '')}" placeholder="Zalo ID (nhận báo đơn)" style="min-width:150px"></td>`;
+    return `<div class="card" style="overflow:auto"><table><tr><th>Tên</th><th>SĐT</th>${isS ? '<th>Cửa hàng</th>' : ''}${hasZ ? '<th>Zalo ID</th>' : ''}<th>Vai trò</th></tr>${list.length ? list.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td>${isS ? `<td><select data-ushop="${u.uid}" style="width:auto"><option value="">— chọn quán —</option>${shops.map(s => `<option value="${s.id}" ${u.shopId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>${u.shopId ? '' : '<br><span class="badge warn">Chưa gán quán</span>'}</td>` : ''}${hasZ ? zalo(u) : ''}<td>${roleSel(u)}</td></tr>`).join('') : `<tr><td colspan="${cols}" class="muted">Chưa có ai trong nhóm này</td></tr>`}</table></div>`;
   };
   const usersView = () => {
     const q = flat($('#uq')?.value.trim());
@@ -84,6 +85,16 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
     root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ orders:ordersView, shops:shopsView, users:usersView, promos:promosView, settings:settingsView }[tab]()}</main>`;
     if (keep && $('#uq')) $('#uq').value = keep;
   }
+  /* Ghi danh sách Zalo ID (chủ quán theo từng quán + shipper) để Apps Script biết gửi báo đơn cho ai */
+  const syncNotify = async () => {
+    const shopsMap = {}, shippers = [];
+    users.forEach(u => {
+      const ids = String(u.zaloId || '').split(',').map(x => x.trim()).filter(Boolean);
+      if (u.role === 'seller' && u.shopId) shopsMap[u.shopId] = [...(shopsMap[u.shopId] || []), ...ids];
+      if (u.role === 'shipper') shippers.push(...ids);
+    });
+    await fb.saveNotify({ shops:shopsMap, shippers });
+  };
   const loadUsers = async () => { try { users = await fb.listUsers(); } catch (e) { err = fb.errMsg(e); } draw(); };
 
   track(fb.watchShops((l, e) => { shops = l.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi')); if (e) err = fb.errMsg(e); if (!edit || !$('#f-name')) draw(); }));
@@ -109,8 +120,9 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
         t.value = ''; draw();
       }
       if (t.dataset.ost) await fb.patchOrder(t.dataset.ost, { status:t.value });
-      if (t.dataset.urole) { await fb.patchUser(t.dataset.urole, { role:t.value }); users.find(u => u.uid === t.dataset.urole).role = t.value; if (ufil !== 'all') ufil = t.value; toast('Đã đổi vai trò' + (t.value === 'seller' ? ' – hãy chọn cửa hàng cho họ' : '')); draw(); }
-      if (t.dataset.ushop) { await fb.patchUser(t.dataset.ushop, { shopId:t.value }); toast('Đã gán cửa hàng'); users.find(u => u.uid === t.dataset.ushop).shopId = t.value; }
+      if (t.dataset.urole) { await fb.patchUser(t.dataset.urole, { role:t.value }); users.find(u => u.uid === t.dataset.urole).role = t.value; if (ufil !== 'all') ufil = t.value; await syncNotify(); toast('Đã đổi vai trò' + (t.value === 'seller' ? ' – hãy chọn cửa hàng cho họ' : '')); draw(); }
+      if (t.dataset.ushop) { await fb.patchUser(t.dataset.ushop, { shopId:t.value }); users.find(u => u.uid === t.dataset.ushop).shopId = t.value; await syncNotify(); toast('Đã gán cửa hàng'); }
+      if (t.dataset.uzalo !== undefined) { const z = t.value.trim(); await fb.patchUser(t.dataset.uzalo, { zaloId:z }); users.find(u => u.uid === t.dataset.uzalo).zaloId = z; await syncNotify(); toast('Đã lưu Zalo ID'); }
       if (t.dataset.pact) { const { id, ...rest } = promos.find(p => p.id === t.dataset.pact); await fb.savePromo(id, { ...rest, active:t.checked }); toast('Đã cập nhật'); }
     } catch (er) { toast(fb.errMsg(er)); }
   });
@@ -158,7 +170,7 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
       else if (g('[data-saveshop]')) {
         const v = id => $('#' + id).value.trim();
         if (!v('f-name')) return toast('Nhập tên quán');
-        const d = { name:v('f-name'), cat:v('f-cat'), group:v('f-group').split(',').map(x => x.trim()).filter(Boolean), phone:v('f-phone'), zaloId:v('f-zalo'), address:v('f-address'), eta:v('f-eta'), shipFee:Math.max(0, +v('f-ship') || 0), freeShipMin:Math.max(0, +v('f-free') || 0), sale:Math.min(90, Math.max(0, +v('f-sale') || 0)), rate:Math.min(5, Math.max(0, +v('f-rate') || 0)), rc:v('f-rc'), img:v('f-img'), desc:v('f-desc'), open:$('#f-open').checked, featured:$('#f-feat').checked, menu:readMenu(root) };
+        const d = { name:v('f-name'), cat:v('f-cat'), group:v('f-group').split(',').map(x => x.trim()).filter(Boolean), phone:v('f-phone'), address:v('f-address'), eta:v('f-eta'), shipFee:Math.max(0, +v('f-ship') || 0), freeShipMin:Math.max(0, +v('f-free') || 0), sale:Math.min(90, Math.max(0, +v('f-sale') || 0)), rate:Math.min(5, Math.max(0, +v('f-rate') || 0)), rc:v('f-rc'), img:v('f-img'), desc:v('f-desc'), open:$('#f-open').checked, featured:$('#f-feat').checked, menu:readMenu(root) };
         if (edit.id) await fb.patchShop(edit.id, d); else await fb.createShop(d);
         edit = null; toast('Đã lưu cửa hàng'); draw();
       }

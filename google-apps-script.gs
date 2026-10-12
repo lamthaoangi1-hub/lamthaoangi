@@ -21,7 +21,7 @@ const SITE_URL = '';                                       // (tuỳ chọn) lin
  * Script properties (Project Settings → Script properties) – dùng cho Zalo Bot:
  *   ZALO_BOT_TOKEN : token bot (dạng 123456:abcxyz) lấy từ Zalo Bot Creator
  *   ZALO_ADMIN_IDS : chat_id Zalo của Admin, nhiều người cách nhau dấu phẩy
- * chat_id của từng quán nhập trong Admin → Cửa hàng → Sửa → ô "Zalo ID của quán".
+ * Zalo ID của chủ quán và shipper nhập trong website: Admin → Người dùng → cột "Zalo ID".
  * Chạy hàm listZaloChats() trong trình soạn thảo để xem chat_id của người đã nhắn bot.
  */
 
@@ -111,19 +111,27 @@ function notifyOrder(body) {
     props().setProperty(key, String(Date.now()));
   } finally { lock.releaseLock(); }
 
-  const result = { email: false, zaloAdmin: 0, zaloShop: false };
+  const result = { email: false, admin: 0, shop: 0, shipper: 0 };
   const shop = getDoc('shops/' + order.shopId, body.token) || {};
+  const notify = getDoc('settings/notify', body.token) || {};   // do Admin lưu: { shops:{shopId:[id]}, shippers:[id] }
 
-  console.log('notifyOrder: đơn ' + order.code + ' | quán ' + order.shopId + ' | zaloId quán: ' + (shop.zaloId || '(chưa có)') + ' | ZALO_ADMIN_IDS: ' + (props().getProperty('ZALO_ADMIN_IDS') || '(chưa có)'));
   try { sendOrderEmail(order, shop); result.email = true; } catch (e) { console.error('Gmail: ' + e); }
 
-  const text = zaloText(order, shop);
-  String(props().getProperty('ZALO_ADMIN_IDS') || '').split(',').map(s => s.trim()).filter(Boolean).forEach(id => {
-    try { if (sendZalo(id, text)) result.zaloAdmin++; } catch (e) { console.error('Zalo admin: ' + e); }
+  const list = v => (Array.isArray(v) ? v : String(v || '').split(',')).map(x => String(x).trim()).filter(Boolean);
+  const adminIds = list(props().getProperty('ZALO_ADMIN_IDS'));
+  const shopIds = list(((notify.shops || {})[order.shopId] || []).concat(list(shop.zaloId)));   // shop.zaloId: cách nhập cũ, vẫn đọc để không mất
+  const shipperIds = list(notify.shippers);
+  console.log('notifyOrder: đơn ' + order.code + ' | admin ' + adminIds.length + ' | quán ' + shopIds.length + ' | shipper ' + shipperIds.length);
+
+  // Mỗi người chỉ nhận 1 tin dù có nhiều vai trò (ưu tiên: admin → quán → shipper)
+  const sent = {};
+  const push = (ids, kind, text) => ids.forEach(id => {
+    if (sent[id]) return; sent[id] = 1;
+    try { if (sendZalo(id, text)) result[kind]++; } catch (e) { console.error('Zalo ' + kind + ': ' + e); }
   });
-  if (shop.zaloId) {
-    try { result.zaloShop = sendZalo(String(shop.zaloId).trim(), text); } catch (e) { console.error('Zalo quán: ' + e); }
-  }
+  push(adminIds, 'admin', zaloText(order, shop, 'Vui lòng mở trang quản trị để theo dõi đơn.'));
+  push(shopIds, 'shop', zaloText(order, shop, 'Vui lòng mở trang quán để NHẬN ĐƠN.'));
+  push(shipperIds, 'shipper', zaloText(order, shop, 'Shipper: mở trang giao hàng để xem và NHẬN ĐƠN khi quán đã nhận.'));
   return out({ ok: true, result: result });
 }
 
@@ -131,7 +139,7 @@ function itemsLines(order) {
   return (order.items || []).map(i => '• ' + i.qty + ' x ' + i.name + ' – ' + money(i.price * i.qty)).join('\n');
 }
 
-function zaloText(order, shop) {
+function zaloText(order, shop, footer) {
   return '🛎 ĐƠN MỚI #' + order.code + '\n'
     + 'Quán: ' + (order.shopName || shop.name || '') + '\n'
     + itemsLines(order) + '\n'
@@ -141,7 +149,7 @@ function zaloText(order, shop) {
     + 'Giao đến: ' + (order.address || '') + '\n'
     + (order.note ? 'Ghi chú: ' + order.note + '\n' : '')
     + (order.lat ? 'Bản đồ: https://maps.google.com/?q=' + order.lat + ',' + order.lng + '\n' : '')
-    + 'Vui lòng mở trang quán để NHẬN ĐƠN.';
+    + (footer || 'Vui lòng mở trang quán để NHẬN ĐƠN.');
 }
 
 function sendOrderEmail(order, shop) {

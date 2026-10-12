@@ -70,6 +70,7 @@ export const watchSettings = cb => onSnapshot(doc(db, 'settings', 'app'), s => c
 export const watchMyOrders = (uid, cb) => watch(query(collection(db, 'orders'), where('uid', '==', uid)), cb);
 export const watchShopOrders = (shopId, cb) => watch(query(collection(db, 'orders'), where('shopId', '==', shopId)), cb);
 export const watchOrdersByStatus = (st, cb) => watch(query(collection(db, 'orders'), where('status', '==', st)), cb);
+export const watchOpenOrders = cb => watch(query(collection(db, 'orders'), where('status', 'in', ['pending', 'confirmed', 'preparing', 'ready'])), cb);
 export const watchShipperOrders = (uid, cb) => watch(query(collection(db, 'orders'), where('shipperUid', '==', uid)), cb);
 export const watchAllOrders = cb => watch(query(collection(db, 'orders'), limit(300)), cb);
 
@@ -93,4 +94,6 @@ export const listUsers = async () => (await getDocs(query(collection(db, 'users'
 export const patchUser = (uid, patch) => updateDoc(doc(db, 'users', uid), patch);
 export const savePromo = (id, d) => id ? setDoc(doc(db, 'promos', id), d) : addDoc(collection(db, 'promos'), d);
 export const removePromo = id => deleteDoc(doc(db, 'promos', id));
+/* Danh sách Zalo ID nhận báo đơn mới: { shops:{ shopId:[id...] }, shippers:[id...] } – Admin ghi, Apps Script đọc */
+export const saveNotify = d => setDoc(doc(db, 'settings', 'notify'), d);
 export const saveSettings = d => setDoc(doc(db, 'settings', 'app'), d, { merge:true });

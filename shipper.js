@@ -14,20 +14,20 @@ start({ title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
       ${o.note ? `<p class="muted" style="margin-top:6px">Ghi chú: ${esc(o.note)}</p>` : ''}
       <ul class="items">${items}</ul>
       <div class="row sb"><span>Thu tiền mặt: <b class="total">${money(o.total)}</b> <span class="muted">(ship ${money(o.shipFee)})</span></span>
-      ${kind === 'open' ? `<button class="btn" data-claim="${o.id}">Nhận đơn</button>` : o.status === 'delivering' ? `<button class="btn" data-done="${o.id}">Đã giao xong</button>` : ''}</div></div>`;
+      ${kind === 'open' ? (o.status === 'pending' ? '<span class="muted">Chờ quán nhận đơn</span>' : `<button class="btn" data-claim="${o.id}">Nhận đơn</button>`) : o.status === 'delivering' ? `<button class="btn" data-done="${o.id}">Đã giao xong</button>` : ''}</div></div>`;
   }
   function draw() {
     const active = mine.filter(o => o.status === 'delivering').sort(newestFirst);
     const hist = mine.filter(o => o.status === 'done').sort(newestFirst);
     const today = hist.filter(o => sameDay(o.updatedAt));
-    const body = tab === 'open' ? (open.length ? [...open].sort(newestFirst).map(o => card(o, 'open')).join('') : '<div class="empty">Chưa có đơn nào chờ giao</div>')
+    const body = tab === 'open' ? (open.length ? [...open].sort(newestFirst).map(o => card(o, 'open')).join('') : '<div class="empty">Chưa có đơn mới</div>')
       : tab === 'mine' ? (active.length ? active.map(o => card(o)).join('') : '<div class="empty">Bạn chưa nhận đơn nào</div>')
       : `<div class="stat"><div class="card"><b>${today.length}</b><span class="muted">Đơn hôm nay</span></div><div class="card"><b>${money(today.reduce((a, o) => a + (o.shipFee || 0), 0))}</b><span class="muted">Phí ship hôm nay</span></div><div class="card"><b>${hist.length}</b><span class="muted">Tổng đơn đã giao</span></div></div>` + (hist.length ? hist.slice(0, 60).map(o => card(o)).join('') : '<div class="empty">Chưa có lịch sử</div>');
     root.innerHTML = `<div class="tabs"><button class="${tab === 'open' ? 'on' : ''}" data-t="open">Đơn chờ nhận${open.length ? `<span class="n">${open.length}</span>` : ''}</button><button class="${tab === 'mine' ? 'on' : ''}" data-t="mine">Đang giao${active.length ? `<span class="n">${active.length}</span>` : ''}</button><button class="${tab === 'hist' ? 'on' : ''}" data-t="hist">Lịch sử</button></div>
       <main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${body}</main>`;
   }
   let first = true;
-  track(fb.watchOrdersByStatus('ready', (l, e) => { err = e ? fb.errMsg(e) : ''; if (!first && l.length > open.length) { beep(); toast('Có đơn mới chờ giao!'); } open = l; first = false; draw(); }));
+  track(fb.watchOpenOrders( (l, e) => { err = e ? fb.errMsg(e) : ''; if (!first && l.length > open.length) { beep(); toast('Có đơn mới chờ giao!'); } open = l; first = false; draw(); }));
   track(fb.watchShipperOrders(me.uid, (l, e) => { if (e) err = fb.errMsg(e); mine = l; draw(); }));
   root.addEventListener('click', async e => {
     const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; draw(); return; }

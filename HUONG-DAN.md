@@ -12,7 +12,7 @@ Website gồm 4 giao diện, dùng chung một cơ sở dữ liệu Firebase:
 Khi `firebase-config.js` **chưa điền**, website tự chạy chế độ DEMO với dữ liệu mẫu (không lưu gì thật).
 
 ## Luồng đơn hàng
-Khách đặt → (Chờ xác nhận) → Quán nhận đơn → Quán đang chuẩn bị → Quán báo món xong (Chờ shipper) → Shipper nhận (Đang giao) → Shipper bấm đã giao (Hoàn thành). Quán và Admin có thể hủy đơn.
+Khách đặt → (Chờ xác nhận; shipper đã thấy đơn ngay) → Quán nhận đơn → Quán đang chuẩn bị → Quán báo món xong (Chờ shipper) → Shipper nhận (Đang giao) → Shipper bấm đã giao (Hoàn thành). Quán và Admin có thể hủy đơn.
 
 ## Thiết lập (làm một lần, ~15 phút)
 
@@ -69,7 +69,7 @@ Mỗi khi khách đặt đơn, website gọi Google Apps Script (cùng script l�
 2. Admin và chủ quán mở Zalo, tìm bot và **nhắn cho bot một tin bất kỳ** (bot chỉ nhắn được cho người đã nhắn nó trước).
 3. Chạy hàm **`listZaloChats`** → xem **View → Logs**: mỗi dòng là `chat_id | tên | nội dung tin`.
    - Dán chat_id của Admin vào Script property **`ZALO_ADMIN_IDS`** (nhiều người cách nhau dấu phẩy).
-   - Dán chat_id của chủ quán vào **Admin → Cửa hàng → Sửa → "Zalo ID của quán"** rồi Lưu.
+   - Dán chat_id của **chủ quán** và **shipper** vào **Admin → Người dùng → (Nhà bán hàng / Shipper) → cột "Zalo ID"** (gõ xong bấm ra ngoài ô để lưu). Mỗi đơn mới sẽ nhắn cho Admin, chủ quán của quán đó và toàn bộ shipper có Zalo ID. Một người chỉ nhận 1 tin.
 4. Chạy lại **`testNotify`** để thử nhận tin Zalo + Gmail.
 
 Lưu ý: không được cài webhook cho bot này (webhook và getUpdates loại trừ nhau), script chỉ dùng getUpdates để lấy chat_id. Nếu Zalo lỗi, đơn vẫn đặt bình thường và mail vẫn gửi (xem lỗi ở Apps Script → Executions). Gmail thường gửi tối đa khoảng 100 mail/ngày.

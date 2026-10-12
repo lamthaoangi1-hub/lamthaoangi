@@ -41,7 +41,7 @@ service cloud.firestore {
         resource.data.uid == request.auth.uid ||
         isAdmin() ||
         (isSeller() && me().shopId == resource.data.shopId) ||
-        (isShipper() && (resource.data.status == 'ready' || resource.data.shipperUid == request.auth.uid)));
+        (isShipper() && (resource.data.status in ['pending', 'confirmed', 'preparing', 'ready'] || resource.data.shipperUid == request.auth.uid)));
 
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
@@ -59,8 +59,8 @@ service cloud.firestore {
         || (isSeller() && me().shopId == resource.data.shopId
             && request.resource.data.status in ['confirmed', 'preparing', 'ready', 'cancelled']
             && changedOnly(['status', 'updatedAt']))
-        // shipper nhận đơn đang chờ
-        || (isShipper() && resource.data.status == 'ready' && request.resource.data.status == 'delivering'
+        // shipper nhận đơn (quán đã nhận đơn, đang chuẩn bị hoặc đã xong món)
+        || (isShipper() && resource.data.status in ['confirmed', 'preparing', 'ready'] && request.resource.data.status == 'delivering'
             && request.resource.data.shipperUid == request.auth.uid
             && changedOnly(['status', 'shipperUid', 'shipperName', 'shipperPhone', 'updatedAt']))
         // shipper hoàn thành đơn của mình
