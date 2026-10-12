@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function isAdmin() { return signedIn() && me().role == 'admin'; }
+    function isSeller() { return signedIn() && me().role == 'seller'; }
+    function isShipper() { return signedIn() && me().role == 'shipper'; }
+    function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    // Hồ sơ người dùng: khách tự tạo hồ sơ với vai trò customer; chỉ admin đổi vai trò
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.role == 'customer'
+                    && !('shopId' in request.resource.data);
+      allow update: if isAdmin() || (request.auth.uid == uid && changedOnly(['name', 'address']));
+      allow delete: if isAdmin();
+    }
+
+    // Cửa hàng: ai cũng xem được; admin sửa tất cả; nhà bán hàng chỉ sửa cửa hàng của mình
+    match /shops/{shopId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isSeller() && me().shopId == shopId
+        && changedOnly(['menu', 'open', 'desc', 'eta', 'shipFee', 'freeShipMin', 'sale', 'img', 'phone', 'address']));
+    }
+
+    match /promos/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /settings/{id} { allow read: if true; allow write: if isAdmin(); }
+
+    // Đơn hàng
+    match /orders/{id} {
+      allow read: if signedIn() && (
+        resource.data.uid == request.auth.uid ||
+        isAdmin() ||
+        (isSeller() && me().shopId == resource.data.shopId) ||
+        (isShipper() && (resource.data.status == 'ready' || resource.data.shipperUid == request.auth.uid)));
+
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 40
+        && request.resource.data.total is number && request.resource.data.total >= 0;
+
+      allow update: if isAdmin()
+        // khách tự hủy khi quán chưa nhận
+        || (resource.data.uid == request.auth.uid && resource.data.status == 'pending'
+            && request.resource.data.status == 'cancelled' && changedOnly(['status', 'updatedAt']))
+        // quán chuyển trạng thái đơn của mình
+        || (isSeller() && me().shopId == resource.data.shopId
+            && request.resource.data.status in ['confirmed', 'preparing', 'ready', 'cancelled']
+            && changedOnly(['status', 'updatedAt']))
+        // shipper nhận đơn đang chờ
+        || (isShipper() && resource.data.status == 'ready' && request.resource.data.status == 'delivering'
+            && request.resource.data.shipperUid == request.auth.uid
+            && changedOnly(['status', 'shipperUid', 'shipperName', 'shipperPhone', 'updatedAt']))
+        // shipper hoàn thành đơn của mình
+        || (isShipper() && resource.data.shipperUid == request.auth.uid && resource.data.status == 'delivering'
+            && request.resource.data.status == 'done' && changedOnly(['status', 'updatedAt']));
+      allow delete: if isAdmin();
+    }
+  }
+}

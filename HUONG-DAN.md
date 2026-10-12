@@ -1,0 +1,52 @@
+# Hướng dẫn đưa website "Lâm Thao Ăn Gì?" chạy dữ liệu thật
+
+Website gồm 4 giao diện, dùng chung một cơ sở dữ liệu Firebase:
+
+| Trang | Đường dẫn | Ai dùng |
+| --- | --- | --- |
+| Khách hàng | `index.html` | Khách đặt món, theo dõi đơn |
+| Admin | `admin.html` | Chủ website: quản lý quán, đơn, người dùng, khuyến mãi, liên hệ |
+| Nhà bán hàng | `seller.html` | Chủ quán: nhận đơn, sửa thực đơn, bật/tắt mở cửa |
+| Shipper | `shipper.html` | Tài xế: nhận đơn đã xong món, giao và hoàn thành |
+
+Khi `firebase-config.js` **chưa điền**, website tự chạy chế độ DEMO với dữ liệu mẫu (không lưu gì thật).
+
+## Luồng đơn hàng
+Khách đặt → (Chờ xác nhận) → Quán nhận đơn → Quán đang chuẩn bị → Quán báo món xong (Chờ shipper) → Shipper nhận (Đang giao) → Shipper bấm đã giao (Hoàn thành). Quán và Admin có thể hủy đơn.
+
+## Thiết lập (làm một lần, ~15 phút)
+
+1. Vào https://console.firebase.google.com → **Add project** (tên tùy ý, tắt Google Analytics được).
+2. **Build → Authentication → Get started → Sign-in method → Email/Password → Enable → Save.**
+   (Website đăng nhập bằng *số điện thoại + mật khẩu*; số điện thoại được đổi thành email nội bộ `SĐT@lamthaoangi.app`, không tốn tiền SMS.)
+3. **Authentication → Settings → Authorized domains → Add domain:** `lamthaoangi1-hub.github.io`
+4. **Build → Firestore Database → Create database** → chọn vị trí `asia-southeast1` (Singapore) → chế độ **Production**.
+5. Tab **Rules** của Firestore: xóa nội dung cũ, dán toàn bộ file `firestore.rules` trong thư mục này → **Publish**.
+6. **Project settings (biểu tượng bánh răng) → Your apps → biểu tượng Web `</>`** → đăng ký app → copy khối `firebaseConfig` và dán vào file **`firebase-config.js`** (thay các chữ `DAN_...`).
+7. Tải toàn bộ file lên GitHub (ghi đè bản cũ), đợi ~1 phút. Mở website, bấm Ctrl+F5.
+
+## Tạo tài khoản Admin (chỉ làm một lần)
+1. Trên website, vào **Cá nhân → Đăng ký** bằng số điện thoại của bạn.
+2. Firebase Console → **Firestore Database → Data → collection `users`** → mở tài liệu vừa tạo → sửa trường `role` từ `customer` thành **`admin`**.
+3. Mở `admin.html`, đăng nhập. (Trên website, mục Cá nhân sẽ có thêm "Trang Admin".)
+
+## Thêm quán, chủ quán, shipper
+1. **Admin → Cửa hàng → Thêm cửa hàng:** nhập tên, loại, địa chỉ, SĐT, phí ship, thực đơn... (Có nút "Thêm 2 quán mẫu" để thử.)
+2. Chủ quán và shipper **tự đăng ký tài khoản trên website** như khách.
+3. **Admin → Người dùng:** chọn vai trò `seller` (kèm chọn **cửa hàng**) hoặc `shipper` cho họ.
+4. Họ mở `seller.html` / `shipper.html` (hoặc bấm mục tương ứng trong Cá nhân) để làm việc. Trang quán/shipper phát tiếng "ting" khi có đơn mới (cần để trang mở).
+5. Chủ quán tự sửa: thực đơn, giá, món hết, mở/đóng cửa, phí ship, giảm giá, ảnh. Tên quán, loại, đánh giá do Admin sửa.
+
+## Ảnh quán
+Ô "ảnh" nhận **link ảnh** (https://...) hoặc **tên file** đã tải cùng thư mục website (ví dụ `pho.jpg`).
+
+## Giới hạn cần biết
+- **Quên mật khẩu:** chưa có tự đặt lại (vì không dùng email thật). Cách xử lý: xóa tài khoản đó trong Firebase Console → Authentication, rồi khách đăng ký lại.
+- **Giá đơn hàng** do trình duyệt khách tính; luật bảo mật chặn sửa trái phép đơn của người khác nhưng chưa kiểm tra giá theo thực đơn. Với quy mô địa phương là đủ; muốn chặt hơn cần thêm Cloud Functions.
+- **Thông báo đẩy** chưa có: quán/shipper cần mở trang để nhận tiếng báo đơn mới.
+- **Thanh toán** hiện chỉ tiền mặt khi nhận hàng.
+- Gói miễn phí Firebase (Spark) giới hạn 50.000 lượt đọc/ngày – đủ cho vài chục đến vài trăm đơn mỗi ngày.
+- Dịch vụ Xe ôm, Giao hàng, Mua hộ vẫn hiển thị "sắp ra mắt".
+
+## Cấu trúc file mới
+`firebase-config.js` (cấu hình) · `fb.js` (kết nối dữ liệu) · `firestore.rules` (luật bảo mật) · `admin.*`, `seller.*`, `shipper.*`, `panel.*` (3 trang quản lý) · `app.js` (website khách, đã nối dữ liệu thật).

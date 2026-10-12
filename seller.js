@@ -1,0 +1,65 @@
+import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu } from './panel.js';
+
+start({ title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
+  if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
+  let tab = 'orders', shop = null, orders = [], err = '', fil = 'active';
+  const NEXT = { pending:['confirmed', 'Nhận đơn'], confirmed:['preparing', 'Bắt đầu làm'], preparing:['ready', 'Món xong – gọi shipper'] };
+
+  function orderCard(o) {
+    const items = (o.items || []).map(i => `<li>${i.qty} x ${esc(i.name)} <span class="muted">${money(i.price * i.qty)}</span></li>`).join('');
+    const nx = NEXT[o.status];
+    return `<div class="card"><div class="row sb"><b>#${esc(o.code)}</b>${badge(o.status)}</div><div class="muted">${fmtTime(o.createdAt)} · ${esc(o.customerName)} · <a href="tel:${esc(o.customerPhone)}">${esc(o.customerPhone)}</a></div>
+      <ul class="items">${items}</ul>${o.note ? `<p class="muted">Ghi chú: ${esc(o.note)}</p>` : ''}
+      <div class="row sb"><span>Tổng: <b class="total">${money(o.total)}</b> <span class="muted">· tiền mặt${o.shipperName ? ' · Shipper: ' + esc(o.shipperName) : ''}</span></span>
+      <span class="row">${o.status === 'pending' || o.status === 'confirmed' || o.status === 'preparing' ? `<button class="btn sm r" data-cancel="${o.id}">Từ chối/Hủy</button>` : ''}${nx ? `<button class="btn sm" data-next="${o.id}" data-st="${nx[0]}">${nx[1]}</button>` : ''}</span></div></div>`;
+  }
+  function ordersTab() {
+    const act = o => ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(o.status);
+    const list = [...orders].sort(newestFirst).filter(o => fil === 'active' ? act(o) : !act(o)).slice(0, 80);
+    const today = orders.filter(o => o.status === 'done' && sameDay(o.updatedAt));
+    return `<div class="stat"><div class="card"><b>${orders.filter(o => o.status === 'pending').length}</b><span class="muted">Chờ xác nhận</span></div><div class="card"><b>${today.length}</b><span class="muted">Đơn xong hôm nay</span></div><div class="card"><b>${money(today.reduce((a, o) => a + (o.subtotal || 0) - (o.discount || 0), 0))}</b><span class="muted">Doanh thu hôm nay</span></div></div>
+      <div class="row" style="margin-bottom:10px"><button class="btn sm ${fil === 'active' ? '' : 'o'}" data-fil="active">Đang xử lý</button><button class="btn sm ${fil === 'past' ? '' : 'o'}" data-fil="past">Đã xong / hủy</button></div>
+      ${list.length ? list.map(orderCard).join('') : '<div class="empty">Chưa có đơn</div>'}`;
+  }
+  function menuTab() {
+    return `<div class="card"><h3>Thực đơn</h3><p class="muted">Sửa tên, giá, tắt món hết hàng rồi bấm Lưu.</p>${menuEditorHtml(shop.menu)}<button class="btn" style="margin-top:14px" data-savemenu>Lưu thực đơn</button></div>`;
+  }
+  function shopTab() {
+    const n = (k, d = '') => esc(shop[k] ?? d);
+    return `<div class="card"><h3>${esc(shop.name)}</h3>
+      <label class="sw"><input type="checkbox" id="s-open" ${shop.open === false ? '' : 'checked'}>Đang mở cửa (nhận đơn)</label>
+      <label class="f">Mô tả<textarea id="s-desc">${n('desc')}</textarea></label>
+      <div class="grid"><label class="f">Địa chỉ<input type="text" id="s-address" value="${n('address')}"></label><label class="f">SĐT quán<input type="tel" id="s-phone" value="${n('phone')}"></label>
+      <label class="f">Thời gian giao (VD: 15 - 25 phút)<input type="text" id="s-eta" value="${n('eta', '15 - 30 phút')}"></label><label class="f">Phí giao hàng (đ)<input type="number" id="s-shipFee" min="0" step="1000" value="${shop.shipFee ?? 15000}"></label>
+      <label class="f">Miễn phí ship từ (đ, 0 = không)<input type="number" id="s-free" min="0" step="1000" value="${shop.freeShipMin ?? 0}"></label><label class="f">Giảm giá (%)<input type="number" id="s-sale" min="0" max="90" value="${shop.sale ?? 0}"></label></div>
+      <label class="f">Link ảnh quán<input type="url" id="s-img" value="${n('img')}" placeholder="https://... hoặc tên file ảnh trong website"></label>
+      <button class="btn" style="margin-top:14px" data-saveshop>Lưu cửa hàng</button></div>`;
+  }
+  function draw() {
+    const pend = orders.filter(o => o.status === 'pending').length;
+    root.innerHTML = `<div class="tabs"><button class="${tab === 'orders' ? 'on' : ''}" data-t="orders">Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}</button><button class="${tab === 'menu' ? 'on' : ''}" data-t="menu">Thực đơn</button><button class="${tab === 'shop' ? 'on' : ''}" data-t="shop">Cửa hàng</button></div>
+      <main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${!shop ? '<div class="empty">Đang tải cửa hàng…</div>' : tab === 'orders' ? ordersTab() : tab === 'menu' ? menuTab() : shopTab()}</main>`;
+  }
+  let first = true;
+  track(fb.watchShop(me.shopId, (s, e) => { shop = s; if (e) err = fb.errMsg(e); else if (!s) err = 'Không tìm thấy cửa hàng được gán cho bạn.'; if (tab === 'orders' || first) draw(); }));
+  track(fb.watchShopOrders(me.shopId, (l, e) => {
+    if (e) err = fb.errMsg(e);
+    if (!first && l.filter(o => o.status === 'pending').length > orders.filter(o => o.status === 'pending').length) { beep(); toast('Có đơn mới!'); }
+    orders = l; first = false; if (tab === 'orders') draw();
+  }));
+  bindMenuEditor(root);
+  root.addEventListener('click', async e => {
+    const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; draw(); return; }
+    const f = e.target.closest('[data-fil]'); if (f) { fil = f.dataset.fil; draw(); return; }
+    try {
+      const nx = e.target.closest('[data-next]'); if (nx) { await fb.patchOrder(nx.dataset.next, { status:nx.dataset.st }); return; }
+      const c = e.target.closest('[data-cancel]'); if (c) { if (confirm('Từ chối/hủy đơn này?')) await fb.patchOrder(c.dataset.cancel, { status:'cancelled' }); return; }
+      if (e.target.closest('[data-savemenu]')) { await fb.patchShop(me.shopId, { menu:readMenu(root) }); toast('Đã lưu thực đơn'); return; }
+      if (e.target.closest('[data-saveshop]')) {
+        const v = id => $('#' + id).value.trim();
+        await fb.patchShop(me.shopId, { open:$('#s-open').checked, desc:v('s-desc'), address:v('s-address'), phone:v('s-phone'), eta:v('s-eta'), shipFee:Math.max(0, +v('s-shipFee') || 0), freeShipMin:Math.max(0, +v('s-free') || 0), sale:Math.min(90, Math.max(0, +v('s-sale') || 0)), img:v('s-img') });
+        toast('Đã lưu cửa hàng');
+      }
+    } catch (er) { toast(fb.errMsg(er)); }
+  });
+} });

@@ -395,3 +395,12 @@ svg{display:block}
 .stat small{font-size:12.5px}
 .stat .ic{width:40px;height:40px}
 .stats{gap:10px}
+
+/* ---- Giỏ hàng / chế độ dữ liệu thật ---- */
+.qty{display:inline-flex;align-items:center;gap:10px;flex:none}
+.qty button{width:34px;height:34px;border-radius:50%;background:var(--green-l);color:var(--green-d);font-size:22px;font-weight:800;line-height:1;display:grid;place-items:center}
+.qty button:active{background:var(--green);color:#fff}
+.qty i{min-width:18px;text-align:center;font-style:normal;font-weight:700;font-size:18px}
+.sheet-btn:disabled{opacity:.5}
+.inl{width:18px;height:18px;vertical-align:-3px}
+.live .or,.live .social{display:none}

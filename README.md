@@ -1,5 +1,7 @@
 # Lâm Thao Ăn Gì? – Website đặt đồ ăn
 
+> **Dữ liệu thật + trang Admin / Nhà bán hàng / Shipper:** xem **HUONG-DAN.md**. Chưa cấu hình Firebase thì website chạy chế độ demo như mô tả dưới đây.
+
 Website tĩnh (HTML + CSS + JavaScript thuần), không cần cài đặt hay build.
 
 ## Chức năng

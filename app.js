@@ -83,15 +83,15 @@
   };
 
   /* ---------------- DATA ---------------- */
-  const SHOPS = [
+  let SHOPS = [
     { id:'pho', name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', homeCat:'Phở • Việt Nam', img:'pho.jpg', rate:4.8, rc:'320+', eta:'15 - 25 phút', ship:'30K', sale:0, group:['Phở','Món Việt'], desc:'Phở bò gia truyền, nước dùng ninh xương 12 tiếng.', menu:[['Phở bò tái nạm',55000],['Phở bò chín',50000],['Phở gà',45000],['Trà đá',10000]] },
     { id:'comtam', name:'Cơm Tấm Minh Tâm', cat:'Cơm • Món Việt', homeCat:'Cơm • Món Việt', img:'comtam.jpg', rate:4.7, rc:'210+', eta:'20 - 30 phút', ship:'30K', sale:15, group:['Cơm','Món Việt'], desc:'Cơm tấm sườn nướng than hoa, bì chả đầy đủ.', menu:[['Cơm tấm sườn nướng',50000],['Cơm tấm sườn bì chả',60000],['Cơm tấm gà nướng',55000],['Trà tắc',10000]] },
     { id:'trasua', name:'Trà Sữa Tea & More', cat:'Đồ uống • Trà sữa', homeCat:'Đồ uống • Trà sữa', img:'trasua.jpg', rate:4.6, rc:'180+', eta:'15 - 25 phút', ship:'25K', sale:10, group:['Đồ uống','Trà sữa'], desc:'Trà sữa trân châu đường đen và các loại topping tự nấu.', menu:[['Trà sữa trân châu đường đen',45000],['Trà sữa matcha',48000],['Trà đào cam sả',42000],['Bánh flan',15000]] },
     { id:'banhmi', name:'Bánh Mì Sáu Hương', cat:'Bánh mì • Ăn vặt', homeCat:'Bánh mì • Ăn vặt', img:'banhmi.jpg', rate:4.5, rc:'120+', eta:'15 - 20 phút', ship:'20K', sale:0, group:['Ăn vặt','Bánh mì'], desc:'Bánh mì nóng giòn, pate nhà làm, nhân thịt nướng thơm lừng.', menu:[['Bánh mì thịt nướng',25000],['Bánh mì pate trứng',20000],['Bánh mì chả cá',22000]] },
   ];
-  const shopBy = id => SHOPS.find(s => s.id === id);
+  const shopBy = id => SHOPS.find(s => s.id === id) || GHOST[id] || { id, name:'Quán', cat:'', img:'hero.svg', group:['Quán'], menu:[] };
 
-  const ORDERS = (() => {
+  let ORDERS = (() => {
     const list = [
       { code:'LT123456', shop:'pho', st:'proc', items:['1 x Phở bò tái nạm','1 x Trà đá'], total:65000, when:'Hôm nay, 09:30' },
       { code:'LT123457', shop:'banhmi', st:'proc', items:['2 x Bánh mì thịt nướng','1 x Trà đá'], total:60000, when:'Hôm nay, 09:35' },
@@ -107,7 +107,7 @@
     return list;
   })();
 
-  const NOTICES = [
+  let NOTICES = [
     { id:1, type:'order', title:'Đơn hàng đã được xác nhận', body:'<b>Phở Bò Lâm Thao</b> đã xác nhận đơn hàng của bạn. Món ăn đang được chuẩn bị!', time:'2 phút trước', img:'pho.jpg', unread:true },
     { id:2, type:'order', title:'Tài xế đang giao hàng', body:'Đơn hàng của bạn đang trên đường đến. Dự kiến giao trong 8 phút nữa.', time:'12 phút trước', img:'n-driver.jpg', unread:true },
     { id:3, type:'promo', title:'Ưu đãi dành riêng cho bạn', body:'Giảm 30K cho đơn từ 100K. Áp dụng cho tất cả quán ăn tại Lâm Thao. Đặt món ngay!', time:'1 giờ trước', img:'n-30k.jpg', unread:true },
@@ -119,6 +119,13 @@
 
   const AREAS = ['Lâm Thao, Phú Thọ','Thị trấn Lâm Thao','Thị trấn Hùng Sơn','Xã Cao Xá','Xã Tiên Kiên','Xã Xuân Lũng','Xã Thạch Sơn'];
   const DEMO = { name:'Nguyễn Thị Mai', phone:'0901234567', pass:'123456' };
+  /* Chế độ LIVE = đã điền firebase-config.js → dùng dữ liệu thật; chưa điền → chạy DEMO với dữ liệu mẫu ở trên */
+  let LIVE = false, FB = null, PROMOS = [], CONTACT = { hotline:'0900 000 000', email:'lamthaoangi1@gmail.com', zalo:'' };
+  const GHOST = {};
+  let shopsLoaded = false;
+  const CART = { shop:null, q:{}, promo:'', note:'', address:null };
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const telHot = () => CONTACT.hotline.replace(/\s/g, '');
 
   /* ---------------- STATE ---------------- */
   const store = {
@@ -137,6 +144,7 @@
     fav:{ cat:'Tất cả', q:'', sort:'recent' },
     noti:{ tab:'all' },
     authTab:'login',
+    points:0,
   };
   const saveFavs = () => store.set('favs', S.favs);
   const isFav = id => S.favs.includes(id);
@@ -169,8 +177,8 @@
   const locBtn = () => `<button class="loc" data-act="area">${fx.pinF}<span>${S.area}</span>${ic('chevDown')}</button>`;
   const logo = (size = '') => `<span class="logo-wrap"><span class="logo ${size}"><span class="l1">Lâm Thao</span><span class="l2">Ăn Gì?</span></span><span class="logo-fork" style="${size === 'sm' ? 'width:28px;height:42px;right:-24px' : ''}">${fx.fork}</span></span>`;
 
-  const shopTags = s => `<div class="tags"><span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}</div>`;
-  const shopMeta = s => `<div class="meta"><span class="rate">${fx.star}${s.rate.toFixed(1)} (${s.rc})</span><span class="sep"></span><span class="eta">${ic('truck')}${s.eta}</span></div>`;
+  const shopTags = s => `<div class="tags">${s.open === false ? '<span class="tag sale">Đóng cửa</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}</div>`;
+  const shopMeta = s => `<div class="meta"><span class="rate">${fx.star}${s.rate ? s.rate.toFixed(1) + (s.rc ? ' (' + s.rc + ')' : '') : 'Mới'}</span><span class="sep"></span><span class="eta">${ic('truck')}${s.eta}</span></div>`;
 
   /* ---------------- HOME ---------------- */
   const HOME_CATS = ['Tất cả','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'];
@@ -205,6 +213,7 @@
   }
   function shopListHtml() {
     const l = filteredShops();
+    if (LIVE && !SHOPS.length) return `<div class="empty"><b>${shopsLoaded ? 'Chưa có quán nào' : 'Đang tải danh sách quán…'}</b>${shopsLoaded ? 'Các quán sẽ sớm có mặt ở đây.' : ''}</div>`;
     return l.length ? l.map(shopCard).join('') : `<div class="empty"><b>Chưa tìm thấy quán phù hợp</b>Hãy thử từ khoá hoặc danh mục khác nhé.</div>`;
   }
   function renderHome() {
@@ -263,7 +272,7 @@
         : `<button class="btn-soft" data-reorder="${o.code}">${ic('refresh')}Đặt lại</button>`;
       return `<article class="order" style="animation-delay:${i * 50}ms">
         <div class="row"><img class="img" src="${s.img}" alt="${s.name}" loading="lazy">
-          <div class="body"><span class="status ${st.cls}">${st.icon}${st.label}</span>
+          <div class="body"><span class="status ${st.cls}">${st.icon}${o.label || st.label}</span>
             <h3>${s.name}</h3><div class="code">Mã đơn: #${o.code}</div>
             <div class="items">${o.items.join('<br>')}</div><div class="price">${money(o.total)}</div>
             <div class="foot"><span>${ic('shop')}${s.group[0]} • Lâm Thao</span><span>${ic('clock')}${o.when}</span>${o.st === 'ship' ? `<span>${ic('truck')}Dự kiến 15 - 25 phút</span>` : ''}</div></div></div>
@@ -288,27 +297,25 @@
     const s = shopBy(o.shop);
     openSheet(`<h3>Chi tiết đơn #${o.code}</h3><div class="sub">${s.name} • ${o.when}</div>
       <div style="margin-top:12px">${o.items.map(i => `<div class="row-kv"><span>${i}</span></div>`).join('')}
-      <div class="row-kv"><span>Phí giao hàng</span><b>${money(15000)}</b></div>
+      <div class="row-kv"><span>Phí giao hàng</span><b>${money(o.shipFee ?? 15000)}</b></div>
       <div class="row-kv"><span>Tổng thanh toán</span><b style="color:var(--green-d)">${money(o.total)}</b></div>
       <div class="row-kv"><span>Thanh toán</span><b>Tiền mặt</b></div>
-      <div class="row-kv"><span>Địa chỉ</span><b>${S.area}</b></div></div>
+      <div class="row-kv"><span>Địa chỉ</span><b>${o.address || S.area}</b></div></div>
       <button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`);
   }
   function trackSheet(o) {
     const s = shopBy(o.shop);
-    openSheet(`<h3>Theo dõi đơn #${o.code}</h3><div class="sub">${s.name} • Dự kiến 15 - 25 phút</div>
-      <div class="track">
-        <div class="st done"><i></i><b>Đã đặt đơn</b><small>${o.when}</small></div>
-        <div class="st done"><i></i><b>Quán đã xác nhận</b><small>Món ăn đang được chuẩn bị</small></div>
-        <div class="st done"><i></i><b>Tài xế đang giao hàng</b><small>Đang trên đường đến bạn</small></div>
-        <div class="st"><i></i><b>Giao thành công</b><small>Dự kiến sau 8 phút</small></div></div>
+    const idx = o.status ? ({ pending:0, confirmed:1, preparing:1, ready:1, delivering:2, done:3, cancelled:-1 }[o.status] ?? 0) : ({ proc:1, ship:2, done:3 }[o.st] ?? 0);
+    const steps = [['Đã đặt đơn', o.when], ['Quán đã xác nhận', 'Món ăn đang được chuẩn bị'], ['Tài xế đang giao hàng', o.shipperName ? 'Tài xế: ' + o.shipperName : 'Đang trên đường đến bạn'], ['Giao thành công', 'Cảm ơn bạn đã đặt món']];
+    openSheet(`<h3>Theo dõi đơn #${o.code}</h3><div class="sub">${s.name}${o.status === 'cancelled' ? ' • Đơn đã hủy' : ''}</div>
+      <div class="track">${steps.map((st, i) => `<div class="st ${i <= idx ? 'done' : ''}"><i></i><b>${st[0]}</b><small>${st[1]}</small></div>`).join('')}</div>
       <button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`);
   }
   function contactSheet(o) {
     const s = shopBy(o.shop);
     openSheet(`<h3>Liên hệ ${s.name}</h3><div class="sub">Đơn #${o.code}</div>
-      <a class="opt" href="tel:0900000000">${ic('phone')}Gọi điện cho quán<span class="tick">${ic('chevRight')}</span></a>
-      <button class="opt" data-sheetmsg="Đã gửi tin nhắn tới quán">${ic('chat')}Nhắn tin cho quán<span class="tick">${ic('chevRight')}</span></button>`);
+      <a class="opt" href="tel:${(s.phone || CONTACT.hotline).replace(/\s/g, '')}">${ic('phone')}Gọi điện cho quán<span class="tick">${ic('chevRight')}</span></a>
+      ${LIVE ? '' : `<button class="opt" data-sheetmsg="Đã gửi tin nhắn tới quán">${ic('chat')}Nhắn tin cho quán<span class="tick">${ic('chevRight')}</span></button>`}`);
   }
 
   /* ---------------- FAVORITES ---------------- */
@@ -321,7 +328,7 @@
     basket:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 10h18l-1.500 10h-15zM8 10l3-6M16 10l-3-6" stroke="currentColor" stroke-width="1.700" stroke-linecap="round"/></svg>',
   };
   function favShops() {
-    let l = S.favs.map(shopBy).filter(Boolean);
+    let l = S.favs.map(id => SHOPS.find(s => s.id === id)).filter(Boolean);
     const main = ['Món Việt','Phở','Đồ uống','Ăn vặt'];
     if (S.fav.cat === 'Khác') l = l.filter(s => !s.group.some(g => main.includes(g)));
     else if (S.fav.cat !== 'Tất cả') l = l.filter(s => s.group.includes(S.fav.cat));
@@ -339,7 +346,7 @@
   }
   function favBody() {
     const l = favShops();
-    const recent = S.favs.map(shopBy).filter(Boolean).slice(0, 3);
+    const recent = S.favs.map(id => SHOPS.find(s => s.id === id)).filter(Boolean).slice(0, 3);
     return `
       ${recent.length && S.fav.cat === 'Tất cả' && !S.fav.q ? `<div class="row-head"><h2 class="h2" style="font-size:25px">Đã lưu gần đây</h2><button class="see-all" data-act="fav-all">Xem tất cả ${ic('chevRight')}</button></div>
       <div class="recent">${recent.map(s => `<div class="rcard" data-shop="${s.id}"><div class="ph"><img src="${s.img}" alt="${s.name}"><button class="hb" data-heart="${s.id}" aria-label="Bỏ yêu thích">${fx.heartF}</button></div>
@@ -387,6 +394,13 @@
   /* ---------------- PROFILE ---------------- */
   const menuItem = (act, icon, color, t, sub, extra = '') => `<button class="mi ${extra}" data-menu="${act}"><span class="mic ${color}">${icon}</span><span class="mt"><b>${t}</b><small>${sub}</small></span>${ic('chevRight', 'ch')}</button>`;
   const fmtPhone = p => p.replace(/(\d{4})(\d{3})(\d{3})/, '$1 $2 $3');
+  function panelMenu() {
+    const r = S.user && S.user.role;
+    if (r === 'admin') return menuItem('open-admin', ic('gear'), '', 'Trang Admin', 'Quản lý cửa hàng, đơn hàng, người dùng') + menuItem('open-seller', ic('shop'), '', 'Trang Nhà bán hàng', 'Đơn và thực đơn của cửa hàng') + menuItem('open-shipper', ic('truck'), '', 'Trang Shipper', 'Nhận và giao đơn');
+    if (r === 'seller') return menuItem('open-seller', ic('shop'), '', 'Trang Nhà bán hàng', 'Nhận đơn, sửa thực đơn');
+    if (r === 'shipper') return menuItem('open-shipper', ic('truck'), '', 'Trang Shipper', 'Nhận và giao đơn');
+    return '';
+  }
   function renderProfile() {
     const el = $('#view-profile');
     if (S.user) {
@@ -394,9 +408,9 @@
         <div class="hero" style="padding-bottom:110px"><div style="padding-top:34px"><div class="page-title" style="font-size:42px">Cá nhân</div><p class="page-sub">Quản lý tài khoản của bạn</p></div></div>
         <div class="profile-card" style="margin-top:-96px">
           <div class="pc-top" data-menu="account"><div class="avatar"><img src="avatar.jpg" alt="${S.user.name}"><span class="cam">${ic('camera')}</span></div>
-            <div class="pc-info"><h2>${S.user.name}</h2><div class="phone">${fmtPhone(S.user.phone)}</div><span class="member">${fx.crown.replace('<svg','<svg width="24" height="24"')}Thành viên bạc ${ic('chevRight')}</span></div></div>
-          <div class="stats"><button class="stat pts" data-menu="points"><span class="ic">${fx.coin}</span><span style="text-align:left"><small>Điểm tích lũy</small><b>820 điểm</b></span>${ic('chevRight', 'ch')}</button>
-            <button class="stat cp" data-menu="coupons"><span class="ic">${fx.giftSm}</span><span style="text-align:left"><small>Ưu đãi của bạn</small><b>3 mã giảm giá</b></span>${ic('chevRight', 'ch')}</button></div>
+            <div class="pc-info"><h2>${S.user.name}</h2><div class="phone">${fmtPhone(S.user.phone)}</div><span class="member">${fx.crown.replace('<svg','<svg width="24" height="24"')}${LIVE ? 'Thành viên' : 'Thành viên bạc'} ${ic('chevRight')}</span></div></div>
+          <div class="stats"><button class="stat pts" data-menu="points"><span class="ic">${fx.coin}</span><span style="text-align:left"><small>Điểm tích lũy</small><b>${LIVE ? S.points : 820} điểm</b></span>${ic('chevRight', 'ch')}</button>
+            <button class="stat cp" data-menu="coupons"><span class="ic">${fx.giftSm}</span><span style="text-align:left"><small>Ưu đãi của bạn</small><b>${LIVE ? PROMOS.length : 3} mã giảm giá</b></span>${ic('chevRight', 'ch')}</button></div>
         </div>
         <div class="group-title">Tài khoản &amp; Tiện ích</div>
         <div class="menu">
@@ -404,6 +418,7 @@
           ${menuItem('address', fx.pinF, '', 'Địa chỉ đã lưu', 'Quản lý các địa chỉ giao hàng')}
           ${menuItem('payment', fx.walletF, '', 'Phương thức thanh toán', 'Thẻ ngân hàng, Ví điện tử, Tiền mặt')}
           ${menuItem('coupons', fx.ticketF, '', 'Mã giảm giá', 'Xem và sử dụng các ưu đãi của bạn')}
+          ${panelMenu()}
         </div>
         <div class="group-title">Hỗ trợ &amp; Cài đặt</div>
         <div class="menu">
@@ -471,6 +486,7 @@
       let bad = setErr(lf, 'phone', validPhone(phone) ? '' : 'Số điện thoại gồm 10 số, bắt đầu bằng 0');
       bad = setErr(lf, 'pass', pass.length >= 6 ? '' : 'Mật khẩu tối thiểu 6 ký tự') || bad;
       if (bad) return;
+      if (LIVE) { FB.login(phone, pass).then(() => { toast('Đăng nhập thành công'); go('profile'); }).catch(er => setErr(lf, 'pass', FB.errMsg(er))); return; }
       const u = S.users.find(x => x.phone === phone);
       if (!u) return void setErr(lf, 'phone', 'Số điện thoại chưa được đăng ký');
       if (u.pass !== pass) return void setErr(lf, 'pass', 'Mật khẩu không đúng');
@@ -485,6 +501,7 @@
       bad = setErr(rf, 'rpass2', a === b ? '' : 'Mật khẩu nhập lại không khớp') || bad;
       if (bad) return;
       if (!$('#agree').checked) return toast('Vui lòng đồng ý Điều khoản & Chính sách');
+      if (LIVE) { FB.register(n, p, a).then(() => { toast('Tạo tài khoản thành công 🎉'); go('profile'); }).catch(er => setErr(rf, 'rphone', FB.errMsg(er))); return; }
       if (S.users.some(x => x.phone === p)) return void setErr(rf, 'rphone', 'Số điện thoại đã được đăng ký');
       const u = { name:n, phone:p, pass:a }; S.users.push(u); store.set('users', S.users);
       toast('Tạo tài khoản thành công 🎉'); loginAs(u);
@@ -497,13 +514,94 @@
 
   /* ---------------- SHOP DETAIL ---------------- */
   function shopSheet(s) {
+    if (LIVE && CART.shop !== s.id) { CART.shop = s.id; CART.q = {}; CART.promo = ''; }
+    const menuHtml = s.menu.map((m, i) => LIVE
+      ? `<div class="row-kv" style="align-items:center"><span>${m[0]}${m[2] === false ? ' <small style="color:var(--red)">(hết món)</small>' : ''}<br><small style="color:var(--ink-2)">${money(m[1])}</small></span>${m[2] === false || s.open === false ? '' : `<span class="qty"><button data-qty="${i}" data-d="-1" aria-label="Bớt">−</button><i id="qty-${i}">${CART.q[i] || 0}</i><button data-qty="${i}" data-d="1" aria-label="Thêm">+</button></span>`}</div>`
+      : `<div class="row-kv"><span>${m[0]}</span><b>${money(m[1])}</b></div>`).join('');
     openSheet(`<img class="sheet-img" src="${s.img}" alt="${s.name}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-top:14px"><div><h3>${s.name}</h3><div class="sub">${s.cat}</div></div>
       <button class="heart on-wrap ${isFav(s.id) ? 'on' : ''}" style="position:static" data-heart="${s.id}" data-sheet="1" aria-label="Yêu thích">${ic('heart')}</button></div>
       ${shopMeta(s)}${shopTags(s)}<p style="margin-top:12px;color:var(--ink-2);font-size:16px;line-height:1.45">${s.desc}</p>
-      <div style="margin-top:12px;font-family:var(--font-h);font-weight:800;font-size:19px">Món nổi bật</div>
-      ${s.menu.map(m => `<div class="row-kv"><span>${m[0]}</span><b>${money(m[1])}</b></div>`).join('')}
-      <button class="sheet-btn" data-sheetmsg="Đã mở trang đặt món (demo)">Đặt món ngay</button>`);
+      ${s.address ? `<p style="margin-top:6px;color:var(--ink-2);font-size:15px">${ic('mapPin', 'inl')} ${s.address}</p>` : ''}
+      <div style="margin-top:12px;font-family:var(--font-h);font-weight:800;font-size:19px">${LIVE ? 'Thực đơn' : 'Món nổi bật'}</div>
+      ${menuHtml || '<div class="empty" style="padding:20px">Quán chưa cập nhật thực đơn</div>'}
+      ${LIVE ? '<button class="sheet-btn" id="cart-btn" data-cart>Chọn món để đặt</button>' : '<button class="sheet-btn" data-sheetmsg="Đã mở trang đặt món (demo)">Đặt món ngay</button>'}`);
+    if (LIVE) updateCartUI();
+  }
+
+  /* ---------------- GIỎ HÀNG & ĐẶT ĐƠN (chế độ LIVE) ---------------- */
+  function cartData() {
+    const s = SHOPS.find(x => x.id === CART.shop);
+    if (!s) return { s:null, lines:[] };
+    const lines = Object.entries(CART.q).filter(([i, q]) => q > 0 && s.menu[i] && s.menu[i][2] !== false)
+      .map(([i, q]) => ({ name:s.menu[i][0], raw:s._d.menu[i].name, price:s.menu[i][1], qty:q }));
+    return { s, lines };
+  }
+  function findPromo(code, sub) {
+    if (!code) return null;
+    const p = PROMOS.find(x => String(x.code).toUpperCase() === code.toUpperCase());
+    return p && sub >= (p.min || 0) ? p : null;
+  }
+  function calc(s, lines, code) {
+    const sub = lines.reduce((a, l) => a + l.price * l.qty, 0);
+    const disc = Math.round(sub * (s.sale || 0) / 100);
+    const promo = findPromo(code, sub);
+    const promoOff = promo ? Math.min(promo.off || 0, sub - disc) : 0;
+    const ship = (s.freeShipMin && sub >= s.freeShipMin) ? 0 : (s.shipFee ?? 15000);
+    return { sub, disc, promo, promoOff, ship, total:sub - disc - promoOff + ship };
+  }
+  function updateCartUI() {
+    const b = $('#cart-btn'), { s, lines } = cartData(); if (!b || !s) return;
+    if (s.open === false) { b.textContent = 'Quán đang đóng cửa'; b.disabled = true; return; }
+    const n = lines.reduce((a, l) => a + l.qty, 0);
+    b.disabled = !n; b.textContent = n ? `Xem giỏ hàng · ${n} món · ${money(calc(s, lines, '').sub)}` : 'Chọn món để đặt';
+  }
+  function checkoutSheet() {
+    const { s, lines } = cartData(); if (!s || !lines.length) return toast('Giỏ hàng đang trống');
+    if (!S.user) { closeSheet(); toast('Vui lòng đăng nhập để đặt món'); S.authTab = 'login'; return go('auth'); }
+    const c = calc(s, lines, CART.promo);
+    const addr = CART.address ?? S.user.address ?? '';
+    openSheet(`<h3>Xác nhận đơn hàng</h3><div class="sub">${s.name}</div>
+      <div style="margin-top:8px">${lines.map(l => `<div class="row-kv"><span>${l.qty} x ${l.name}</span><b>${money(l.price * l.qty)}</b></div>`).join('')}
+      <div class="row-kv"><span>Tạm tính</span><b>${money(c.sub)}</b></div>
+      ${c.disc ? `<div class="row-kv"><span>Giảm giá quán (${s.sale}%)</span><b>-${money(c.disc)}</b></div>` : ''}
+      ${c.promoOff ? `<div class="row-kv"><span>Mã ${esc(c.promo.code)}</span><b>-${money(c.promoOff)}</b></div>` : ''}
+      <div class="row-kv"><span>Phí giao hàng</span><b>${c.ship ? money(c.ship) : 'Miễn phí'}</b></div>
+      <div class="row-kv"><span>Tổng thanh toán</span><b style="color:var(--green-d)">${money(c.total)}</b></div></div>
+      <div class="sheet-input"><input id="co-addr" placeholder="Địa chỉ nhận hàng (số nhà, thôn/xóm)" value="${esc(addr)}" autocomplete="street-address" style="flex:1;border:0;background:none;font-size:16px;outline:0"></div>
+      <div class="sheet-input"><input id="co-note" placeholder="Ghi chú cho quán (không bắt buộc)" value="${esc(CART.note)}" style="flex:1;border:0;background:none;font-size:16px;outline:0"></div>
+      <div class="sheet-input"><input id="co-promo" placeholder="Mã giảm giá" value="${esc(CART.promo)}" style="flex:1;border:0;background:none;font-size:16px;outline:0;text-transform:uppercase"><button data-applypromo style="color:var(--green-d);font-weight:700">Áp dụng</button></div>
+      <div class="row-kv" style="margin-top:8px"><span>Khu vực / Thanh toán</span><b>${esc(S.area)} · Tiền mặt</b></div>
+      <button class="sheet-btn" data-placeorder>Đặt đơn · ${money(c.total)}</button>`);
+  }
+  const readCheckout = () => { CART.address = $('#co-addr')?.value ?? CART.address; CART.note = $('#co-note')?.value ?? CART.note; CART.promo = ($('#co-promo')?.value ?? CART.promo).trim(); };
+  async function placeOrderNow(btn) {
+    readCheckout();
+    const { s, lines } = cartData(); if (!s || !lines.length) return;
+    if (s.open === false) return toast('Quán đang đóng cửa');
+    const addr = (CART.address || '').trim();
+    if (addr.length < 5) return toast('Vui lòng nhập địa chỉ nhận hàng');
+    const c = calc(s, lines, CART.promo);
+    btn.disabled = true;
+    try {
+      await FB.placeOrder({
+        code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone,
+        address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '',
+        items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff, promoCode:c.promo ? c.promo.code : '',
+        shipFee:c.ship, total:c.total, payment:'cash', status:'pending',
+      });
+      FB.updateMyProfile(S.user.uid, { address:addr }).catch(() => {}); S.user.address = addr;
+      CART.q = {}; CART.promo = ''; CART.note = ''; CART.address = null;
+      closeSheet(); S.orders.tab = 'proc'; go('orders'); toast('Đặt đơn thành công! Quán sẽ xác nhận sớm.');
+    } catch (e) { btn.disabled = false; toast(FB.errMsg(e)); }
+  }
+  function reorder(o) {
+    if (!LIVE) return toast('Đã thêm món vào giỏ hàng');
+    const s = SHOPS.find(x => x.id === o.shop); if (!s) return toast('Quán này hiện không còn bán');
+    CART.shop = s.id; CART.q = {};
+    (o.raw.items || []).forEach(it => { const i = s._d.menu.findIndex(m => m.name === it.name && m.available !== false); if (i >= 0) CART.q[i] = (CART.q[i] || 0) + it.qty; });
+    if (!Object.keys(CART.q).length) return toast('Các món này hiện không còn bán');
+    checkoutSheet();
   }
 
   /* ---------------- ROUTER ---------------- */
@@ -545,6 +643,12 @@
   /* ---------------- EVENTS ---------------- */
   document.addEventListener('click', e => {
     const t = e.target;
+    const qb = t.closest('[data-qty]');
+    if (qb) { const i = +qb.dataset.qty; CART.q[i] = Math.max(0, (CART.q[i] || 0) + +qb.dataset.d); const el = $('#qty-' + i); if (el) el.textContent = CART.q[i]; updateCartUI(); return; }
+    if (t.closest('[data-cart]')) return checkoutSheet();
+    const ap = t.closest('[data-applypromo]');
+    if (ap) { readCheckout(); const { s, lines } = cartData(); if (CART.promo && !calc(s, lines, CART.promo).promo) toast('Mã không hợp lệ hoặc chưa đủ điều kiện'); return checkoutSheet(); }
+    const po = t.closest('[data-placeorder]'); if (po) return placeOrderNow(po);
     const heart = t.closest('[data-heart]');
     if (heart) {
       e.stopPropagation(); toggleFav(heart.dataset.heart);
@@ -571,12 +675,12 @@
     const det = t.closest('[data-detail]'); if (det) return orderDetail(orderByCode(det.dataset.detail));
     const trk = t.closest('[data-track]'); if (trk) return trackSheet(orderByCode(trk.dataset.track));
     const ctc = t.closest('[data-contact]'); if (ctc) return contactSheet(orderByCode(ctc.dataset.contact));
-    const re = t.closest('[data-reorder]'); if (re) { toast('Đã thêm món vào giỏ hàng'); return; }
+    const re = t.closest('[data-reorder]'); if (re) { reorder(orderByCode(re.dataset.reorder)); return; }
     const nt = t.closest('[data-notice]');
     if (nt) {
-      const n = S.notices.find(x => x.id === +nt.dataset.notice);
-      if (n && n.unread) { n.unread = false; store.set('notices', S.notices); $('.unread', nt).classList.add('off'); renderNav(); $$('.bell i').forEach(i => { if (!unreadCount()) i.remove(); }); }
-      const d = NOTICES.find(x => x.id === +nt.dataset.notice);
+      const n = S.notices.find(x => String(x.id) === nt.dataset.notice);
+      if (n && n.unread) { n.unread = false; store.set('notices', S.notices); store.set('readn', S.notices.filter(x => !x.unread).map(x => x.id)); $('.unread', nt).classList.add('off'); renderNav(); $$('.bell i').forEach(i => { if (!unreadCount()) i.remove(); }); }
+      const d = NOTICES.find(x => String(x.id) === nt.dataset.notice);
       if (d.type === 'order') return go('orders');
       return openSheet(`<h3>${d.title}</h3><div class="sub">${d.time}</div><p style="margin-top:12px;font-size:17px;line-height:1.5">${d.body}</p><button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đã hiểu</button>`);
     }
@@ -591,6 +695,7 @@
     const act = t.closest('[data-act]');
     if (!act) return;
     const a = act.dataset.act;
+    if (a === 'forgot' && LIVE) { e.preventDefault(); return openSheet(`<h3>Quên mật khẩu?</h3><div class="sub">Vui lòng gọi hotline <b>${CONTACT.hotline}</b> để được đặt lại mật khẩu.</div><a class="sheet-btn" style="display:block;text-align:center;text-decoration:none" href="tel:${telHot()}">Gọi hotline</a>`); }
     if (a === 'forgot') { e.preventDefault(); return openSheet(`<h3>Quên mật khẩu?</h3><div class="sub">Nhập số điện thoại để nhận mã đặt lại mật khẩu.</div><div class="sheet-input">${fx.phoneF.replace('<svg','<svg width="24" height="24"')}<input type="tel" placeholder="Số điện thoại" inputmode="numeric"></div><button class="sheet-btn" data-sheetmsg="Đã gửi mã xác nhận (demo)">Gửi mã xác nhận</button>`); }
     if (a === 'terms' || a === 'privacy') { e.preventDefault(); return openSheet(`<h3>${a === 'terms' ? 'Điều khoản sử dụng' : 'Chính sách bảo mật'}</h3><p style="margin-top:12px;color:var(--ink-2);line-height:1.55;font-size:16px">Nội dung mẫu. Hãy thay bằng ${a === 'terms' ? 'điều khoản sử dụng' : 'chính sách bảo mật'} chính thức của Lâm Thao Ăn Gì.</p><button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`); }
     if (a === 'area') return openSheet(`<h3>Chọn khu vực giao hàng</h3>${AREAS.map(x => `<button class="opt ${x === S.area ? 'sel' : ''}" data-setarea="${x}">${ic('mapPin')}${x}${x === S.area ? `<span class="tick">${ic('check')}</span>` : ''}</button>`).join('')}`);
@@ -608,30 +713,116 @@
   });
 
   function menuAction(k) {
+    if (k.startsWith('open-')) { location.href = k.slice(5) + '.html'; return; }
     if (k === 'logout') {
       return openSheet(`<h3>Đăng xuất?</h3><div class="sub">Bạn có chắc muốn thoát khỏi tài khoản hiện tại?</div>
         <button class="sheet-btn" style="background:var(--red)" data-dologout>Đăng xuất</button><button class="sheet-btn" style="background:var(--chip);color:var(--ink)" onclick="document.getElementById('sheet-backdrop').click()">Hủy</button>`);
     }
-    if (k === 'account') return openSheet(`<h3>Thông tin tài khoản</h3><div class="row-kv" style="margin-top:12px"><span>Họ và tên</span><b>${S.user.name}</b></div><div class="row-kv"><span>Số điện thoại</span><b>${fmtPhone(S.user.phone)}</b></div><div class="row-kv"><span>Hạng thành viên</span><b>Thành viên bạc</b></div>`);
+    if (k === 'account') return openSheet(`<h3>Thông tin tài khoản</h3><div class="row-kv" style="margin-top:12px"><span>Họ và tên</span><b>${S.user.name}</b></div><div class="row-kv"><span>Số điện thoại</span><b>${fmtPhone(S.user.phone)}</b></div><div class="row-kv"><span>Hạng thành viên</span><b>${LIVE ? 'Thành viên' : 'Thành viên bạc'}</b></div>`);
     if (k === 'address') return openSheet(`<h3>Địa chỉ đã lưu</h3><button class="opt">${ic('mapPin')}<span><b>Nhà</b><br><small style="color:var(--ink-2)">${S.area}</small></span></button><button class="sheet-btn" data-sheetmsg="Thêm địa chỉ mới (demo)">+ Thêm địa chỉ mới</button>`);
     if (k === 'payment') return openSheet(`<h3>Phương thức thanh toán</h3>${['Tiền mặt','Thẻ ngân hàng','Ví điện tử'].map((x, i) => `<button class="opt ${i === 0 ? 'sel' : ''}">${ic('check')}${x}</button>`).join('')}`);
-    if (k === 'coupons') return openSheet(`<h3>Mã giảm giá của bạn</h3>${[['GIAM30K','Giảm 30K cho đơn từ 100K'],['CUOITUAN','Giảm 20K cho đơn từ 80K'],['FREESHIP','Miễn phí giao hàng đơn từ 60K']].map(([c, d]) => `<div class="row-kv"><span><b>${c}</b><br><small style="color:var(--ink-2)">${d}</small></span><button style="color:var(--green-d);font-weight:700" data-copy="${c}">Sao chép</button></div>`).join('')}`);
-    if (k === 'points') return openSheet(`<h3>Điểm tích lũy</h3><div style="font-family:var(--font-h);font-weight:800;font-size:40px;color:var(--green-d);margin-top:10px">820 điểm</div><div class="sub">Còn 180 điểm để lên hạng Vàng</div>`);
+    if (k === 'coupons') return openSheet(`<h3>Mã giảm giá của bạn</h3>${(LIVE ? PROMOS.map(p => [esc(p.code), esc(p.desc)]) : [['GIAM30K','Giảm 30K cho đơn từ 100K'],['CUOITUAN','Giảm 20K cho đơn từ 80K'],['FREESHIP','Miễn phí giao hàng đơn từ 60K']]).map(([c, d]) => `<div class="row-kv"><span><b>${c}</b><br><small style="color:var(--ink-2)">${d}</small></span><button style="color:var(--green-d);font-weight:700" data-copy="${c}">Sao chép</button></div>`).join('')}`);
+    if (k === 'points') return openSheet(`<h3>Điểm tích lũy</h3><div style="font-family:var(--font-h);font-weight:800;font-size:40px;color:var(--green-d);margin-top:10px">${LIVE ? S.points : 820} điểm</div><div class="sub">${LIVE ? 'Tích 1 điểm cho mỗi 1.000đ của đơn đã hoàn thành' : 'Còn 180 điểm để lên hạng Vàng'}</div>`);
     if (k === 'lang') return openSheet(`<h3>Ngôn ngữ</h3><button class="opt sel">Tiếng Việt<span class="tick">${ic('check')}</span></button><button class="opt" data-sheetmsg="English – sắp ra mắt">English</button>`);
-    if (k === 'contact') return openSheet(`<h3>Liên hệ Lâm Thao Ăn Gì</h3><a class="opt" href="tel:0900000000">${ic('phone')}Hotline: 0900 000 000</a><a class="opt" href="mailto:lamthaoangi1@gmail.com">${ic('mail')}lamthaoangi1@gmail.com</a>`);
+    if (k === 'contact') return openSheet(`<h3>Liên hệ Lâm Thao Ăn Gì</h3><a class="opt" href="tel:${telHot()}">${ic('phone')}Hotline: ${esc(CONTACT.hotline)}</a><a class="opt" href="mailto:${esc(CONTACT.email)}">${ic('mail')}${esc(CONTACT.email)}</a>${CONTACT.zalo ? `<div class="row-kv"><span>Zalo</span><b>${esc(CONTACT.zalo)}</b></div>` : ''}`);
     if (k === 'notif' || k === 'settings') return openSheet(`<h3>${k === 'notif' ? 'Cài đặt thông báo' : 'Cài đặt'}</h3>${['Thông báo đơn hàng','Thông báo ưu đãi','Thông báo hệ thống'].map(x => `<div class="row-kv"><span>${x}</span><b style="color:var(--green-d)">Bật</b></div>`).join('')}`);
     if (k === 'policy') return openSheet(`<h3>Chính sách &amp; Điều khoản</h3><p style="margin-top:12px;color:var(--ink-2);line-height:1.55">Nội dung mẫu – hãy thay bằng chính sách chính thức.</p>`);
-    if (k === 'help') return openSheet(`<h3>Trung tâm hỗ trợ</h3><a class="opt" href="tel:0900000000">${ic('headset')}Gọi hotline hỗ trợ</a><button class="opt" data-sheetmsg="Câu hỏi thường gặp – sắp ra mắt">${ic('doc')}Câu hỏi thường gặp</button>`);
+    if (k === 'help') return openSheet(`<h3>Trung tâm hỗ trợ</h3><a class="opt" href="tel:${telHot()}">${ic('headset')}Gọi hotline hỗ trợ</a><button class="opt" data-sheetmsg="Câu hỏi thường gặp – sắp ra mắt">${ic('doc')}Câu hỏi thường gặp</button>`);
   }
   document.addEventListener('click', e => {
-    if (e.target.closest('[data-dologout]')) { S.user = null; store.set('user', null); closeSheet(); toast('Đã đăng xuất'); renderProfile(); }
+    if (e.target.closest('[data-dologout]')) { if (LIVE) FB.logout(); S.user = null; store.set('user', null); closeSheet(); toast('Đã đăng xuất'); renderProfile(); }
     const c = e.target.closest('[data-copy]');
     if (c) { navigator.clipboard?.writeText(c.dataset.copy).catch(() => {}); toast('Đã sao chép mã ' + c.dataset.copy); }
   });
 
   /* ---------------- INIT ---------------- */
-  const first = location.hash.slice(1);
-  go(renderers[first] ? first : 'home', false);
-  history.replaceState(null, '', '#' + S.tab);
-  startSlider();
+  /* ---------------- LIVE: dữ liệu thật từ Firebase ---------------- */
+  const fmtWhen = d => {
+    const hm = d.toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+    const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 864e5);
+    return days <= 0 ? `Hôm nay, ${hm}` : days === 1 ? `Hôm qua, ${hm}` : `${d.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' })}, ${hm}`;
+  };
+  const ST_MAP = { pending:'proc', confirmed:'proc', preparing:'proc', ready:'proc', delivering:'ship', done:'done', cancelled:'done' };
+  const ST_LABEL = { pending:'Chờ quán xác nhận', confirmed:'Quán đã nhận đơn', preparing:'Đang chuẩn bị', ready:'Chờ tài xế', delivering:'Đang giao', done:'Hoàn thành', cancelled:'Đã hủy' };
+  const ST_NOTE = {
+    pending:['Đã gửi đơn hàng', 'đang chờ xác nhận đơn của bạn.'], confirmed:['Quán đã xác nhận đơn', 'đã xác nhận đơn hàng của bạn.'],
+    preparing:['Quán đang chuẩn bị món', 'đang chuẩn bị món cho bạn.'], ready:['Món đã sẵn sàng', 'đã làm xong, đang chờ tài xế đến lấy.'],
+    delivering:['Tài xế đang giao hàng', 'Đơn hàng của bạn đang trên đường đến.'], done:['Đơn hàng đã giao thành công', 'Cảm ơn bạn đã đặt món!'], cancelled:['Đơn hàng đã bị hủy', 'đơn hàng đã bị hủy.'],
+  };
+  let RAW = [], ordersUnsub = null;
+
+  function mapShop(d) {
+    const free = +d.freeShipMin || 0, cat = d.cat || '';
+    return {
+      id:d.id, _d:d, name:esc(d.name), cat:esc(cat), homeCat:esc(cat), img:esc(d.img || 'hero.svg'), rate:+d.rate || 0, rc:esc(d.rc || ''),
+      eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, sale:+d.sale || 0,
+      group:((d.group && d.group.length) ? d.group : [cat.split('•')[0].trim()]).map(esc), desc:esc(d.desc || ''),
+      menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false]), open:d.open !== false, phone:esc(d.phone || ''), address:esc(d.address || ''),
+    };
+  }
+  function mapOrder(o) {
+    const t = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate() : new Date();
+    if (!SHOPS.some(s => s.id === o.shopId)) GHOST[o.shopId] = { id:o.shopId, name:esc(o.shopName), cat:'', img:'hero.svg', group:['Quán'], menu:[] };
+    return { id:o.id, code:esc(o.code), shop:o.shopId, st:ST_MAP[o.status] || 'proc', status:o.status, label:ST_LABEL[o.status], items:(o.items || []).map(i => `${i.qty} x ${esc(i.name)}`),
+      total:o.total || 0, shipFee:o.shipFee || 0, address:esc(o.address), when:fmtWhen(t), t:t.getTime(), shipperName:esc(o.shipperName || ''), raw:o };
+  }
+  function rebuildNotices() {
+    const read = new Set(store.get('readn', []));
+    NOTICES = [
+      ...ORDERS.slice(0, 20).map(o => ({ id:o.id + ':' + o.status, type:'order', title:ST_NOTE[o.status][0], time:o.when, img:shopBy(o.shop).img,
+        body:o.status === 'delivering' || o.status === 'done' ? `Đơn #${o.code}: ${ST_NOTE[o.status][1]}` : `<b>${shopBy(o.shop).name}</b> ${ST_NOTE[o.status][1]}` })),
+      ...PROMOS.map(p => ({ id:'p:' + p.id, type:'promo', title:'Ưu đãi: ' + esc(p.code), body:esc(p.desc), time:'', svg:'giftSm' })),
+    ];
+    S.notices = NOTICES.map(n => ({ id:n.id, unread:!read.has(n.id) }));
+    if (S.tab === 'notifications') renderNotifications();
+    renderNav();
+  }
+  function rebuildOrders() {
+    ORDERS = RAW.map(mapOrder).sort((a, b) => b.t - a.t);
+    S.points = Math.floor(ORDERS.filter(o => o.status === 'done').reduce((a, o) => a + o.total, 0) / 1000);
+    rebuildNotices();
+    if (S.tab === 'orders') { if (S.orders.search && document.activeElement && document.activeElement.id === 'orders-q') $('#orders-list').innerHTML = ordersListHtml(); else renderOrders(); }
+    if (S.tab === 'profile') renderProfile();
+  }
+  function prepareLive() {
+    SHOPS = []; ORDERS = []; NOTICES = [];
+    S.user = null; S.users = []; S.notices = []; S.favs = store.get('favs', []);
+    $('#app').classList.add('live');
+  }
+  function connectLive() {
+    import('./fb.js').then(m => {
+      FB = m;
+      FB.watchShops((l, err) => {
+        if (err) return toast('Không tải được danh sách quán');
+        shopsLoaded = true;
+        SHOPS = l.map(mapShop).sort((a, b) => (b.open !== false) - (a.open !== false) || a.name.localeCompare(b.name, 'vi'));
+        if (S.tab === 'home' && $('#home-list')) $('#home-list').innerHTML = shopListHtml();
+        else if (S.tab === 'favorites' && $('#fav-body')) { $('#fav-body').innerHTML = favBody(); bindFavSort(); }
+        else if (S.tab === 'orders') rebuildOrders();
+      });
+      FB.watchPromos(l => { PROMOS = l.filter(p => p.active !== false); rebuildNotices(); if (S.tab === 'profile') renderProfile(); });
+      FB.watchSettings(c => { CONTACT = { ...CONTACT, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v)) }; });
+      FB.onAuth((u, p) => {
+        if (ordersUnsub) { ordersUnsub(); ordersUnsub = null; }
+        RAW = [];
+        if (u && p) {
+          S.user = { uid:u.uid, name:p.name, phone:p.phone, role:p.role, address:p.address || '' };
+          ordersUnsub = FB.watchMyOrders(u.uid, l => { RAW = l; rebuildOrders(); });
+        } else S.user = null;
+        rebuildOrders();
+        if (S.tab === 'profile') renderProfile();
+      });
+    }).catch(() => toast('Không kết nối được máy chủ dữ liệu'));
+  }
+
+  function boot() {
+    const first = location.hash.slice(1);
+    go(renderers[first] ? first : 'home', false);
+    history.replaceState(null, '', '#' + S.tab);
+    startSlider();
+  }
+  import('./firebase-config.js')
+    .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
+    .catch(() => {})
+    .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });
 })();
