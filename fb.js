@@ -1,5 +1,5 @@
 /* Lớp dữ liệu dùng chung (Firebase Auth + Firestore) cho website, Admin, Nhà bán hàng, Shipper */
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, limit, serverTimestamp }
@@ -47,6 +47,18 @@ export async function register(name, phone, pass) {
   await setDoc(doc(db, 'users', c.user.uid), { name, phone, role:'customer', address:'', createdAt:serverTimestamp() });
 }
 export const logout = () => signOut(auth);
+
+/* Admin tạo sẵn tài khoản Nhà bán hàng: dùng 1 app Firebase phụ để đăng ký (admin không bị đăng xuất), rồi admin gán vai trò + cửa hàng */
+export async function createSellerAccount({ name, phone, pass, shopId }) {
+  const app2 = initializeApp(firebaseConfig, 'seller-' + Date.now());
+  try {
+    const a2 = getAuth(app2), d2 = getFirestore(app2);
+    const c = await createUserWithEmailAndPassword(a2, toEmail(phone), pass);
+    await setDoc(doc(d2, 'users', c.user.uid), { name, phone, role:'customer', address:'', createdAt:serverTimestamp() });
+    await signOut(a2);
+    await updateDoc(doc(db, 'users', c.user.uid), { role:'seller', shopId });
+  } finally { await deleteApp(app2); }
+}
 export const updateMyProfile = (uid, patch) => updateDoc(doc(db, 'users', uid), patch);
 
 /* ---- đọc realtime ---- */

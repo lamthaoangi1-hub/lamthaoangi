@@ -25,11 +25,12 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
       <select data-ost="${o.id}" style="width:auto">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${o.status === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></div></div>`).join('') : '<div class="empty">Chưa có đơn</div>'}`;
   };
 
+  const sellersOf = id => users.filter(u => u.shopId === id && u.role === 'seller').map(u => u.phone).join(', ');
   const importView = () => `<div class="card"><h3>Nhập quán từ Excel cũ</h3><p class="muted">Tick những quán muốn đưa sang web mới. Quán đã có trên web mới được bỏ tick sẵn để tránh trùng.</p>
     <table><tr><th></th><th>Quán</th><th>Món</th><th>Ghi chú</th></tr>${imp.map((x, i) => `<tr><td><input type="checkbox" data-impck="${i}" ${x.on ? 'checked' : ''}></td><td><b>${esc(x.data.name)}</b></td><td>${x.data.menu.length}</td><td class="muted">${esc(x.notes.join('; '))}</td></tr>`).join('')}</table>
     <div class="row" style="margin-top:12px"><button class="btn" data-impgo ${impBusy ? 'disabled' : ''}>${impBusy ? 'Đang nhập…' : `Nhập ${imp.filter(x => x.on).length} quán đã chọn`}</button><button class="btn o" data-impcancel ${impBusy ? 'disabled' : ''}>Hủy</button></div></div>`;
   const shopsView = () => edit ? shopForm() : imp ? importView() : `<div class="row sb" style="margin-bottom:10px"><b>${shops.length} cửa hàng</b><span class="row"><input type="file" id="imp-file" accept=".xlsx,.xls" hidden><button class="btn sm o" data-impfile>⬆ Nhập từ Excel cũ</button><button class="btn sm o" data-seed>+ Thêm 2 quán mẫu</button><button class="btn sm" data-newshop>+ Thêm cửa hàng</button></span></div>
-    ${shops.length ? `<div class="card"><table><tr><th>Quán</th><th>Món</th><th>Trạng thái</th><th></th></tr>${shops.map(s => `<tr><td><b>${esc(s.name)}</b><br><span class="muted">${esc(s.cat || '')}</span></td><td>${(s.menu || []).length}</td><td>${s.open === false ? '<span class="badge bad">Đóng cửa</span>' : '<span class="badge ok">Mở cửa</span>'}</td><td style="text-align:right"><button class="btn sm o" data-editshop="${s.id}">Sửa</button> <button class="btn sm r" data-delshop="${s.id}">Xóa</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Chưa có cửa hàng. Bấm “Thêm cửa hàng”.</div>'}`;
+    ${shops.length ? `<div class="card"><table><tr><th>Quán</th><th>Món</th><th>Trạng thái</th><th></th></tr>${shops.map(s => `<tr><td><b>${esc(s.name)}</b><br><span class="muted">${esc(s.cat || '')}</span><br><span class="muted">${sellersOf(s.id) ? '🔑 TK bán hàng: ' + esc(sellersOf(s.id)) : '⚠ Chưa có tài khoản bán hàng'}</span></td><td>${(s.menu || []).length}</td><td>${s.open === false ? '<span class="badge bad">Đóng cửa</span>' : '<span class="badge ok">Mở cửa</span>'}</td><td style="text-align:right"><button class="btn sm" data-mkseller="${s.id}">Cấp TK</button> <button class="btn sm o" data-editshop="${s.id}">Sửa</button> <button class="btn sm r" data-delshop="${s.id}">Xóa</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Chưa có cửa hàng. Bấm “Thêm cửa hàng”.</div>'}`;
 
   function shopForm() {
     const s = edit, n = (k, d = '') => esc(s[k] ?? d);
@@ -105,6 +106,21 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
       else if (g('[data-resetloc]')) { if (confirm('Đặt lại vị trí quán? Chủ quán sẽ chia sẻ lại được 1 lần.')) { await fb.patchShop(edit.id, { lat:null, lng:null, locAcc:null, locAt:null }); edit.lat = null; edit.lng = null; toast('Đã đặt lại vị trí'); draw(); } }
       else if (g('[data-cancel]')) { edit = null; draw(); }
       else if (g('[data-delshop]')) { const s = shops.find(x => x.id === g('[data-delshop]').dataset.delshop); if (confirm(`Xóa cửa hàng “${s.name}”?`)) { await fb.removeShop(s.id); toast('Đã xóa'); } }
+      else if (g('[data-mkseller]')) {
+        const s = shops.find(x => x.id === g('[data-mkseller]').dataset.mkseller);
+        const phone = (prompt(`Số điện thoại đăng nhập của chủ quán “${s.name}”:`, s.phone || '') || '').replace(/\D/g, '');
+        if (!phone) return;
+        const old = users.find(u => u.phone === phone);
+        if (old) {                                            // SĐT đã có tài khoản → chỉ cần gán quyền
+          if (!confirm(`SĐT ${phone} đã có tài khoản (${old.name}). Gán làm chủ quán “${s.name}”?`)) return;
+          await fb.patchUser(old.uid, { role:'seller', shopId:s.id }); await loadUsers(); return toast('Đã gán quyền bán hàng');
+        }
+        const pass = prompt('Đặt mật khẩu tạm (tối thiểu 6 ký tự). Hãy gửi cho chủ quán cùng số điện thoại:');
+        if (!pass) return; if (pass.length < 6) return toast('Mật khẩu tối thiểu 6 ký tự');
+        toast('Đang tạo tài khoản…');
+        await fb.createSellerAccount({ name:s.name, phone, pass, shopId:s.id });
+        await loadUsers(); toast(`Đã tạo tài khoản: ${phone}`);
+      }
       else if (g('[data-impfile]')) { $('#imp-file').click(); }
       else if (g('[data-impcancel]')) { imp = null; draw(); }
       else if (g('[data-impgo]')) {
