@@ -587,13 +587,32 @@
     const p = PROMOS.find(x => String(x.code).toUpperCase() === code.toUpperCase());
     return p && sub >= (p.min || 0) ? p : null;
   }
+  /*SHIP-START*/
+  /* Phí giao hàng theo khoảng cách quán → khách: baseKm đầu giá base, mỗi km (làm tròn lên) sau đó + perKm.
+     Khoảng cách = đường chim bay × road (hệ số đường thực tế), làm tròn 0,1 km; chính số đã làm tròn này được hiển thị và dùng để tính tiền. */
+  const SHIPCFG = { base:15000, baseKm:3.5, perKm:3000, road:1.3 };
+  const haverKm = (a, b) => {
+    const R = 6371, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lng - a.lng);
+    const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  };
+  function shipQuote(s, loc) {
+    if (!loc) return { mode:'need-loc', fee:0, km:null, extraKm:0 };
+    if (s.lat == null || s.lng == null) return { mode:'flat', fee:s.shipFee ?? SHIPCFG.base, km:null, extraKm:0 };   // quán chưa có GPS: dùng phí cố định cũ
+    const km = Math.round(haverKm(loc, { lat:s.lat, lng:s.lng }) * SHIPCFG.road * 10) / 10;
+    const extraKm = Math.max(0, Math.ceil(Math.round((km - SHIPCFG.baseKm) * 10) / 10));
+    return { mode:'km', fee:SHIPCFG.base + extraKm * SHIPCFG.perKm, km, extraKm };
+  }
+  /*SHIP-END*/
   function calc(s, lines, code) {
     const sub = lines.reduce((a, l) => a + l.price * l.qty, 0);
     const disc = Math.round(sub * (s.sale || 0) / 100);
     const promo = findPromo(code, sub);
     const promoOff = promo ? Math.min(promo.off || 0, sub - disc) : 0;
-    const ship = (s.freeShipMin && sub >= s.freeShipMin) ? 0 : (s.shipFee ?? 15000);
-    return { sub, disc, promo, promoOff, ship, total:sub - disc - promoOff + ship };
+    const q = shipQuote(s, CART.loc);
+    // đơn đạt mức miễn phí ship: chỉ miễn phần phí cơ bản, khách vẫn trả phần km vượt
+    const ship = (s.freeShipMin && sub >= s.freeShipMin) ? (q.mode === 'km' ? q.extraKm * SHIPCFG.perKm : 0) : q.fee;
+    return { sub, disc, promo, promoOff, ship, shipMode:q.mode, km:q.km, extraKm:q.extraKm, freeBase:!!(s.freeShipMin && sub >= s.freeShipMin), total:sub - disc - promoOff + ship };
   }
   function updateCartUI() {
     const bar = $('#cart-bar'), { s, lines } = cartData(); if (!bar || !s) return;
@@ -635,8 +654,10 @@
         <div class="co-row"><span>Tạm tính</span><b>${money(c.sub)}</b></div>
         ${c.disc ? `<div class="co-row off"><span>Giảm giá quán (${s.sale}%)</span><b>-${money(c.disc)}</b></div>` : ''}
         ${c.promoOff ? `<div class="co-row off"><span>Mã ${esc(c.promo.code)}</span><b>-${money(c.promoOff)}</b></div>` : ''}
-        <div class="co-row"><span>Phí giao hàng</span><b>${c.ship ? money(c.ship) : 'Miễn phí'}</b></div>
-        <div class="co-total"><span>Tổng thanh toán</span><b>${money(c.total)}</b></div>
+        ${c.shipMode === 'need-loc' ? `<div class="co-row"><span>Phí giao hàng</span><b style="color:var(--orange)">Chia sẻ vị trí để tính</b></div>`
+          : `<div class="co-row"><span>Phí giao hàng${c.shipMode === 'km' ? ` <small>· ${String(c.km).replace('.', ',')} km</small>` : ''}</span><b>${c.ship ? money(c.ship) : 'Miễn phí'}</b></div>`}
+        ${c.shipMode === 'km' ? `<div class="co-hint" style="margin:-2px 0 4px">${c.freeBase ? 'Miễn phí ' + money(SHIPCFG.base) + ' cơ bản · ' : money(SHIPCFG.base) + ' cho ' + String(SHIPCFG.baseKm).replace('.', ',') + ' km đầu · '}${c.extraKm ? c.extraKm + ' km tiếp theo × ' + money(SHIPCFG.perKm) : 'không phát sinh thêm km'}</div>` : ''}
+        <div class="co-total"><span>Tổng thanh toán${c.shipMode === 'need-loc' ? ' <small style="font-weight:500;color:var(--ink-3)">(chưa gồm phí ship)</small>' : ''}</span><b>${money(c.total)}</b></div>
         <div class="co-pay">💵 Thanh toán tiền mặt khi nhận hàng</div>
       </section>
 
@@ -652,13 +673,14 @@
     const addr = (CART.address || '').trim();
     if (addr.length < 5) return toast('Vui lòng nhập địa chỉ nhận hàng');
     const c = calc(s, lines, CART.promo);
+    if (c.shipMode === 'need-loc') return toast('Vui lòng chia sẻ vị trí để tính phí giao hàng');
     btn.disabled = true;
     try {
       const ref = await FB.placeOrder({
         code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone,
         address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '', shopLat:s.lat ?? null, shopLng:s.lng ?? null, lat:CART.loc.lat, lng:CART.loc.lng, locAcc:CART.loc.acc,
         items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff, promoCode:c.promo ? c.promo.code : '',
-        shipFee:c.ship, total:c.total, payment:'cash', status:'pending',
+        shipFee:c.ship, distanceKm:c.km, total:c.total, payment:'cash', status:'pending',
       });
       FB.notifyNewOrder(ref.id);   // Gmail admin + Zalo quán/admin (chạy nền)
       FB.updateMyProfile(S.user.uid, { address:addr }).catch(() => {}); S.user.address = addr;
@@ -886,7 +908,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261013a').then(m => {
+    import('./fb.js?v=20261013b').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -899,7 +921,7 @@
         else if (S.tab === 'orders') rebuildOrders();
       });
       FB.watchPromos(l => { PROMOS = l.filter(p => p.active !== false); rebuildNotices(); if (S.tab === 'profile') renderProfile(); });
-      FB.watchSettings(c => { CONTACT = { ...CONTACT, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v)) }; });
+      FB.watchSettings(c => { ['base', 'baseKm', 'perKm', 'road'].forEach(k => { const v = Number(c['ship' + k[0].toUpperCase() + k.slice(1)]); if (v > 0) SHIPCFG[k] = v; }); CONTACT = { ...CONTACT, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v)) }; });
       FB.onAuth((u, p) => {
         if (ordersUnsub) { ordersUnsub(); ordersUnsub = null; }
         RAW = [];
@@ -919,7 +941,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261013a')
+  import('./firebase-config.js?v=20261013b')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });

@@ -1,4 +1,4 @@
-import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261013a';
+import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261013b';
 
 start({ title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
   let tab = 'open', open = [], mine = [], err = '';
@@ -33,7 +33,7 @@ start({ title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
       <p style="margin-top:8px"><b>Giao tới:</b> ${esc(o.customerName)} · ${tel(o.customerPhone)}<br><span class="muted">${esc(o.address)}</span>${o.lat != null ? `<br><a class="btn sm" style="margin-top:6px" href="${dirLink(o.lat, o.lng)}" target="_blank" rel="noopener">📍 Chỉ đường tới khách (vị trí khách chia sẻ)</a>` : ` <a href="${map(o.address)}" target="_blank" rel="noopener">Bản đồ</a>`}</p>
       ${o.note ? `<p class="muted" style="margin-top:6px">Ghi chú: ${esc(o.note)}</p>` : ''}
       <ul class="items">${items}</ul>
-      <div class="row sb"><span>Thu tiền mặt: <b class="total">${money(o.total)}</b> <span class="muted">(ship ${money(o.shipFee)})</span></span>
+      <div class="row sb"><span>Thu tiền mặt: <b class="total">${money(o.total)}</b> <span class="muted">(ship ${money(o.shipFee)}${o.distanceKm != null ? ' · quãng đường ' + String(o.distanceKm).replace('.', ',') + ' km' : ''})</span></span>
       ${kind === 'open' ? `<button class="btn" data-claim="${o.id}">Nhận đơn</button>` : o.status === 'delivering' ? `<button class="btn" data-done="${o.id}">Đã giao xong</button>` : ''}</div></div>`;
   }
   function draw() {

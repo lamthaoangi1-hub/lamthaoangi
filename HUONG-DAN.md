@@ -74,8 +74,11 @@ Mỗi khi khách đặt đơn, website gọi Google Apps Script (cùng script l�
 
 Lưu ý: không được cài webhook cho bot này (webhook và getUpdates loại trừ nhau), script chỉ dùng getUpdates để lấy chat_id. Nếu Zalo lỗi, đơn vẫn đặt bình thường và mail vẫn gửi (xem lỗi ở Apps Script → Executions). Gmail thường gửi tối đa khoảng 100 mail/ngày.
 
-## Phí giao hàng
-Chỉ **Admin** sửa được phí giao hàng và mức miễn phí ship của từng quán (Admin → Cửa hàng → Sửa). Chủ quán chỉ xem được, và luật bảo mật cũng chặn chủ quán tự đổi.
+## Phí giao hàng (tính theo khoảng cách)
+Phí tính từ khoảng cách quán → vị trí khách chia sẻ: **3,5 km đầu 15.000đ, mỗi km tiếp theo +3.000đ** (km lẻ tính tròn lên). Khoảng cách = đường chim bay × 1,3 (hệ số đường đi), làm tròn 0,1 km. Khách chia sẻ vị trí xong, form xác nhận hiện đúng "Quãng đường ~X km" và phí ship trước khi bấm Đặt đơn; shipper cũng thấy quãng đường trên đơn.
+- Admin → tab **Liên hệ** → mục "Phí giao hàng theo khoảng cách": đổi phí cơ bản, số km đầu, giá mỗi km, hệ số đường đi.
+- Quán **bắt buộc đã lưu vị trí GPS** (chủ quán bấm "Chia sẻ vị trí quán"). Quán chưa có GPS tạm dùng phí cố định ghi ở Admin → Cửa hàng → Sửa.
+- "Miễn phí cơ bản từ đơn": đơn đạt mức này chỉ được miễn phần phí cơ bản, vẫn trả phần km vượt.
 
 ## Giới hạn cần biết
 - **Quên mật khẩu:** chưa có tự đặt lại (vì không dùng email thật). Cách xử lý: xóa tài khoản đó trong Firebase Console → Authentication, rồi khách đăng ký lại.

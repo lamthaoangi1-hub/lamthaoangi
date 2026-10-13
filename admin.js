@@ -1,5 +1,5 @@
-import { fb, start, track, $, $$, esc, money, fmtTime, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261013a';
-import { parseWorkbook } from './import-sheet.js?v=20261013a';
+import { fb, start, track, $, $$, esc, money, fmtTime, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261013b';
+import { parseWorkbook } from './import-sheet.js?v=20261013b';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
@@ -55,7 +55,7 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
       <div class="grid"><label class="f">Tên quán *<input type="text" id="f-name" value="${n('name')}"></label><label class="f">Loại (VD: Phở • Món Việt)<input type="text" id="f-cat" value="${n('cat')}"></label>
       <label class="f">Nhóm lọc (cách nhau dấu phẩy)<input type="text" id="f-group" value="${esc((s.group || []).join(', '))}" placeholder="Phở, Món Việt"></label><label class="f">SĐT quán<input type="tel" id="f-phone" value="${n('phone')}"></label>
       <label class="f">Địa chỉ<input type="text" id="f-address" value="${n('address')}"></label><label class="f">Thời gian giao<input type="text" id="f-eta" value="${n('eta', '15 - 30 phút')}"></label>
-      <label class="f">Phí giao hàng (đ)<input type="number" id="f-ship" min="0" step="1000" value="${s.shipFee ?? 15000}"></label><label class="f">Miễn phí ship từ (đ, 0 = không)<input type="number" id="f-free" min="0" step="1000" value="${s.freeShipMin ?? 0}"></label>
+      <label class="f">Phí ship cố định (đ) – chỉ dùng khi quán chưa có GPS<input type="number" id="f-ship" min="0" step="1000" value="${s.shipFee ?? 15000}"></label><label class="f">Miễn phí cơ bản từ đơn (đ, 0 = không)<input type="number" id="f-free" min="0" step="1000" value="${s.freeShipMin ?? 0}"></label>
       <label class="f">Giảm giá (%)<input type="number" id="f-sale" min="0" max="90" value="${s.sale ?? 0}"></label><label class="f">Điểm đánh giá (0–5, để 0 nếu quán mới)<input type="number" id="f-rate" min="0" max="5" step="0.1" value="${s.rate ?? 0}"></label>
       <label class="f">Số lượt đánh giá (VD: 120+)<input type="text" id="f-rc" value="${n('rc')}"></label></div>
       <label class="f">Ảnh / logo quán</label>${imgUpHtml(s.img || '', 'f-img')}
@@ -92,7 +92,12 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
     <p class="muted" style="margin-top:8px">Mã hiển thị cho khách ở mục “Mã giảm giá” và tab Thông báo. Khách nhập mã khi đặt đơn.</p></div>
     ${promos.map(p => `<div class="card row sb"><span><b>${esc(p.code)}</b> · ${esc(p.desc)}<br><span class="muted">Giảm ${money(p.off)} · đơn từ ${money(p.min)}</span></span><span class="row"><label class="sw" style="margin:0"><input type="checkbox" data-pact="${p.id}" ${p.active === false ? '' : 'checked'}>Bật</label><button class="btn sm r" data-delpromo="${p.id}">Xóa</button></span></div>`).join('') || '<div class="empty">Chưa có mã</div>'}`;
 
-  const settingsView = () => `<div class="card"><h3>Thông tin liên hệ hiển thị trên website</h3><div class="grid"><label class="f">Hotline<input type="tel" id="c-hot" value="${esc(settings.hotline || '')}"></label><label class="f">Email<input type="text" id="c-mail" value="${esc(settings.email || '')}"></label><label class="f">Zalo (số hoặc link)<input type="text" id="c-zalo" value="${esc(settings.zalo || '')}"></label></div><button class="btn" style="margin-top:12px" data-savesettings>Lưu</button></div>`;
+  const shipCfgView = () => `<div class="card" style="margin-top:12px"><h3>Phí giao hàng theo khoảng cách</h3><p class="muted">Khách thấy phí này trước khi bấm đặt đơn. Khoảng cách = đường chim bay từ quán đến khách × hệ số đường đi, làm tròn 0,1 km; km lẻ tính tròn lên.</p>
+    <div class="grid"><label class="f">Phí cơ bản (đ)<input type="number" id="sh-base" min="0" step="1000" value="${settings.shipBase ?? 15000}"></label><label class="f">Số km đầu tính phí cơ bản<input type="number" id="sh-basekm" min="0" step="0.5" value="${settings.shipBaseKm ?? 3.5}"></label>
+    <label class="f">Mỗi km tiếp theo (đ)<input type="number" id="sh-perkm" min="0" step="500" value="${settings.shipPerKm ?? 3000}"></label><label class="f">Hệ số đường đi (1,3 = đường thực dài hơn đường chim bay 30%)<input type="number" id="sh-road" min="1" max="2" step="0.05" value="${settings.shipRoad ?? 1.3}"></label></div>
+    <button class="btn" style="margin-top:12px" data-saveship>Lưu phí giao hàng</button></div>`;
+  const contactView = () => `<div class="card"><h3>Thông tin liên hệ hiển thị trên website</h3><div class="grid"><label class="f">Hotline<input type="tel" id="c-hot" value="${esc(settings.hotline || '')}"></label><label class="f">Email<input type="text" id="c-mail" value="${esc(settings.email || '')}"></label><label class="f">Zalo (số hoặc link)<input type="text" id="c-zalo" value="${esc(settings.zalo || '')}"></label></div><button class="btn" style="margin-top:12px" data-savesettings>Lưu</button></div>`;
+  const settingsView = () => contactView() + shipCfgView();
 
   function draw() {
     const keep = $('#uq')?.value;
@@ -207,6 +212,11 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
         await fb.savePromo(null, { code:v('p-code').toUpperCase(), desc:v('p-desc'), off:+v('p-off') || 0, min:+v('p-min') || 0, active:true }); toast('Đã thêm mã');
       }
       else if (g('[data-delpromo]')) { if (confirm('Xóa mã này?')) await fb.removePromo(g('[data-delpromo]').dataset.delpromo); }
+      else if (g('[data-saveship]')) {
+        const n = (id, d) => { const v = parseFloat($('#' + id).value); return isNaN(v) ? d : v; };
+        const d = { shipBase:Math.max(0, n('sh-base', 15000)), shipBaseKm:Math.max(0, n('sh-basekm', 3.5)), shipPerKm:Math.max(0, n('sh-perkm', 3000)), shipRoad:Math.min(2, Math.max(1, n('sh-road', 1.3))) };
+        await fb.saveSettings(d); toast('Đã lưu phí giao hàng');
+      }
       else if (g('[data-savesettings]')) { await fb.saveSettings({ hotline:$('#c-hot').value.trim(), email:$('#c-mail').value.trim(), zalo:$('#c-zalo').value.trim() }); toast('Đã lưu'); }
     } catch (er) { toast(fb.errMsg(er)); }
   });
