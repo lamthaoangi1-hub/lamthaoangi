@@ -1,4 +1,4 @@
-import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261012b';
+import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261013a';
 
 start({ title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
   let tab = 'open', open = [], mine = [], err = '';

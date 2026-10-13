@@ -1,5 +1,5 @@
-import { fb, start, track, $, $$, esc, money, fmtTime, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261012b';
-import { parseWorkbook } from './import-sheet.js?v=20261012b';
+import { fb, start, track, $, $$, esc, money, fmtTime, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261013a';
+import { parseWorkbook } from './import-sheet.js?v=20261013a';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
@@ -12,7 +12,7 @@ const loadXLSX = () => window.XLSX ? Promise.resolve(window.XLSX) : new Promise(
 });
 
 start({ title:'Quản trị', roles:['admin'], render(root, me) {
-  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller';
+  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null;
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
 
   const ordersView = () => {
@@ -30,9 +30,25 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
   const importView = () => `<div class="card"><h3>Nhập quán từ Excel cũ</h3><p class="muted">Tick những quán muốn đưa sang web mới. Quán đã có trên web mới được bỏ tick sẵn để tránh trùng.</p>
     <table><tr><th></th><th>Quán</th><th>Món</th><th>Ghi chú</th></tr>${imp.map((x, i) => `<tr><td><input type="checkbox" data-impck="${i}" ${x.on ? 'checked' : ''}></td><td><b>${esc(x.data.name)}</b></td><td>${x.data.menu.length}</td><td class="muted">${esc(x.notes.join('; '))}</td></tr>`).join('')}</table>
     <div class="row" style="margin-top:12px"><button class="btn" data-impgo ${impBusy ? 'disabled' : ''}>${impBusy ? 'Đang nhập…' : `Nhập ${imp.filter(x => x.on).length} quán đã chọn`}</button><button class="btn o" data-impcancel ${impBusy ? 'disabled' : ''}>Hủy</button></div></div>`;
-  const shopsView = () => edit ? shopForm() : imp ? importView() : `<div class="row sb" style="margin-bottom:10px"><b>${shops.length} cửa hàng</b><span class="row"><input type="file" id="imp-file" accept=".xlsx,.xls" hidden><button class="btn sm o" data-impfile>⬆ Nhập từ Excel cũ</button><button class="btn sm o" data-seed>+ Thêm 2 quán mẫu</button><button class="btn sm" data-newshop>+ Thêm cửa hàng</button></span></div>
+  const shopsView = () => edit ? shopForm() : mk ? mkForm() : imp ? importView() : `<div class="row sb" style="margin-bottom:10px"><b>${shops.length} cửa hàng</b><span class="row"><input type="file" id="imp-file" accept=".xlsx,.xls" hidden><button class="btn sm o" data-impfile>⬆ Nhập từ Excel cũ</button><button class="btn sm o" data-seed>+ Thêm 2 quán mẫu</button><button class="btn sm" data-newshop>+ Thêm cửa hàng</button></span></div>
     ${shops.length ? `<p class="muted" style="margin:0 0 8px">Dùng ▲ ▼ để đổi vị trí quán trên trang chủ. Quán bật <b>⭐ Nổi bật</b> hoặc có <b>Giảm giá</b> sẽ hiện trên banner đầu trang.</p><div class="card" style="overflow-x:auto"><table><tr><th>Thứ tự</th><th>Quán</th><th>Món</th><th>⭐ Nổi bật</th><th>Giảm %</th><th>Trạng thái</th><th></th></tr>${[...shops].sort(byOrder).map((s, i, arr) => `<tr><td style="white-space:nowrap"><button class="btn sm o" data-mv="up" data-id="${s.id}" ${i === 0 ? 'disabled' : ''}>▲</button> <button class="btn sm o" data-mv="down" data-id="${s.id}" ${i === arr.length - 1 ? 'disabled' : ''}>▼</button></td><td><b>${esc(s.name)}</b><br><span class="muted">${esc(s.cat || '')}</span><br><span class="muted">${sellersOf(s.id) ? '🔑 TK bán hàng: ' + esc(sellersOf(s.id)) : '⚠ Chưa có tài khoản bán hàng'}</span></td><td>${(s.menu || []).length}</td><td><label class="sw" style="margin:0"><input type="checkbox" data-feat="${s.id}" ${s.featured ? 'checked' : ''}></label></td><td><input type="number" data-sale="${s.id}" min="0" max="90" value="${s.sale || 0}" style="width:64px"></td><td>${s.open === false ? '<span class="badge bad">Đóng cửa</span>' : '<span class="badge ok">Mở cửa</span>'}</td><td style="text-align:right"><button class="btn sm" data-mkseller="${s.id}">Cấp TK</button> <button class="btn sm o" data-editshop="${s.id}">Sửa</button> <button class="btn sm r" data-delshop="${s.id}">Xóa</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Chưa có cửa hàng. Bấm “Thêm cửa hàng”.</div>'}`;
 
+  /* Form cấp tài khoản nhà bán hàng: admin tự nhập tài khoản + mật khẩu rồi gửi cho chủ quán */
+  const sellerUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'seller.html';
+  const mkMsg = () => `Tài khoản nhà bán hàng - ${(shops.find(x => x.id === mk.shopId) || {}).name || ''}\nTrang đăng nhập: ${sellerUrl()}\nTài khoản: ${mk.phone}\n${mk.pass ? 'Mật khẩu: ' + mk.pass : '(dùng mật khẩu sẵn có của tài khoản này)'}`;
+  function mkForm() {
+    const s = shops.find(x => x.id === mk.shopId) || {};
+    if (mk.done) return `<div class="card"><h3>✅ Đã cấp tài khoản nhà bán hàng</h3><p class="muted">Gửi thông tin dưới đây cho chủ quán “${esc(s.name)}”:</p>
+      <div class="card" style="background:#f6faf7;line-height:1.9"><div>Trang đăng nhập: <b>${esc(sellerUrl())}</b></div><div>Tài khoản (SĐT): <b>${esc(mk.phone)}</b></div><div>Mật khẩu: <b>${mk.pass ? esc(mk.pass) : '(mật khẩu sẵn có của tài khoản)'}</b></div></div>
+      <div class="row" style="margin-top:12px"><button class="btn" data-mkcopy>Sao chép tin nhắn</button><button class="btn o" data-mkclose>Xong</button></div></div>`;
+    return `<div class="card"><h3>Cấp tài khoản nhà bán hàng</h3><p class="muted">Cho quán: <b>${esc(s.name)}</b>. Nhập tài khoản và mật khẩu, bấm Tạo, rồi gửi cho chủ quán.</p>
+      <div class="grid"><label class="f">Tài khoản (số điện thoại đăng nhập) *<input type="tel" id="mk-phone" value="${esc(mk.phone)}" placeholder="09xxxxxxxx" inputmode="numeric" autocomplete="off"></label>
+      <label class="f">Mật khẩu (tối thiểu 6 ký tự) *<input type="text" id="mk-pass" value="${esc(mk.pass)}" placeholder="Nhập mật khẩu cho chủ quán" autocomplete="off"></label>
+      <label class="f">Zalo ID nhận báo đơn (không bắt buộc)<input type="text" id="mk-zalo" value="${esc(mk.zalo)}" autocomplete="off"></label></div>
+      <p class="muted" style="margin-top:8px">Nếu số điện thoại đã có tài khoản, hệ thống chỉ gán quyền chủ quán (không đổi mật khẩu).</p>
+      <div class="row" style="margin-top:12px"><button class="btn" data-mkgo ${mk.busy ? 'disabled' : ''}>${mk.busy ? 'Đang tạo…' : 'Tạo tài khoản'}</button><button class="btn sm o" data-mkrand>Tạo mật khẩu ngẫu nhiên</button><button class="btn o" data-mkclose>Hủy</button></div></div>`;
+  }
+  const readMk = () => { if ($('#mk-phone')) { mk.phone = $('#mk-phone').value.replace(/\D/g, ''); mk.pass = $('#mk-pass').value.trim(); mk.zalo = $('#mk-zalo').value.trim(); } };
   function shopForm() {
     const s = edit, n = (k, d = '') => esc(s[k] ?? d);
     return `<div class="card"><h3>${s.id ? 'Sửa cửa hàng' : 'Thêm cửa hàng'}</h3>
@@ -128,7 +144,7 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
   });
   root.addEventListener('click', async e => {
     const g = s => e.target.closest(s);
-    if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; draw(); return; }
+    if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; draw(); return; }
     try {
       if (g('[data-newshop]')) { edit = { menu:[] }; draw(); }
       else if (g('[data-editshop]')) { edit = JSON.parse(JSON.stringify(shops.find(s => s.id === g('[data-editshop]').dataset.editshop))); draw(); }
@@ -144,18 +160,28 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
       }
       else if (g('[data-mkseller]')) {
         const s = shops.find(x => x.id === g('[data-mkseller]').dataset.mkseller);
-        const phone = (prompt(`Số điện thoại đăng nhập của chủ quán “${s.name}”:`, s.phone || '') || '').replace(/\D/g, '');
-        if (!phone) return;
-        const old = users.find(u => u.phone === phone);
-        if (old) {                                            // SĐT đã có tài khoản → chỉ cần gán quyền
-          if (!confirm(`SĐT ${phone} đã có tài khoản (${old.name}). Gán làm chủ quán “${s.name}”?`)) return;
-          await fb.patchUser(old.uid, { role:'seller', shopId:s.id }); await loadUsers(); return toast('Đã gán quyền bán hàng');
-        }
-        const pass = prompt('Đặt mật khẩu tạm (tối thiểu 6 ký tự). Hãy gửi cho chủ quán cùng số điện thoại:');
-        if (!pass) return; if (pass.length < 6) return toast('Mật khẩu tối thiểu 6 ký tự');
-        toast('Đang tạo tài khoản…');
-        await fb.createSellerAccount({ name:s.name, phone, pass, shopId:s.id });
-        await loadUsers(); toast(`Đã tạo tài khoản: ${phone}`);
+        mk = { shopId:s.id, phone:String(s.phone || '').replace(/\D/g, ''), pass:'', zalo:'', busy:false, done:false }; draw();
+      }
+      else if (g('[data-mkclose]')) { mk = null; draw(); }
+      else if (g('[data-mkrand]')) { readMk(); mk.pass = Array.from(crypto.getRandomValues(new Uint8Array(8)), x => 'abcdefghjkmnpqrstuvwxyz23456789'[x % 31]).join(''); draw(); }
+      else if (g('[data-mkcopy]')) { try { await navigator.clipboard.writeText(mkMsg()); toast('Đã sao chép, hãy dán gửi cho chủ quán'); } catch { prompt('Sao chép nội dung dưới đây:', mkMsg()); } }
+      else if (g('[data-mkgo]')) {
+        readMk(); const s = shops.find(x => x.id === mk.shopId);
+        if (mk.phone.length < 9) return toast('Nhập số điện thoại (tài khoản) hợp lệ');
+        const old = users.find(u => u.phone === mk.phone);
+        mk.busy = true; draw();
+        try {
+          if (old) {                                            // SĐT đã có tài khoản → chỉ gán quyền
+            if (old.role === 'admin') throw new Error('Số này là tài khoản Admin, không thể đổi thành chủ quán');
+            if (!confirm(`SĐT ${mk.phone} đã có tài khoản (${old.name}). Gán làm chủ quán “${s.name}”?`)) { mk.busy = false; return draw(); }
+            await fb.patchUser(old.uid, { role:'seller', shopId:s.id, ...(mk.zalo ? { zaloId:mk.zalo } : {}) }); mk.pass = '';
+          } else {
+            if (mk.pass.length < 6) throw new Error('Mật khẩu tối thiểu 6 ký tự');
+            await fb.createSellerAccount({ name:s.name, phone:mk.phone, pass:mk.pass, shopId:s.id, zaloId:mk.zalo });
+          }
+          await loadUsers(); await syncNotify().catch(() => {});
+          mk.busy = false; mk.done = true; draw(); toast('Đã cấp tài khoản nhà bán hàng');
+        } catch (er) { mk.busy = false; draw(); toast(er.code ? fb.errMsg(er) : er.message); }
       }
       else if (g('[data-impfile]')) { $('#imp-file').click(); }
       else if (g('[data-impcancel]')) { imp = null; draw(); }

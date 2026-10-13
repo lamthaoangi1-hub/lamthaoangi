@@ -4,8 +4,8 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWith
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, limit, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { firebaseConfig } from './firebase-config.js?v=20261012b';
-import { UPLOAD_URL } from './upload-config.js?v=20261012b';
+import { firebaseConfig } from './firebase-config.js?v=20261013a';
+import { UPLOAD_URL } from './upload-config.js?v=20261013a';
 
 export const configured = !!firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(firebaseConfig.apiKey);
 let auth, db;
@@ -49,14 +49,14 @@ export async function register(name, phone, pass) {
 export const logout = () => signOut(auth);
 
 /* Admin tạo sẵn tài khoản Nhà bán hàng: dùng 1 app Firebase phụ để đăng ký (admin không bị đăng xuất), rồi admin gán vai trò + cửa hàng */
-export async function createSellerAccount({ name, phone, pass, shopId }) {
+export async function createSellerAccount({ name, phone, pass, shopId, zaloId = '' }) {
   const app2 = initializeApp(firebaseConfig, 'seller-' + Date.now());
   try {
     const a2 = getAuth(app2), d2 = getFirestore(app2);
     const c = await createUserWithEmailAndPassword(a2, toEmail(phone), pass);
     await setDoc(doc(d2, 'users', c.user.uid), { name, phone, role:'customer', address:'', createdAt:serverTimestamp() });
     await signOut(a2);
-    await updateDoc(doc(db, 'users', c.user.uid), { role:'seller', shopId });
+    await updateDoc(doc(db, 'users', c.user.uid), { role:'seller', shopId, ...(zaloId ? { zaloId } : {}) });
   } finally { await deleteApp(app2); }
 }
 export const updateMyProfile = (uid, patch) => updateDoc(doc(db, 'users', uid), patch);
