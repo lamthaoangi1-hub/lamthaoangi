@@ -932,7 +932,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261014d').then(m => {
+    import('./fb.js?v=20261014e').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -965,7 +965,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261014d')
+  import('./firebase-config.js?v=20261014e')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });

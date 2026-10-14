@@ -1,5 +1,5 @@
-import { fb, track, $, $$, esc, money, fmtTime, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261014d';
-import { parseWorkbook } from './import-sheet.js?v=20261014d';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261014e';
+import { parseWorkbook } from './import-sheet.js?v=20261014e';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
@@ -70,10 +70,14 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   const ROLES = [['seller', 'Nhà bán hàng'], ['shipper', 'Shipper'], ['customer', 'Khách hàng'], ['admin', 'Admin']];
   const flat = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
   const roleSel = u => `<select data-urole="${u.uid}" style="width:auto">${ROLES.map(([r, l]) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  /* Giờ khách đăng ký tài khoản (tài khoản cũ chưa có ghi nhận thì hiện —) */
+  const regAt = u => { const d = toDate(u.createdAt); return d ? d.toLocaleString('vi-VN', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric' }) : ''; };
+  const byNewest = (a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0);
   const userTable = (role, list) => {
-    const isS = role === 'seller', hasZ = isS || role === 'shipper', cols = 3 + (isS ? 1 : 0) + (hasZ ? 1 : 0);
+    list = [...list].sort(byNewest);
+    const isS = role === 'seller', hasZ = isS || role === 'shipper', cols = 4 + (isS ? 1 : 0) + (hasZ ? 1 : 0);
     const zalo = u => `<td><input type="text" data-uzalo="${u.uid}" value="${esc(u.zaloId || '')}" placeholder="Zalo ID (nhận báo đơn)" style="min-width:150px"></td>`;
-    return `<div class="card" style="overflow:auto"><table><tr><th>Tên</th><th>SĐT</th>${isS ? '<th>Cửa hàng</th>' : ''}${hasZ ? '<th>Zalo ID</th>' : ''}<th>Vai trò</th></tr>${list.length ? list.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td>${isS ? `<td><select data-ushop="${u.uid}" style="width:auto"><option value="">— chọn quán —</option>${shops.map(s => `<option value="${s.id}" ${u.shopId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>${u.shopId ? '' : '<br><span class="badge warn">Chưa gán quán</span>'}</td>` : ''}${hasZ ? zalo(u) : ''}<td>${roleSel(u)}</td></tr>`).join('') : `<tr><td colspan="${cols}" class="muted">Chưa có ai trong nhóm này</td></tr>`}</table></div>`;
+    return `<div class="card" style="overflow:auto"><table><tr><th>Tên</th><th>SĐT</th><th>Đăng ký lúc</th>${isS ? '<th>Cửa hàng</th>' : ''}${hasZ ? '<th>Zalo ID</th>' : ''}<th>Vai trò</th></tr>${list.length ? list.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td><td style="white-space:nowrap">${regAt(u) ? esc(regAt(u)) : '<span class="muted">—</span>'}</td>${isS ? `<td><select data-ushop="${u.uid}" style="width:auto"><option value="">— chọn quán —</option>${shops.map(s => `<option value="${s.id}" ${u.shopId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>${u.shopId ? '' : '<br><span class="badge warn">Chưa gán quán</span>'}</td>` : ''}${hasZ ? zalo(u) : ''}<td>${roleSel(u)}</td></tr>`).join('') : `<tr><td colspan="${cols}" class="muted">Chưa có ai trong nhóm này</td></tr>`}</table></div>`;
   };
   const usersView = () => {
     const q = flat($('#uq')?.value.trim());
