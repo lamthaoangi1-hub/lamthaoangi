@@ -15,7 +15,7 @@ const FIREBASE_API_KEY = 'AIzaSyC9jqo52PyA3QT51XGCyWcOs0ViC1fL-a0';
 const MAX_BYTES = 3 * 1024 * 1024;
 
 const ADMIN_EMAIL = 'lamthaoangi1@gmail.com';             // Gmail nhận thông báo đơn mới (có thể ghi nhiều, cách nhau dấu phẩy)
-const SITE_URL = '';                                       // (tuỳ chọn) link website/admin, vd https://lamthaoangi1-hub.github.io/lamthaoangi/admin.html
+const SITE_URL = '';                                       // (tuỳ chọn) link website/admin, vd https://lamthaoangi.io.vn/quanly.html
 
 /**
  * Script properties (Project Settings → Script properties) – dùng cho Zalo Bot:

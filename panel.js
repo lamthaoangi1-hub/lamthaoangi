@@ -1,5 +1,5 @@
 /* Khung dùng chung cho 3 trang quản lý: đăng nhập, kiểm tra quyền, tiện ích hiển thị */
-import * as fb from './fb.js?v=20261013b';
+import * as fb from './fb.js?v=20261014a';
 export { fb };
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -63,6 +63,56 @@ export function start({ title, roles, render }) {
     app.innerHTML = `<div class="top"><h1>${esc(title)}<small>${esc(p.name || '')} · ${esc(p.phone || '')}</small></h1><a href="./">Website</a><button id="lo">Đăng xuất</button></div><div id="body"></div>`;
     $('#lo').onclick = () => fb.logout();
     render($('#body'), p);
+  });
+}
+
+/* Cổng đăng nhập chung: 1 link, 1 lần đăng nhập → tự mở đúng giao diện theo vai trò.
+   panels = [{key, title, roles, render}] ; Admin thấy cả 3 giao diện và có ô chuyển nhanh. */
+export function startPortal(panels) {
+  const app = $('#app');
+  document.title = 'Đăng nhập quản lý – Lâm Thao Ăn Gì?';
+  if (!fb.configured) {
+    app.innerHTML = `<div class="login"><div class="card"><h3>Chưa cấu hình Firebase</h3><p class="muted" style="margin-top:8px">Mở file <b>firebase-config.js</b> và dán thông tin project Firebase của bạn vào, rồi tải lại trang. Xem hướng dẫn trong <b>HUONG-DAN.md</b>.</p></div></div>`;
+    return;
+  }
+  const store = { get: k => { try { return sessionStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch {} } };
+  const loginView = (msg = '') => {
+    document.title = 'Đăng nhập quản lý – Lâm Thao Ăn Gì?';
+    app.innerHTML = `<div class="login"><div class="card"><h3 style="font-size:17px">Đăng nhập quản lý</h3><p class="muted">Dành cho Admin, Nhà bán hàng và Shipper. Hệ thống tự mở đúng trang theo tài khoản của bạn.</p>
+      <form id="lf"><label class="f">Số điện thoại<input type="tel" name="p" inputmode="numeric" autocomplete="username" required></label>
+      <label class="f">Mật khẩu<input type="password" name="w" autocomplete="current-password" required></label>
+      <div class="err" id="le">${esc(msg)}</div><button class="btn" style="width:100%;margin-top:6px">Đăng nhập</button></form>
+      <p class="muted" style="margin-top:14px"><a href="./">← Về website</a></p></div></div>`;
+    $('#lf').addEventListener('submit', async e => {
+      e.preventDefault(); $('#le').textContent = '';
+      try { await fb.login(e.target.p.value, e.target.w.value); } catch (er) { $('#le').textContent = fb.errMsg(er); }
+    });
+  };
+  const deniedView = p => {
+    document.title = 'Chưa có quyền – Lâm Thao Ăn Gì?';
+    app.innerHTML = `<div class="login"><div class="card"><h3>Chưa có quyền truy cập</h3>
+      <p class="muted" style="margin:8px 0">Tài khoản <b>${esc(p?.phone || '')}</b> (vai trò hiện tại: <b>${esc(p?.role || 'chưa có hồ sơ')}</b>) chưa được cấp quyền quản lý. Hãy nhờ Admin cấp quyền Nhà bán hàng hoặc Shipper.</p>
+      <button class="btn gray" id="lo">Đăng xuất</button> <a class="btn o" href="./">Về website</a></div></div>`;
+    $('#lo').onclick = () => fb.logout();
+  };
+  fb.onAuth((u, p) => {
+    clearTracked();
+    if (!u) return loginView();
+    if (!p) return loginView('Không tìm thấy hồ sơ tài khoản. Thử đăng nhập lại.');
+    const mine = (p.role === 'admin' ? ['admin', 'seller', 'shipper'].map(k => panels.find(x => x.key === k)) : panels.filter(x => x.key === p.role)).filter(Boolean);
+    if (!mine.length) return deniedView(p);
+    const show = key => {
+      clearTracked();
+      const cur = mine.find(x => x.key === key) || mine[0];
+      store.set('panel', cur.key);
+      document.title = cur.title + ' – Lâm Thao Ăn Gì?';
+      const sw = mine.length > 1 ? `<select id="sw" aria-label="Chuyển giao diện" style="font-weight:600;font-size:14px;padding:6px 8px;border-radius:8px;border:0">${mine.map(x => `<option value="${x.key}" ${x.key === cur.key ? 'selected' : ''}>${esc(x.title)}</option>`).join('')}</select>` : '';
+      app.innerHTML = `<div class="top"><h1>${esc(cur.title)}<small>${esc(p.name || '')} · ${esc(p.phone || '')}</small></h1>${sw}<a href="./">Website</a><button id="lo">Đăng xuất</button></div><div id="body"></div>`;
+      $('#lo').onclick = () => fb.logout();
+      if (sw) $('#sw').onchange = e => show(e.target.value);
+      cur.render($('#body'), p);
+    };
+    show(store.get('panel'));
   });
 }
 

@@ -831,7 +831,7 @@
   });
 
   function menuAction(k) {
-    if (k.startsWith('open-')) { location.href = k.slice(5) + '.html'; return; }
+    if (k.startsWith('open-')) { location.href = 'quanly.html'; return; }
     if (k === 'logout') {
       return openSheet(`<h3>Đăng xuất?</h3><div class="sub">Bạn có chắc muốn thoát khỏi tài khoản hiện tại?</div>
         <button class="sheet-btn" style="background:var(--red)" data-dologout>Đăng xuất</button><button class="sheet-btn" style="background:var(--chip);color:var(--ink)" onclick="document.getElementById('sheet-backdrop').click()">Hủy</button>`);
@@ -908,7 +908,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261013b').then(m => {
+    import('./fb.js?v=20261014a').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -941,7 +941,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261013b')
+  import('./firebase-config.js?v=20261014a')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });

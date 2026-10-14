@@ -1,5 +1,5 @@
-import { fb, start, track, $, $$, esc, money, fmtTime, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261013b';
-import { parseWorkbook } from './import-sheet.js?v=20261013b';
+import { fb, track, $, $$, esc, money, fmtTime, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261014a';
+import { parseWorkbook } from './import-sheet.js?v=20261014a';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
@@ -11,7 +11,7 @@ const loadXLSX = () => window.XLSX ? Promise.resolve(window.XLSX) : new Promise(
   s.onload = () => ok(window.XLSX); s.onerror = () => no(new Error('Không tải được thư viện đọc Excel, kiểm tra mạng')); document.head.appendChild(s);
 });
 
-start({ title:'Quản trị', roles:['admin'], render(root, me) {
+export const panel = { key:'admin', title:'Quản trị', roles:['admin'], render(root, me) {
   let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null;
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
 
@@ -34,7 +34,7 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
     ${shops.length ? `<p class="muted" style="margin:0 0 8px">Dùng ▲ ▼ để đổi vị trí quán trên trang chủ. Quán bật <b>⭐ Nổi bật</b> hoặc có <b>Giảm giá</b> sẽ hiện trên banner đầu trang.</p><div class="card" style="overflow-x:auto"><table><tr><th>Thứ tự</th><th>Quán</th><th>Món</th><th>⭐ Nổi bật</th><th>Giảm %</th><th>Trạng thái</th><th></th></tr>${[...shops].sort(byOrder).map((s, i, arr) => `<tr><td style="white-space:nowrap"><button class="btn sm o" data-mv="up" data-id="${s.id}" ${i === 0 ? 'disabled' : ''}>▲</button> <button class="btn sm o" data-mv="down" data-id="${s.id}" ${i === arr.length - 1 ? 'disabled' : ''}>▼</button></td><td><b>${esc(s.name)}</b><br><span class="muted">${esc(s.cat || '')}</span><br><span class="muted">${sellersOf(s.id) ? '🔑 TK bán hàng: ' + esc(sellersOf(s.id)) : '⚠ Chưa có tài khoản bán hàng'}</span></td><td>${(s.menu || []).length}</td><td><label class="sw" style="margin:0"><input type="checkbox" data-feat="${s.id}" ${s.featured ? 'checked' : ''}></label></td><td><input type="number" data-sale="${s.id}" min="0" max="90" value="${s.sale || 0}" style="width:64px"></td><td>${s.open === false ? '<span class="badge bad">Đóng cửa</span>' : '<span class="badge ok">Mở cửa</span>'}</td><td style="text-align:right"><button class="btn sm" data-mkseller="${s.id}">Cấp TK</button> <button class="btn sm o" data-editshop="${s.id}">Sửa</button> <button class="btn sm r" data-delshop="${s.id}">Xóa</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Chưa có cửa hàng. Bấm “Thêm cửa hàng”.</div>'}`;
 
   /* Form cấp tài khoản nhà bán hàng: admin tự nhập tài khoản + mật khẩu rồi gửi cho chủ quán */
-  const sellerUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'seller.html';
+  const sellerUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'quanly.html';
   const mkMsg = () => `Tài khoản nhà bán hàng - ${(shops.find(x => x.id === mk.shopId) || {}).name || ''}\nTrang đăng nhập: ${sellerUrl()}\nTài khoản: ${mk.phone}\n${mk.pass ? 'Mật khẩu: ' + mk.pass : '(dùng mật khẩu sẵn có của tài khoản này)'}`;
   function mkForm() {
     const s = shops.find(x => x.id === mk.shopId) || {};
@@ -220,4 +220,4 @@ start({ title:'Quản trị', roles:['admin'], render(root, me) {
       else if (g('[data-savesettings]')) { await fb.saveSettings({ hotline:$('#c-hot').value.trim(), email:$('#c-mail').value.trim(), zalo:$('#c-zalo').value.trim() }); toast('Đã lưu'); }
     } catch (er) { toast(fb.errMsg(er)); }
   });
-} });
+} };

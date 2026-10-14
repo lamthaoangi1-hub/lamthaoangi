@@ -5,11 +5,13 @@ Website gồm 4 giao diện, dùng chung một cơ sở dữ liệu Firebase:
 | Trang | Đường dẫn | Ai dùng |
 | --- | --- | --- |
 | Khách hàng | `index.html` | Khách đặt món, theo dõi đơn |
-| Admin | `admin.html` | Chủ website: quản lý quán, đơn, người dùng, khuyến mãi, liên hệ |
-| Nhà bán hàng | `seller.html` | Chủ quán: nhận đơn, sửa thực đơn, bật/tắt mở cửa |
-| Shipper | `shipper.html` | Tài xế: nhận đơn đã xong món, giao và hoàn thành |
+| Admin | `quanly.html` (link chung) | Chủ website: quản lý quán, đơn, người dùng, khuyến mãi, liên hệ |
+| Nhà bán hàng | `quanly.html` (link chung) | Chủ quán: nhận đơn, sửa thực đơn, bật/tắt mở cửa |
+| Shipper | `quanly.html` (link chung) | Tài xế: nhận đơn đã xong món, giao và hoàn thành |
 
 Khi `firebase-config.js` **chưa điền**, website tự chạy chế độ DEMO với dữ liệu mẫu (không lưu gì thật).
+
+> **Link đăng nhập chung:** `https://lamthaoangi.io.vn/quanly.html` — Admin, Nhà bán hàng, Shipper cùng dùng 1 link; hệ thống tự mở đúng giao diện theo vai trò. Các link cũ `admin.html`, `seller.html`, `shipper.html` vẫn dùng được (tự chuyển sang link chung).
 
 ## Luồng đơn hàng
 Khách đặt (shipper và quán thấy đơn ngay, shipper nhận Zalo "Có đơn mới") → Shipper nhận đơn (Đang giao) → Shipper bấm đã giao (Hoàn thành). Quán chỉ xem đơn, không đổi được trạng thái. Admin đổi trạng thái hoặc hủy đơn được; khách tự hủy được khi shipper chưa nhận.
@@ -28,13 +30,13 @@ Khách đặt (shipper và quán thấy đơn ngay, shipper nhận Zalo "Có đ�
 ## Tạo tài khoản Admin (chỉ làm một lần)
 1. Trên website, vào **Cá nhân → Đăng ký** bằng số điện thoại của bạn.
 2. Firebase Console → **Firestore Database → Data → collection `users`** → mở tài liệu vừa tạo → sửa trường `role` từ `customer` thành **`admin`**.
-3. Mở `admin.html`, đăng nhập. (Trên website, mục Cá nhân sẽ có thêm "Trang Admin".)
+3. Mở `quanly.html`, đăng nhập. (Trên website, mục Cá nhân sẽ có thêm "Trang Admin".)
 
 ## Thêm quán, chủ quán, shipper
 1. **Admin → Cửa hàng → Thêm cửa hàng:** nhập tên, loại, địa chỉ, SĐT, phí ship, thực đơn... (Có nút "Thêm 2 quán mẫu" để thử.)
 2. Chủ quán và shipper **tự đăng ký tài khoản trên website** như khách.
 3. **Admin → Người dùng:** chọn vai trò `seller` (kèm chọn **cửa hàng**) hoặc `shipper` cho họ.
-4. Họ mở `seller.html` / `shipper.html` (hoặc bấm mục tương ứng trong Cá nhân) để làm việc. Trang quán/shipper phát tiếng "ting" khi có đơn mới (cần để trang mở).
+4. Họ mở cùng link `quanly.html` (hoặc bấm mục tương ứng trong Cá nhân) để làm việc. Trang quán/shipper phát tiếng "ting" khi có đơn mới (cần để trang mở).
 5. Chủ quán tự sửa: thực đơn, giá, món hết, mở/đóng cửa, phí ship, giảm giá, ảnh. Tên quán, loại, đánh giá do Admin sửa.
 
 ## Ảnh quán

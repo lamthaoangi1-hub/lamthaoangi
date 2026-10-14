@@ -1,6 +1,6 @@
-import { fb, start, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261013b';
+import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261014a';
 
-start({ title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
+export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
   let tab = 'open', open = [], mine = [], err = '';
   /* Vị trí thật của shipper (GPS) → tính khoảng cách đường thẳng tới quán */
   let pos = null, posErr = '';
@@ -57,4 +57,4 @@ start({ title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
       if (d) { if (!confirm('Xác nhận đã giao và thu tiền xong?')) return; d.disabled = true; await fb.patchOrder(d.dataset.done, { status:'done' }); toast('Đã hoàn thành đơn'); }
     } catch (er) { toast(fb.errMsg(er) + ' (đơn có thể đã có shipper khác nhận)'); draw(); }
   });
-} });
+} };
