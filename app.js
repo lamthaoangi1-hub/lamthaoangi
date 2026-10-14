@@ -807,80 +807,121 @@
   }
 
   /* ----- bản đồ chọn điểm: kéo bản đồ để đưa ghim đỏ vào đúng chỗ ----- */
-  const LF = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.';
+  /* ----- Bản đồ: ưu tiên Goong (khóa trong goong-config.js); chưa có khóa hoặc Goong lỗi thì dùng Leaflet + OpenStreetMap/Esri ----- */
+  let GOONG = { map:'', api:'' };
+  import('./goong-config.js?v=20261014i').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
+  const LF = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.', GJ = 'https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.';
   const loadAsset = (tag, attrs) => new Promise((ok, no) => { const e = document.createElement(tag); Object.assign(e, attrs); e.onload = ok; e.onerror = () => no(new Error(tag)); document.head.appendChild(e); });
   const loadLeaflet = () => window.L ? Promise.resolve() : Promise.all([loadAsset('link', { rel:'stylesheet', href:LF + 'css' }), loadAsset('script', { src:LF + 'js' })]);
-  /* Nguồn ô bản đồ: thử lần lượt, nếu nguồn đầu không tải được (mạng chặn/chậm) tự chuyển sang nguồn dự phòng */
+  const loadGoong = () => window.goongjs ? Promise.resolve() : Promise.all([loadAsset('link', { rel:'stylesheet', href:GJ + 'css' }), loadAsset('script', { src:GJ + 'js' })]);
+  const mpSrc = t => { const e = $('#mp-src'); if (e) e.textContent = 'Nguồn bản đồ: ' + t; };
+
   const TILES = [
     { name:'OpenStreetMap', url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', sub:'abc', attr:'© OpenStreetMap' },
-    { url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', sub:'abc', attr:'Tiles © Esri' , name:'Esri' },
+    { name:'Esri', url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', sub:'abc', attr:'Tiles © Esri' },
   ];
-  function mpTiles(i = 0) {
-    if (!MAP) return;
-    if (MAP._tl) MAP.removeLayer(MAP._tl);
-    const T = TILES[i]; let ok = 0, bad = 0, moved = false;
-    const next = () => {
-      if (moved || ok || !MAP) return; moved = true;
-      if (i + 1 < TILES.length) mpTiles(i + 1);
-      else { const el = $('#mp-a'); if (el) el.textContent = 'Không tải được bản đồ. Hãy kiểm tra mạng (Wi-Fi/4G) rồi mở lại.'; }
+  function leafletMap(cur, z) {
+    const m = L.map('mp-m', { zoomControl:false }).setView([cur.lat, cur.lng], z);
+    const tiles = (i = 0) => {
+      if (m._tl) m.removeLayer(m._tl);
+      const T = TILES[i]; let ok = 0, bad = 0, moved = false;
+      const next = () => { if (moved || ok) return; moved = true; if (i + 1 < TILES.length) tiles(i + 1); else { const el = $('#mp-a'); if (el) el.textContent = 'Không tải được bản đồ. Hãy kiểm tra mạng (Wi-Fi/4G) rồi mở lại.'; } };
+      const l = L.tileLayer(T.url, { maxZoom:19, subdomains:T.sub, attribution:T.attr, referrerPolicy:'strict-origin-when-cross-origin' });
+      mpSrc(T.name); l.on('tileload', () => { ok++; }); l.on('tileerror', () => { if (++bad >= 4) next(); });
+      setTimeout(next, 6000); m._tl = l; l.addTo(m);
     };
-    const l = L.tileLayer(T.url, { maxZoom:19, subdomains:T.sub, attribution:T.attr, referrerPolicy:'strict-origin-when-cross-origin' });
-    const src = $('#mp-src'); if (src) src.textContent = 'Nguồn bản đồ: ' + T.name;
-    l.on('tileload', () => { ok++; }); l.on('tileerror', () => { if (++bad >= 4) next(); });
-    setTimeout(next, 6000);
-    MAP._tl = l; l.addTo(MAP);
+    tiles(0);
+    return { engine:'Leaflet', c:() => { const c = m.getCenter(); return { lat:c.lat, lng:c.lng }; }, go:(a, b, zz) => m.setView([a, b], zz), onMove:f => m.on('move', f), resize:() => m.invalidateSize(), remove:() => m.remove() };
   }
-  function closeMapPicker() { if (MAP) { MAP.remove(); MAP = null; } const el = $('#mp'); if (el) el.hidden = true; }
+  function goongMap(cur, z, onFail) {
+    goongjs.accessToken = GOONG.map;
+    const m = new goongjs.Map({ container:'mp-m', style:'https://tiles.goong.io/assets/goong_map_web.json', center:[cur.lng, cur.lat], zoom:z });
+    const w = { engine:'Goong', ready:false, c:() => { const c = m.getCenter(); return { lat:c.lat, lng:c.lng }; }, go:(a, b, zz) => m.jumpTo({ center:[b, a], zoom:zz }), onMove:f => m.on('move', f), resize:() => m.resize(), remove:() => m.remove() };
+    let errs = 0; m.on('load', () => { w.ready = true; mpSrc('Goong'); });
+    m.on('error', () => { if (!w.ready && ++errs >= 3) onFail(); });
+    setTimeout(() => { if (!w.ready) onFail(); }, 9000);
+    return w;
+  }
+  function closeMapPicker() { if (MAP) { try { MAP.remove(); } catch (e) {} MAP = null; } const el = $('#mp'); if (el) el.hidden = true; }
+  function mpWire() { MAP.onMove(mpInfo); [100, 400, 1000].forEach(ms => setTimeout(() => { if (MAP) { MAP.resize(); mpInfo(); } }, ms)); }
   async function openMapPicker(key) {
     svcRead(); MP_KEY = key;
     const E = SV.type === 'errand', title = key === 'pick' ? (E ? 'Ghim nơi mua hàng' : 'Ghim điểm lấy hàng') : (E ? 'Ghim nơi nhận hàng' : 'Ghim điểm giao hàng');
     let el = $('#mp'); if (!el) { el = document.createElement('div'); el.id = 'mp'; $('#app').appendChild(el); }
     el.innerHTML = `<div class="mp-top"><button type="button" class="mp-x" data-mpclose aria-label="Quay lại">←</button><b>${title}</b></div>
-      <form class="mp-search" data-mpform><input id="mp-q" placeholder="Tìm địa chỉ, chợ, trường học…" autocomplete="off"><button type="submit">Tìm</button></form>
+      <form class="mp-search" data-mpform><input id="mp-q" placeholder="Tìm địa chỉ, chợ, trường học…" autocomplete="off"><button type="submit">Tìm</button></form><div class="mp-sug" id="mp-sug"></div>
       <div class="mp-map"><div id="mp-m"></div><i class="mp-pin"></i></div>
       <div class="mp-bar"><button type="button" class="mp-me" data-mpme>📍 Vị trí của tôi</button><div class="mp-addr" id="mp-a"></div><div class="mp-src" id="mp-src"></div><button type="button" class="sheet-btn" data-mpok>Chọn vị trí này</button></div>`;
     el.hidden = false; closeSheet();
-    try { await loadLeaflet(); } catch (e) { closeMapPicker(); svcSheet(); return toast('Không tải được bản đồ, hãy kiểm tra mạng'); }
-    const cur = SV[key] || SV[key === 'pick' ? 'drop' : 'pick'] || CART.loc || { lat:21.32, lng:105.31 };
-    MAP = L.map('mp-m', { zoomControl:false }).setView([cur.lat, cur.lng], SV[key] ? 17 : 15);
-    mpTiles(0);
-    MAP.on('move', mpInfo); [100, 400, 1000].forEach(ms => setTimeout(() => { if (MAP) { MAP.invalidateSize(); mpInfo(); } }, ms));
+    const cur = SV[key] || SV[key === 'pick' ? 'drop' : 'pick'] || CART.loc || { lat:21.32, lng:105.31 }, z = SV[key] ? 17 : 15;
+    const useLeaflet = async () => { try { await loadLeaflet(); if (!$('#mp-m')) return; if (MAP) { try { MAP.remove(); } catch (e) {} } MAP = leafletMap(cur, z); mpWire(); } catch (e) { closeMapPicker(); svcSheet(); toast('Không tải được bản đồ, hãy kiểm tra mạng'); } };
+    if (GOONG.map) {
+      try { await loadGoong(); MAP = goongMap(cur, z, () => { if (MAP && MAP.engine === 'Goong' && !MAP.ready) { try { MAP.remove(); } catch (e) {} MAP = null; useLeaflet(); } }); mpWire(); }
+      catch (e) { await useLeaflet(); }
+    } else await useLeaflet();
   }
   function mpInfo() {
     const el = $('#mp-a'); if (!MAP || !el) return;
-    const other = SV[MP_KEY === 'pick' ? 'drop' : 'pick'], c = MAP.getCenter();
+    const other = SV[MP_KEY === 'pick' ? 'drop' : 'pick'], c = MAP.c();
     if (!other) { el.textContent = 'Kéo bản đồ để đưa ghim đỏ tới đúng nơi cần chọn'; return; }
-    const q = svcQuoteBetween({ lat:c.lat, lng:c.lng }, other, SV.type, SV.weight);
+    const q = svcQuoteBetween(c, other, SV.type, SV.weight);
     el.innerHTML = q.far ? `<span style="color:var(--red)">Xa quá ${MAXKM} km, ngoài phạm vi phục vụ</span>` : `Quãng đường <b>${kmStr(q.km)} km</b> · Phí <b>${money(q.fee)}</b>`;
   }
   function mpMe() {
     if (!navigator.geolocation) return toast('Thiết bị không hỗ trợ định vị');
-    navigator.geolocation.getCurrentPosition(p => { if (MAP) MAP.setView([p.coords.latitude, p.coords.longitude], 17); },
+    navigator.geolocation.getCurrentPosition(p => { if (MAP) MAP.go(p.coords.latitude, p.coords.longitude, 17); },
       e => toast(e.code === 1 ? 'Bạn đã chặn quyền vị trí cho trang web' : 'Không lấy được vị trí, hãy bật GPS'), { enableHighAccuracy:true, timeout:15000 });
   }
-  async function geocode(q) {
+
+  /* ----- Tìm địa chỉ: Goong (gợi ý có chọn) → dự phòng Nominatim/Photon ----- */
+  const jget = async u => { const r = await fetch(u); return r.json(); };
+  async function goongSuggest(q) {
+    try {
+      const j = await jget(`https://rsapi.goong.io/Place/AutoComplete?api_key=${GOONG.api}&location=21.32,105.31&input=${encodeURIComponent(q)}`);
+      return (j.predictions || []).slice(0, 5).map(p => ({ id:p.place_id, text:p.description }));
+    } catch (e) { return []; }
+  }
+  async function goongPlace(id) {
+    try { const j = await jget(`https://rsapi.goong.io/Place/Detail?place_id=${encodeURIComponent(id)}&api_key=${GOONG.api}`); const l = j.result && j.result.geometry && j.result.geometry.location; return l ? { lat:l.lat, lng:l.lng } : null; } catch (e) { return null; }
+  }
+  async function goongForward(q) {
+    try { const j = await jget(`https://rsapi.goong.io/geocode?address=${encodeURIComponent(q)}&api_key=${GOONG.api}`); const l = j.results && j.results[0] && j.results[0].geometry.location; return l ? { lat:l.lat, lng:l.lng } : null; } catch (e) { return null; }
+  }
+  async function geocodeFree(q) {
     const withArea = /phú thọ|phu tho/i.test(q) ? q : q + ', Lâm Thao, Phú Thọ';
-    const tryNom = async t => { try { const j = await (await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=vn&accept-language=vi&viewbox=105.15,21.45,105.45,21.2&q=' + encodeURIComponent(t))).json(); return j[0] ? { lat:+j[0].lat, lng:+j[0].lon } : null; } catch (e) { return null; } };
-    const tryPho = async t => { try { const j = await (await fetch('https://photon.komoot.io/api/?limit=1&lat=21.32&lon=105.31&q=' + encodeURIComponent(t))).json(); const c = j.features && j.features[0] && j.features[0].geometry.coordinates; return c ? { lat:c[1], lng:c[0] } : null; } catch (e) { return null; } };
+    const tryNom = async t => { try { const j = await jget('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=vn&accept-language=vi&viewbox=105.15,21.45,105.45,21.2&q=' + encodeURIComponent(t)); return j[0] ? { lat:+j[0].lat, lng:+j[0].lon } : null; } catch (e) { return null; } };
+    const tryPho = async t => { try { const j = await jget('https://photon.komoot.io/api/?limit=1&lat=21.32&lon=105.31&q=' + encodeURIComponent(t)); const c = j.features && j.features[0] && j.features[0].geometry.coordinates; return c ? { lat:c[1], lng:c[0] } : null; } catch (e) { return null; } };
     return (await tryNom(withArea)) || (await tryPho(withArea)) || (await tryNom(q)) || (await tryPho(q));
   }
   async function mpSearch() {
     const q = ($('#mp-q').value || '').trim(); if (!q) return toast('Nhập địa chỉ hoặc tên nơi cần tìm');
     if (!MAP) return;
+    const box = $('#mp-sug'); if (box) box.innerHTML = '';
     toast('Đang tìm…');
-    const p = await geocode(q);
+    if (GOONG.api) {
+      const list = await goongSuggest(q);
+      if (list.length && box) { box.innerHTML = list.map(x => `<button type="button" data-mpsug="${esc(x.id)}">${esc(x.text)}</button>`).join(''); return; }
+      const p = await goongForward(q);
+      if (p && MAP) { MAP.go(p.lat, p.lng, 17); return toast('Đã tìm thấy. Kéo bản đồ để chỉnh ghim đúng nơi'); }
+    }
+    const p = await geocodeFree(q);
     if (!MAP) return;
-    if (p) { MAP.setView([p.lat, p.lng], 17); toast('Đã tìm thấy. Kéo bản đồ để chỉnh ghim đúng nơi'); }
+    if (p) { MAP.go(p.lat, p.lng, 17); toast('Đã tìm thấy. Kéo bản đồ để chỉnh ghim đúng nơi'); }
     else toast('Không tìm thấy địa chỉ này. Hãy kéo bản đồ để ghim tay');
+  }
+  async function mpPickSuggestion(id) {
+    const box = $('#mp-sug'); if (box) box.innerHTML = '';
+    const p = await goongPlace(id);
+    if (p && MAP) { MAP.go(p.lat, p.lng, 17); toast('Kéo bản đồ để chỉnh ghim đúng nơi'); } else toast('Không lấy được vị trí này, hãy ghim tay trên bản đồ');
   }
   function mpConfirm() {
     if (!MAP) return;
-    const c = MAP.getCenter(), pt = { lat:+c.lat.toFixed(6), lng:+c.lng.toFixed(6) }, key = MP_KEY;
+    const c = MAP.c(), pt = { lat:+c.lat.toFixed(6), lng:+c.lng.toFixed(6) }, key = MP_KEY;
     closeMapPicker(); SV[key] = pt; svcSheet();
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=vi&lat=${pt.lat}&lon=${pt.lng}`).then(r => r.json()).then(j => {
-      const a = String(j.display_name || '').replace(/, Việt Nam$/, '').replace(/,\s*\d{5,6}\b/, ''), inp = $('#sv-' + (key === 'pick' && SV.type === 'delivery' ? 'paddr' : key === 'drop' ? 'daddr' : 'store'));
-      if (a && inp && !inp.value.trim()) inp.value = a;
-    }).catch(() => {});
+    const fill = a => { a = String(a || '').replace(/, Việt Nam$/, '').replace(/,\s*\d{5,6}\b/, ''); const inp = $('#sv-' + (key === 'pick' && SV.type === 'delivery' ? 'paddr' : key === 'drop' ? 'daddr' : 'store')); if (a && inp && !inp.value.trim()) inp.value = a; };
+    const rev = GOONG.api ? jget(`https://rsapi.goong.io/Geocode?latlng=${pt.lat},${pt.lng}&api_key=${GOONG.api}`).then(j => fill(j.results && j.results[0] && j.results[0].formatted_address))
+      : jget(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=vi&lat=${pt.lat}&lon=${pt.lng}`).then(j => fill(j.display_name));
+    rev.catch(() => {});
   }
 
   async function svcPlace(btn) {
@@ -919,6 +960,7 @@
     if (q('[data-mpclose]')) { closeMapPicker(); svcSheet(); return true; }
     if (q('[data-mpme]')) { mpMe(); return true; }
     if (q('[data-mpok]')) { mpConfirm(); return true; }
+    if ((b = q('[data-mpsug]'))) { mpPickSuggestion(b.dataset.mpsug); return true; }
     return false;
   }
   document.addEventListener('submit', e => { if (e.target.matches && e.target.matches('[data-mpform]')) { e.preventDefault(); mpSearch(); } });
@@ -1111,7 +1153,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261014h').then(m => {
+    import('./fb.js?v=20261014i').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -1145,7 +1187,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261014h')
+  import('./firebase-config.js?v=20261014i')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });

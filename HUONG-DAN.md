@@ -129,6 +129,14 @@ Trang chủ → bấm **Giao hàng** hoặc **Mua hộ** (cần đăng nhập). 
 - **Cách cập nhật:** (1) tải toàn bộ file mới lên GitHub; (2) Firebase → Firestore → Rules: dán lại `firestore.rules` → Publish (bắt buộc, nếu không đơn Giao hàng/Mua hộ sẽ bị từ chối); (3) Apps Script: dán lại `google-apps-script.gs` → Deploy → New version (để báo Zalo/Gmail đúng nội dung); (4) Ctrl+F5.
 - **Lưu ý vận hành:** tìm địa chỉ tự động ở vùng nông thôn chưa chính xác, hãy hướng dẫn khách ghim vị trí trên bản đồ. Phí tính theo đường chim bay × hệ số, nên nếu thấy chênh thực tế thì chỉnh hệ số đường đi trong Admin.
 
+## Bản đồ Goong (khuyến nghị)
+Bản đồ và tìm địa chỉ ở Lâm Thao chính xác hơn khi dùng Goong. Làm một lần:
+1. Đăng nhập https://account.goong.io → **Keys** → **Tạo Key**, tạo **2 khóa**: một khóa loại **Maptiles**, một khóa loại **API Key**.
+2. Với **mỗi** khóa, bấm sửa → **URL restrictions** → thêm `https://lamthaoangi.io.vn/*` (bắt buộc, vì khóa nằm công khai trong website).
+3. Mở file `goong-config.js`, dán khóa Maptiles vào `GOONG_MAP_KEY`, khóa API vào `GOONG_API_KEY`. Tải file lên GitHub, nhấn Ctrl+F5.
+4. Mở bản đồ chọn điểm: dòng nhỏ dưới bản đồ ghi **Nguồn bản đồ: Goong** là thành công. Nếu Goong lỗi (sai khóa, hết hạn mức) hệ thống tự quay về bản đồ miễn phí.
+5. Theo dõi lượt dùng ở account.goong.io → Tổng quan. Gói Free hiện có 120.000 lượt tải bản đồ/tháng và 1.000 lượt gọi API/ngày (mỗi lần khách tìm địa chỉ tốn 1–2 lượt).
+
 ## Giới hạn cần biết
 - **Quên mật khẩu:** người dùng nhắn Admin (Zalo/hotline), Admin vào **Người dùng → Đặt lại MK** (xem mục "Đặt lại mật khẩu" bên dưới). Chưa có tự đặt lại vì không dùng email thật.
 - **Giá đơn hàng** do trình duyệt khách tính; luật bảo mật chặn sửa đơn người khác và chặn giá trị vô lý (âm, giảm quá tạm tính, phí ship quá cao) nhưng chưa đối chiếu giá từng món với thực đơn. Với quy mô địa phương là đủ; muốn chặt hơn cần thêm Cloud Functions.
