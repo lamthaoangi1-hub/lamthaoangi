@@ -1,5 +1,5 @@
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261014e';
-import { parseWorkbook } from './import-sheet.js?v=20261014e';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261014f';
+import { parseWorkbook } from './import-sheet.js?v=20261014f';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
@@ -110,6 +110,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   const shipCfgView = () => `<div class="card" style="margin-top:12px"><h3>Phí giao hàng theo khoảng cách</h3><p class="muted">Khách thấy phí này trước khi bấm đặt đơn. Khoảng cách = đường chim bay từ quán đến khách × hệ số đường đi, làm tròn 0,1 km; km lẻ tính tròn lên.</p>
     <div class="grid"><label class="f">Phí cơ bản (đ)<input type="number" id="sh-base" min="0" step="1000" value="${settings.shipBase ?? 15000}"></label><label class="f">Số km đầu tính phí cơ bản<input type="number" id="sh-basekm" min="0" step="0.5" value="${settings.shipBaseKm ?? 3.5}"></label>
     <label class="f">Mỗi km tiếp theo (đ)<input type="number" id="sh-perkm" min="0" step="500" value="${settings.shipPerKm ?? 3000}"></label><label class="f">Hệ số đường đi (1,3 = đường thực dài hơn đường chim bay 30%)<input type="number" id="sh-road" min="1" max="2" step="0.05" value="${settings.shipRoad ?? 1.3}"></label></div>
+    <h3 style="margin:16px 0 4px">Giao hàng &amp; Mua hộ</h3><p class="muted">Cộng thêm vào phí theo quãng đường ở trên.</p><div class="grid"><label class="f">Phụ phí hàng 5–10 kg (đ)<input type="number" id="sh-w2" min="0" step="1000" value="${settings.shipW2 ?? 5000}"></label><label class="f">Phụ phí hàng trên 10 kg (đ)<input type="number" id="sh-w3" min="0" step="1000" value="${settings.shipW3 ?? 15000}"></label><label class="f">Phí mua hộ (đ)<input type="number" id="sh-errand" min="0" step="1000" value="${settings.errandFee ?? 10000}"></label></div>
     <button class="btn" style="margin-top:12px" data-saveship>Lưu phí giao hàng</button></div>`;
   const contactView = () => `<div class="card"><h3>Thông tin liên hệ hiển thị trên website</h3><div class="grid"><label class="f">Hotline<input type="tel" id="c-hot" value="${esc(settings.hotline || '')}"></label><label class="f">Email<input type="text" id="c-mail" value="${esc(settings.email || '')}"></label><label class="f">Zalo nhận tin khách (số điện thoại hoặc link zalo.me)<input type="text" id="c-zalo" placeholder="VD: 0912345678" value="${esc(settings.zalo || '')}"></label></div><button class="btn" style="margin-top:12px" data-savesettings>Lưu</button></div>`;
   const settingsView = () => contactView() + shipCfgView();
@@ -244,7 +245,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       else if (g('[data-delpromo]')) { if (confirm('Xóa mã này?')) await fb.removePromo(g('[data-delpromo]').dataset.delpromo); }
       else if (g('[data-saveship]')) {
         const n = (id, d) => { const v = parseFloat($('#' + id).value); return isNaN(v) ? d : v; };
-        const d = { shipBase:Math.max(0, n('sh-base', 15000)), shipBaseKm:Math.max(0, n('sh-basekm', 3.5)), shipPerKm:Math.max(0, n('sh-perkm', 3000)), shipRoad:Math.min(2, Math.max(1, n('sh-road', 1.3))) };
+        const d = { shipBase:Math.max(0, n('sh-base', 15000)), shipBaseKm:Math.max(0, n('sh-basekm', 3.5)), shipPerKm:Math.max(0, n('sh-perkm', 3000)), shipRoad:Math.min(2, Math.max(1, n('sh-road', 1.3))), shipW2:Math.max(0, n('sh-w2', 5000)), shipW3:Math.max(0, n('sh-w3', 15000)), errandFee:Math.max(0, n('sh-errand', 10000)) };
         await fb.saveSettings(d); toast('Đã lưu phí giao hàng');
       }
       else if (g('[data-savesettings]')) { await fb.saveSettings({ hotline:$('#c-hot').value.trim(), email:$('#c-mail').value.trim(), zalo:$('#c-zalo').value.trim() }); toast('Đã lưu'); }

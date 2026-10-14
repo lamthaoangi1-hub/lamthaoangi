@@ -1,4 +1,4 @@
-import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261014e';
+import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261014f';
 
 export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
   let tab = 'open', open = [], mine = [], err = '';
@@ -31,23 +31,26 @@ export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'
   };
   const callBtn = p => p ? `<a class="oc-act" href="tel:${esc(p)}">${I.phone}Gọi ${esc(p)}</a>` : '';
   const navBtn = (lat, lng, addr, label) => lat != null ? `<a class="oc-act" href="${dirLink(lat, lng)}" target="_blank" rel="noopener">${I.nav}${label}</a>` : (addr ? `<a class="oc-act" href="${map(addr)}" target="_blank" rel="noopener">${I.nav}Xem bản đồ</a>` : '');
+  const svcNote = o => o.type === 'delivery' ? `${esc(o.goods || '')}${o.weight ? ' · ' + esc(o.weight) : ''} · Người ${o.feePayer === 'receiver' ? 'nhận' : 'gửi'} trả phí${o.codAmount ? ` · <b>Thu hộ ${money(o.codAmount)}</b> từ người nhận` : ''}`
+    : o.type === 'errand' ? `Mua hộ · Ứng trước tối đa <b>${money(o.advanceMax || 0)}</b> · Thu tiền hàng theo hóa đơn + phí` : '';
   function card(o, kind) {
     const items = (o.items || []).map(i => `<b>${i.qty}×</b> ${esc(i.name)}`).join('<span class="sep"></span>');
     const extra = [o.distanceKm != null ? `Quãng đường ${String(o.distanceKm).replace('.', ',')} km` : '', fmtTime(o.createdAt)].filter(Boolean).join(' · ');
     return `<article class="oc">
       <header class="oc-head"><div><span class="oc-code">#${esc(o.code)}</span><div class="oc-time">${extra}</div></div>${badge(o.status)}</header>
-      <div class="oc-money"><div class="earn"><small>Phí ship bạn nhận</small><b>${money(o.shipFee)}</b></div><div><small>Thu tiền mặt của khách</small><b>${money(o.total)}</b></div></div>
+      <div class="oc-money"><div class="earn"><small>Phí ship bạn nhận</small><b>${money(o.shipFee)}</b></div><div><small>${o.type ? 'Phí dịch vụ (tiền mặt)' : 'Thu tiền mặt của khách'}</small><b>${money(o.total)}</b></div></div>
       <div class="oc-route">
         <div class="oc-stop from"><i class="oc-dot"></i><div>
-          <div class="oc-lbl">Lấy hàng tại</div><div class="oc-name">${esc(o.shopName)}</div>
+          <div class="oc-lbl">${o.type === 'errand' ? 'Mua hàng tại' : 'Lấy hàng tại'}</div><div class="oc-name">${esc(o.shopName)}</div>
           <div class="oc-addr${o.shopAddress ? '' : ' none'}">${esc(o.shopAddress || 'Quán chưa có địa chỉ')}</div>
           ${kind === 'open' ? `<div style="margin-top:6px">${distHtml(o)}</div>` : ''}
           <div class="oc-acts">${navBtn(o.shopLat, o.shopLng, o.shopAddress, 'Chỉ đường tới quán')}${callBtn(o.shopPhone)}</div></div></div>
         <div class="oc-stop to"><i class="oc-dot"></i><div>
-          <div class="oc-lbl">Giao tới</div><div class="oc-name">${esc(o.customerName)}</div>
+          <div class="oc-lbl">Giao tới</div><div class="oc-name">${esc(o.receiverName || o.customerName)}</div>
           <div class="oc-addr">${esc(o.address)}</div>
+          ${o.type ? `<div class="oc-note">${svcNote(o)}</div>` : ''}${o.type === 'delivery' ? `<div class="oc-note">Người gửi: ${esc(o.customerName)} ${esc(o.customerPhone)}</div>` : ''}
           ${o.note ? `<div class="oc-note">Ghi chú: ${esc(o.note)}</div>` : ''}
-          <div class="oc-acts">${navBtn(o.lat, o.lng, o.address, 'Chỉ đường tới khách')}${callBtn(o.customerPhone)}</div></div></div>
+          <div class="oc-acts">${navBtn(o.lat, o.lng, o.address, 'Chỉ đường tới khách')}${callBtn(o.receiverPhone || o.customerPhone)}</div></div></div>
       </div>
       <div class="oc-items">${items}</div>
       ${kind === 'open' ? `<div class="oc-foot"><button class="oc-go" data-claim="${o.id}">Nhận đơn này</button></div>` : o.status === 'delivering' ? `<div class="oc-foot"><button class="oc-go done" data-done="${o.id}">Đã giao xong</button></div>` : ''}

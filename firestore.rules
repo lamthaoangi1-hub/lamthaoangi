@@ -50,13 +50,19 @@ service cloud.firestore {
         && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 40
         && request.resource.data.total is number && request.resource.data.total >= 0
         // chặn giá trị vô lý (âm / giảm quá tạm tính / phí ship quá cao) và chặn khách tự gắn shipper
-        && request.resource.data.subtotal is number && request.resource.data.subtotal > 0
+        && request.resource.data.subtotal is number && request.resource.data.subtotal >= 0
         && request.resource.data.discount is number && request.resource.data.discount >= 0 && request.resource.data.discount <= request.resource.data.subtotal
         && request.resource.data.shipFee is number && request.resource.data.shipFee >= 0 && request.resource.data.shipFee <= 300000
         && !('shipperUid' in request.resource.data)
         // tổng tiền phải khớp: tạm tính - giảm giá + phí ship; quán phải tồn tại
         && request.resource.data.total == request.resource.data.subtotal - request.resource.data.discount + request.resource.data.shipFee
-        && exists(/databases/$(database)/documents/shops/$(request.resource.data.shopId))
+        // đơn đồ ăn: quán phải tồn tại + tạm tính > 0. Đơn Giao hàng / Mua hộ (type): không thuộc quán nào, không có tiền hàng, chỉ có phí ship
+        && (
+          (request.resource.data.get('type', 'food') == 'food' && request.resource.data.subtotal > 0
+            && exists(/databases/$(database)/documents/shops/$(request.resource.data.shopId)))
+          || (request.resource.data.get('type', 'food') in ['delivery', 'errand'] && request.resource.data.subtotal == 0
+            && request.resource.data.discount == 0 && request.resource.data.shopId == 'svc-' + request.resource.data.type)
+        )
         // bắt buộc có vị trí GPS của khách
         && request.resource.data.lat is number && request.resource.data.lng is number;
 

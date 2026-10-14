@@ -703,6 +703,7 @@
   }
   function reorder(o) {
     if (!LIVE) return toast('Đã thêm món vào giỏ hàng');
+    if (o.raw && o.raw.type) return openService(o.raw.type);
     const s = SHOPS.find(x => x.id === o.shop); if (!s) return toast('Quán này hiện không còn bán');
     CART.shop = s.id; CART.q = {};
     (o.raw.items || []).forEach(it => { const i = s._d.menu.findIndex(m => m.name === it.name && m.available !== false); if (i >= 0) CART.q[i] = (CART.q[i] || 0) + it.qty; });
@@ -747,6 +748,155 @@
   window.addEventListener('popstate', () => { if (shopPageOpen) { hideShopPage(); return; } go(location.hash.slice(1) || 'home', false); });
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
 
+  /* ---------------- GIAO HÀNG & MUA HỘ ---------------- */
+  /* Khách ghim điểm trên bản đồ (Leaflet + OpenStreetMap, miễn phí) → phí tính ngay theo km bằng đúng công thức phí ship của Admin. */
+  const SVCCFG = { w2:5000, w3:15000, errand:10000 };
+  const GOODS = ['Tài liệu', 'Quần áo', 'Đồ ăn', 'Khác'], WEIGHTS = ['Dưới 5 kg', '5 – 10 kg', 'Trên 10 kg'], BUDGETS = [100000, 200000, 500000], MAXKM = 50;
+  const svcFresh = type => ({ type, pick:null, drop:null, goods:0, weight:0, payer:'sender', budget:1, paddr:'', daddr:'', rname:'', rphone:'', cod:'', note:'', list:'', store:'' });
+  let SV = svcFresh('delivery'), MAP = null, MP_KEY = 'pick';
+  const kmStr = km => String(km).replace('.', ',');
+
+  function svcQuoteBetween(a, b, type, weight) {
+    const km = Math.round(haverKm(a, b) * SHIPCFG.road * 10) / 10;
+    const extraKm = Math.max(0, Math.ceil(Math.round((km - SHIPCFG.baseKm) * 10) / 10));
+    const dist = SHIPCFG.base + extraKm * SHIPCFG.perKm;
+    const extra = type === 'errand' ? SVCCFG.errand : [0, SVCCFG.w2, SVCCFG.w3][weight] || 0;
+    return { km, extraKm, dist, extra, fee:dist + extra, far:km > MAXKM };
+  }
+  const svcQuote = () => (SV.pick && SV.drop) ? svcQuoteBetween(SV.pick, SV.drop, SV.type, SV.weight) : null;
+  const svcVal = id => { const e = $('#sv-' + id); return e ? e.value : null; };
+  function svcRead() { ['paddr', 'daddr', 'rname', 'rphone', 'cod', 'note', 'list', 'store'].forEach(k => { const v = svcVal(k); if (v !== null) SV[k] = v; }); }
+  const digits = v => String(v || '').replace(/\D/g, '');
+
+  function svcSheet() {
+    const D = SV.type === 'delivery', q = svcQuote(), sc = $('#sheet').scrollTop;
+    const loc = (key, label) => `<button type="button" class="sv-loc ${SV[key] ? 'ok' : ''}" data-svpick="${key}"><span>${SV[key] ? '✓' : '📍'}</span><b>${SV[key] ? 'Đã ghim vị trí · bấm để đổi' : label}</b></button>`;
+    const inp = (id, label, val, ph, type = 'text', req = false) => `<label class="co-f"><span>${label}${req ? ' <i>*</i>' : ''}</span><input id="sv-${id}" type="${type}" ${type === 'tel' ? 'inputmode="tel"' : ''} placeholder="${ph}" value="${esc(val)}"></label>`;
+    const chips = (k, items, cur) => `<div class="sv-chips">${items.map(([v, l]) => `<button type="button" class="sv-chip ${String(v) === String(cur) ? 'on' : ''}" data-svchip="${k}:${v}">${l}</button>`).join('')}</div>`;
+    const lab = t => `<div class="co-lbl">${t}</div>`;
+    const body = D ? `
+      <section class="co-card"><div class="co-title">Lấy hàng tại</div>${loc('pick', 'Ghim điểm lấy hàng trên bản đồ')}${inp('paddr', 'Địa chỉ lấy hàng', SV.paddr, 'Số nhà, thôn/xóm…', 'text', true)}</section>
+      <section class="co-card"><div class="co-title">Giao tới</div>${inp('rname', 'Tên người nhận', SV.rname, 'Họ và tên', 'text', true)}${inp('rphone', 'SĐT người nhận', SV.rphone, '09xx xxx xxx', 'tel', true)}${loc('drop', 'Ghim điểm giao trên bản đồ')}${inp('daddr', 'Địa chỉ giao', SV.daddr, 'Số nhà, thôn/xóm…', 'text', true)}</section>
+      <section class="co-card"><div class="co-title">Hàng hóa</div>${lab('Loại hàng')}${chips('goods', GOODS.map((x, i) => [i, x]), SV.goods)}${lab('Khối lượng')}${chips('weight', WEIGHTS.map((x, i) => [i, x]), SV.weight)}
+        ${inp('cod', 'Thu hộ tiền hàng (đ) – để trống nếu không thu', SV.cod, '0', 'text')}${lab('Ai trả phí giao hàng?')}${chips('payer', [['sender', 'Người gửi (tôi)'], ['receiver', 'Người nhận']], SV.payer)}${inp('note', 'Ghi chú cho shipper', SV.note, 'VD: hàng dễ vỡ, gọi trước khi đến')}</section>`
+    : `
+      <section class="co-card"><div class="co-title">Bạn cần mua gì?</div><label class="co-f"><span>Danh sách cần mua <i>*</i></span><textarea id="sv-list" rows="4" placeholder="Mỗi món một dòng. VD: 2 kg cam&#10;1 chai nước mắm">${esc(SV.list)}</textarea></label>${lab('Tiền hàng dự kiến (shipper ứng trước tối đa)')}${chips('budget', BUDGETS.map((x, i) => [i, money(x)]), SV.budget)}</section>
+      <section class="co-card"><div class="co-title">Mua ở đâu</div>${inp('store', 'Tên cửa hàng / chợ', SV.store, 'VD: Chợ Lâm Thao', 'text', true)}${loc('pick', 'Ghim vị trí nơi mua trên bản đồ')}</section>
+      <section class="co-card"><div class="co-title">Giao tới</div>${loc('drop', 'Ghim vị trí nhận hàng trên bản đồ')}${inp('daddr', 'Địa chỉ nhận hàng', SV.daddr, 'Số nhà, thôn/xóm…', 'text', true)}${inp('note', 'Ghi chú cho shipper', SV.note, 'VD: chọn quả chín, gọi trước khi đến')}</section>`;
+    const cod = +digits(SV.cod) || 0;
+    const sum = !q ? `<div class="co-hint">${D ? 'Ghim điểm lấy hàng và điểm giao trên bản đồ' : 'Ghim nơi mua và nơi nhận trên bản đồ'} để xem phí ngay.</div>`
+      : q.far ? `<div class="co-hint" style="color:var(--red)">Quãng đường ${kmStr(q.km)} km, vượt phạm vi phục vụ tối đa ${MAXKM} km. Vui lòng chọn lại điểm.</div>`
+      : `<div class="co-row"><span>Quãng đường</span><b>${kmStr(q.km)} km</b></div>
+        <div class="co-row"><span>Phí theo quãng đường</span><b>${money(q.dist)}</b></div>
+        <div class="co-hint" style="margin:-2px 0 4px">${money(SHIPCFG.base)} cho ${kmStr(SHIPCFG.baseKm)} km đầu · ${q.extraKm ? q.extraKm + ' km tiếp theo × ' + money(SHIPCFG.perKm) : 'không phát sinh thêm km'}</div>
+        ${q.extra ? `<div class="co-row"><span>${D ? 'Phụ phí khối lượng' : 'Phí mua hộ'}</span><b>${money(q.extra)}</b></div>` : ''}
+        <div class="co-total"><span>${D ? 'Phí giao hàng' : 'Phí mua hộ + giao'}</span><b>${money(q.fee)}</b></div>
+        ${D ? `${cod ? `<div class="co-row"><span>Shipper thu hộ từ người nhận</span><b>${money(cod)}</b></div>` : ''}<div class="co-pay">💵 ${SV.payer === 'receiver' ? 'Người nhận trả phí ' + (cod ? '+ tiền thu hộ ' : '') + 'bằng tiền mặt khi nhận hàng' : 'Người gửi trả phí bằng tiền mặt cho shipper'}</div>`
+        : `<div class="co-pay">💵 Tiền hàng trả theo <b>hóa đơn thực tế</b> khi nhận. Shipper ứng trước tối đa ${money(BUDGETS[SV.budget])} và chụp hóa đơn gửi bạn.</div>`}`;
+    openSheet(`<div class="co">
+      <div class="co-head"><h3>${D ? 'Giao hàng' : 'Mua hộ'}</h3><div class="co-shop">${D ? 'Gửi đồ trong ngày, tận tay người nhận' : 'Bạn ở nhà, shipper đi mua giúp'}</div></div>
+      ${body}<section class="co-card co-sum">${sum}</section>
+      <div class="co-foot"><button class="sheet-btn" data-svplace ${q && !q.far ? '' : 'disabled'}>${q && !q.far ? (D ? 'Đặt giao hàng' : 'Đặt mua hộ') + ' · ' + money(q.fee) : 'Ghim điểm trên bản đồ để xem phí'}</button></div></div>`);
+    $('#sheet').scrollTop = sc;
+  }
+  function openService(type) {
+    if (!LIVE) return toast('Đây là bản demo, chưa sử dụng được');
+    if (!S.user) { toast('Vui lòng đăng nhập để sử dụng dịch vụ'); S.authTab = 'login'; return go('auth'); }
+    if (SV.type !== type) SV = svcFresh(type);
+    svcSheet();
+  }
+
+  /* ----- bản đồ chọn điểm: kéo bản đồ để đưa ghim đỏ vào đúng chỗ ----- */
+  const loadLeaflet = () => window.L ? Promise.resolve() : new Promise((ok, no) => {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(l);
+    const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; s.onload = ok; s.onerror = () => no(new Error('leaflet')); document.head.appendChild(s);
+  });
+  function closeMapPicker() { if (MAP) { MAP.remove(); MAP = null; } const el = $('#mp'); if (el) el.hidden = true; }
+  async function openMapPicker(key) {
+    svcRead(); MP_KEY = key;
+    const E = SV.type === 'errand', title = key === 'pick' ? (E ? 'Ghim nơi mua hàng' : 'Ghim điểm lấy hàng') : (E ? 'Ghim nơi nhận hàng' : 'Ghim điểm giao hàng');
+    let el = $('#mp'); if (!el) { el = document.createElement('div'); el.id = 'mp'; $('#app').appendChild(el); }
+    el.innerHTML = `<div class="mp-top"><button type="button" class="mp-x" data-mpclose aria-label="Quay lại">←</button><b>${title}</b></div>
+      <form class="mp-search" data-mpform><input id="mp-q" placeholder="Tìm địa chỉ, chợ, trường học…" autocomplete="off"><button type="submit">Tìm</button></form>
+      <div class="mp-map"><div id="mp-m"></div><i class="mp-pin"></i></div>
+      <div class="mp-bar"><button type="button" class="mp-me" data-mpme>📍 Vị trí của tôi</button><div class="mp-addr" id="mp-a"></div><button type="button" class="sheet-btn" data-mpok>Chọn vị trí này</button></div>`;
+    el.hidden = false; closeSheet();
+    try { await loadLeaflet(); } catch (e) { closeMapPicker(); svcSheet(); return toast('Không tải được bản đồ, hãy kiểm tra mạng'); }
+    const cur = SV[key] || SV[key === 'pick' ? 'drop' : 'pick'] || CART.loc || { lat:21.32, lng:105.31 };
+    MAP = L.map('mp-m', { zoomControl:false }).setView([cur.lat, cur.lng], SV[key] ? 17 : 15);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(MAP);
+    MAP.on('move', mpInfo); setTimeout(() => { if (MAP) { MAP.invalidateSize(); mpInfo(); } }, 120);
+  }
+  function mpInfo() {
+    const el = $('#mp-a'); if (!MAP || !el) return;
+    const other = SV[MP_KEY === 'pick' ? 'drop' : 'pick'], c = MAP.getCenter();
+    if (!other) { el.textContent = 'Kéo bản đồ để đưa ghim đỏ tới đúng nơi cần chọn'; return; }
+    const q = svcQuoteBetween({ lat:c.lat, lng:c.lng }, other, SV.type, SV.weight);
+    el.innerHTML = q.far ? `<span style="color:var(--red)">Xa quá ${MAXKM} km, ngoài phạm vi phục vụ</span>` : `Quãng đường <b>${kmStr(q.km)} km</b> · Phí <b>${money(q.fee)}</b>`;
+  }
+  function mpMe() {
+    if (!navigator.geolocation) return toast('Thiết bị không hỗ trợ định vị');
+    navigator.geolocation.getCurrentPosition(p => { if (MAP) MAP.setView([p.coords.latitude, p.coords.longitude], 17); },
+      e => toast(e.code === 1 ? 'Bạn đã chặn quyền vị trí cho trang web' : 'Không lấy được vị trí, hãy bật GPS'), { enableHighAccuracy:true, timeout:15000 });
+  }
+  async function mpSearch() {
+    const q = ($('#mp-q').value || '').trim(); if (!q || !MAP) return;
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=vn&accept-language=vi&viewbox=105.15,21.45,105.45,21.2&q=' + encodeURIComponent(/phú thọ|phu tho/i.test(q) ? q : q + ', Lâm Thao, Phú Thọ'));
+      const j = await r.json();
+      if (j[0]) MAP.setView([+j[0].lat, +j[0].lon], 17); else toast('Không tìm thấy, hãy kéo bản đồ để chọn');
+    } catch (e) { toast('Không tìm được lúc này, hãy kéo bản đồ để chọn'); }
+  }
+  function mpConfirm() {
+    if (!MAP) return;
+    const c = MAP.getCenter(), pt = { lat:+c.lat.toFixed(6), lng:+c.lng.toFixed(6) }, key = MP_KEY;
+    closeMapPicker(); SV[key] = pt; svcSheet();
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=vi&lat=${pt.lat}&lon=${pt.lng}`).then(r => r.json()).then(j => {
+      const a = String(j.display_name || '').replace(/, Việt Nam$/, '').replace(/,\s*\d{5,6}\b/, ''), inp = $('#sv-' + (key === 'pick' && SV.type === 'delivery' ? 'paddr' : key === 'drop' ? 'daddr' : 'store'));
+      if (a && inp && !inp.value.trim()) inp.value = a;
+    }).catch(() => {});
+  }
+
+  async function svcPlace(btn) {
+    svcRead();
+    const D = SV.type === 'delivery', q = svcQuote(); if (!q) return toast('Hãy ghim điểm trên bản đồ');
+    if (q.far) return toast(`Quãng đường vượt ${MAXKM} km`);
+    const t = k => String(SV[k] || '').trim();
+    if (D) {
+      if (!SV.pick || t('paddr').length < 5) return toast('Nhập địa chỉ lấy hàng và ghim vị trí');
+      if (t('rname').length < 2) return toast('Nhập tên người nhận');
+      if (digits(SV.rphone).length < 9) return toast('Nhập số điện thoại người nhận');
+    } else {
+      if (t('list').length < 3) return toast('Nhập danh sách cần mua');
+      if (t('store').length < 2 || !SV.pick) return toast('Nhập nơi mua và ghim vị trí nơi mua');
+    }
+    if (!SV.drop || t('daddr').length < 5) return toast('Nhập địa chỉ nhận hàng và ghim vị trí');
+    const base = { code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone, type:SV.type, shopId:'svc-' + SV.type,
+      address:t('daddr'), note:t('note'), lat:SV.drop.lat, lng:SV.drop.lng, locAcc:null, shopLat:SV.pick.lat, shopLng:SV.pick.lng,
+      subtotal:0, discount:0, promoCode:'', shipFee:q.fee, distanceKm:q.km, total:q.fee, payment:'cash', status:'pending' };
+    const o = D ? { ...base, shopName:'Giao hàng', shopPhone:S.user.phone || '', shopAddress:t('paddr'), receiverName:t('rname'), receiverPhone:digits(SV.rphone), goods:GOODS[SV.goods], weight:WEIGHTS[SV.weight], codAmount:+digits(SV.cod) || 0, feePayer:SV.payer,
+        items:[{ name:`${GOODS[SV.goods]} · ${WEIGHTS[SV.weight]}`, price:0, qty:1 }] }
+      : { ...base, shopName:'Mua hộ', shopPhone:'', shopAddress:t('store'), advanceMax:BUDGETS[SV.budget],
+        items:t('list').split(/\n|,/).map(x => x.trim().slice(0, 80)).filter(Boolean).slice(0, 30).map(name => ({ name, price:0, qty:1 })) };
+    btn.disabled = true;
+    try {
+      const ref = await FB.placeOrder(o);
+      FB.notifyNewOrder(ref.id);
+      SV = svcFresh(SV.type); closeSheet(); S.orders.tab = 'proc'; go('orders'); toast('Đặt thành công! Đang chờ shipper nhận đơn.');
+    } catch (e) { btn.disabled = false; toast(FB.errMsg(e)); }
+  }
+  function svcClick(t) {
+    const q = s => t.closest(s); let b;
+    if ((b = q('[data-svchip]'))) { svcRead(); const [k, v] = b.dataset.svchip.split(':'); SV[k] = k === 'payer' ? v : +v; svcSheet(); return true; }
+    if ((b = q('[data-svpick]'))) { openMapPicker(b.dataset.svpick); return true; }
+    if ((b = q('[data-svplace]'))) { svcPlace(b); return true; }
+    if (q('[data-mpclose]')) { closeMapPicker(); svcSheet(); return true; }
+    if (q('[data-mpme]')) { mpMe(); return true; }
+    if (q('[data-mpok]')) { mpConfirm(); return true; }
+    return false;
+  }
+  document.addEventListener('submit', e => { if (e.target.matches && e.target.matches('[data-mpform]')) { e.preventDefault(); mpSearch(); } });
+
   /* ---------------- EVENTS ---------------- */
   document.addEventListener('click', e => {
     const t = e.target;
@@ -759,6 +909,7 @@
     if (ap) { readCheckout(); const { s, lines } = cartData(); if (CART.promo && !calc(s, lines, CART.promo).promo) toast('Mã không hợp lệ hoặc chưa đủ điều kiện'); return checkoutSheet(); }
     const po = t.closest('[data-placeorder]'); if (po) return placeOrderNow(po);
     const sl = t.closest('[data-shareloc]'); if (sl) return shareLoc(sl);
+    if (svcClick(t)) return;
     const heart = t.closest('[data-heart]');
     if (heart) {
       e.stopPropagation(); toggleFav(heart.dataset.heart);
@@ -778,6 +929,8 @@
     const svc = t.closest('[data-svc]');
     if (svc) {
       if (svc.dataset.svc === 'food') return;
+      if (svc.dataset.svc === 'ship') return openService('delivery');
+      if (svc.dataset.svc === 'market') return openService('errand');
       return toast(svc.querySelector('.ic').nextSibling.textContent + ' – sắp ra mắt');
     }
     const otab = t.closest('[data-otab]'); if (otab) { S.orders.tab = otab.dataset.otab; renderOrders(); return; }
@@ -904,7 +1057,7 @@
   }
   function mapOrder(o) {
     const t = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate() : new Date();
-    if (!SHOPS.some(s => s.id === o.shopId)) GHOST[o.shopId] = { id:o.shopId, name:esc(o.shopName), cat:'', img:'hero.svg', group:['Quán'], menu:[] };
+    if (!SHOPS.some(s => s.id === o.shopId)) GHOST[o.shopId] = { id:o.shopId, name:esc(o.shopName), cat:'', img:o.type ? 'n-driver.jpg' : 'hero.svg', group:[o.type === 'errand' ? 'Mua hộ' : o.type === 'delivery' ? 'Giao hàng' : 'Quán'], menu:[] };
     return { id:o.id, code:esc(o.code), shop:o.shopId, st:ST_MAP[o.status] || 'proc', status:o.status, label:ST_LABEL[o.status], items:(o.items || []).map(i => `${i.qty} x ${esc(i.name)}`),
       total:o.total || 0, shipFee:o.shipFee || 0, address:esc(o.address), when:fmtWhen(t), t:t.getTime(), shipperName:esc(o.shipperName || ''), raw:o };
   }
@@ -932,7 +1085,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261014e').then(m => {
+    import('./fb.js?v=20261014f').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -945,7 +1098,8 @@
         else if (S.tab === 'orders') rebuildOrders();
       });
       FB.watchPromos(l => { PROMOS = l.filter(p => p.active !== false); rebuildNotices(); if (S.tab === 'profile') renderProfile(); });
-      FB.watchSettings(c => { ['base', 'baseKm', 'perKm', 'road'].forEach(k => { const v = Number(c['ship' + k[0].toUpperCase() + k.slice(1)]); if (v > 0) SHIPCFG[k] = v; }); CONTACT = { ...CONTACT, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v)) }; });
+      FB.watchSettings(c => { ['base', 'baseKm', 'perKm', 'road'].forEach(k => { const v = Number(c['ship' + k[0].toUpperCase() + k.slice(1)]); if (v > 0) SHIPCFG[k] = v; });
+        [['w2', 'shipW2'], ['w3', 'shipW3'], ['errand', 'errandFee']].forEach(([k, f]) => { if (c[f] != null && c[f] !== '' && Number(c[f]) >= 0) SVCCFG[k] = Number(c[f]); }); CONTACT = { ...CONTACT, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v)) }; });
       FB.onAuth((u, p) => {
         if (ordersUnsub) { ordersUnsub(); ordersUnsub = null; }
         RAW = [];
@@ -965,7 +1119,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261014e')
+  import('./firebase-config.js?v=20261014f')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });

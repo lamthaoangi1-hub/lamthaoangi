@@ -156,14 +156,14 @@ function notifyOrder(body) {
   } finally { lock.releaseLock(); }
 
   const result = { email: false, admin: 0, shop: 0, shipper: 0 };
-  const shop = getDoc('shops/' + order.shopId, body.token) || {};
+  const shop = order.type ? {} : (getDoc('shops/' + order.shopId, body.token) || {});   // đơn Giao hàng/Mua hộ không thuộc quán nào
   const notify = getDoc('settings/notify', body.token) || {};   // do Admin lưu: { shops:{shopId:[id]}, shippers:[id] }
 
   try { sendOrderEmail(order, shop); result.email = true; } catch (e) { console.error('Gmail: ' + e); }
 
   const list = v => (Array.isArray(v) ? v : String(v || '').split(',')).map(x => String(x).trim()).filter(Boolean);
   const adminIds = list(props().getProperty('ZALO_ADMIN_IDS'));
-  const shopIds = list(((notify.shops || {})[order.shopId] || []).concat(list(shop.zaloId)));   // shop.zaloId: cách nhập cũ, vẫn đọc để không mất
+  const shopIds = order.type ? [] : list(((notify.shops || {})[order.shopId] || []).concat(list(shop.zaloId)));   // shop.zaloId: cách nhập cũ, vẫn đọc để không mất
   const shipperIds = list(notify.shippers);
   console.log('notifyOrder: đơn ' + order.code + ' | admin ' + adminIds.length + ' | quán ' + shopIds.length + ' | shipper ' + shipperIds.length);
 
@@ -180,10 +180,26 @@ function notifyOrder(body) {
 }
 
 function itemsLines(order) {
+  if (order.type) return (order.items || []).map(i => '• ' + i.name).join('\n');   // Giao hàng / Mua hộ: không có giá từng món
   return (order.items || []).map(i => '• ' + i.qty + ' x ' + i.name + ' – ' + money(i.price * i.qty)).join('\n');
+}
+// Thông tin riêng của đơn Giao hàng / Mua hộ (mảng dòng chữ thuần)
+function svcLines(o) {
+  if (o.type === 'delivery') return ['Lấy hàng tại: ' + (o.shopAddress || ''), 'Người nhận: ' + (o.receiverName || '') + ' – ' + (o.receiverPhone || ''),
+    'Hàng: ' + itemsLines(o).replace('• ', ''), 'Người trả phí: ' + (o.feePayer === 'receiver' ? 'người nhận' : 'người gửi') + (o.codAmount ? ' | Thu hộ: ' + money(o.codAmount) : '')];
+  if (o.type === 'errand') return ['Mua tại: ' + (o.shopAddress || ''), 'Cần mua:', itemsLines(o), 'Ứng trước tối đa: ' + money(o.advanceMax) + ' (thu tiền hàng theo hóa đơn)'];
+  return [];
 }
 
 function zaloText(order, shop, footer) {
+  if (order.type) return '🛎 ĐƠN ' + (order.type === 'errand' ? 'MUA HỘ' : 'GIAO HÀNG') + ' MỚI #' + order.code + '\n'
+    + svcLines(order).join('\n') + '\n'
+    + 'Quãng đường: ' + (order.distanceKm != null ? order.distanceKm + ' km' : '?') + ' | PHÍ: ' + money(order.total) + ' (tiền mặt)\n'
+    + 'Khách đặt: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
+    + 'Giao đến: ' + (order.address || '') + '\n'
+    + (order.note ? 'Ghi chú: ' + order.note + '\n' : '')
+    + (order.lat ? 'Bản đồ: https://maps.google.com/?q=' + order.lat + ',' + order.lng + '\n' : '')
+    + (footer || 'Vui lòng mở lamthaoangi.io.vn/quanly.html để xem đơn.');
   return '🛎 ĐƠN MỚI #' + order.code + '\n'
     + 'Quán: ' + (order.shopName || shop.name || '') + '\n'
     + itemsLines(order) + '\n'
@@ -197,16 +213,16 @@ function zaloText(order, shop, footer) {
 }
 
 function sendOrderEmail(order, shop) {
-  const rows = (order.items || []).map(i =>
+  const rows = order.type ? '<tr><td colspan="2" style="padding:4px 8px">' + svcLines(order).map(esc).join('<br>').replace(/\n/g, '<br>') + '</td></tr>' : (order.items || []).map(i =>
     '<tr><td style="padding:4px 8px">' + i.qty + ' x ' + esc(i.name) + '</td><td style="padding:4px 8px;text-align:right">' + money(i.price * i.qty) + '</td></tr>').join('');
   const map = order.lat ? '<p><a href="https://maps.google.com/?q=' + order.lat + ',' + order.lng + '">📍 Xem vị trí khách trên bản đồ</a></p>' : '';
   const html = '<div style="font-family:Arial,sans-serif;max-width:520px">'
     + '<h2 style="color:#16a34a;margin:0 0 8px">🛎 Đơn mới #' + esc(order.code) + '</h2>'
-    + '<p style="margin:0 0 8px"><b>Quán:</b> ' + esc(order.shopName || shop.name) + (shop.phone ? ' · ' + esc(shop.phone) : '') + '</p>'
+    + '<p style="margin:0 0 8px"><b>' + (order.type ? 'Dịch vụ' : 'Quán') + ':</b> ' + esc(order.shopName || shop.name) + (shop.phone ? ' · ' + esc(shop.phone) : '') + '</p>'
     + '<table style="border-collapse:collapse;width:100%;border:1px solid #e5e7eb">' + rows
     + '<tr><td style="padding:4px 8px">Phí giao hàng</td><td style="padding:4px 8px;text-align:right">' + money(order.shipFee) + '</td></tr>'
     + (order.discount ? '<tr><td style="padding:4px 8px">Giảm giá</td><td style="padding:4px 8px;text-align:right">-' + money(order.discount) + '</td></tr>' : '')
-    + '<tr><td style="padding:4px 8px"><b>Tổng</b></td><td style="padding:4px 8px;text-align:right"><b>' + money(order.total) + '</b></td></tr></table>'
+    + '<tr><td style="padding:4px 8px"><b>' + (order.type ? 'Phí' : 'Tổng') + '</b></td><td style="padding:4px 8px;text-align:right"><b>' + money(order.total) + '</b></td></tr></table>'
     + '<p><b>Khách:</b> ' + esc(order.customerName) + ' · <a href="tel:' + esc(order.customerPhone) + '">' + esc(order.customerPhone) + '</a><br>'
     + '<b>Giao đến:</b> ' + esc(order.address) + '<br>'
     + (order.note ? '<b>Ghi chú:</b> ' + esc(order.note) + '<br>' : '')

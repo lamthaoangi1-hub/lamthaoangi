@@ -120,6 +120,15 @@ Không ai cam kết được "top 1" tuyệt đối, nhưng với cụm tên ri�
 6. Tạo Fanpage Facebook, nhóm Zalo, kênh TikTok cùng tên "Lâm Thao Ăn Gì" và để **link website** ở phần giới thiệu; nhờ các quán, nhóm cộng đồng Lâm Thao chia sẻ link. Liên kết từ các trang uy tín giúp Google tin tưởng và xếp hạng cao hơn.
 7. Dùng đúng cụm "Lâm Thao Ăn Gì" thống nhất ở mọi nơi (tên, ảnh đại diện, mô tả). Kiểm tra sau 1–2 tuần bằng cách tìm `site:lamthaoangi.io.vn` trên Google: có kết quả là đã được lập chỉ mục.
 
+## Giao hàng & Mua hộ (đã mở)
+Trang chủ → bấm **Giao hàng** hoặc **Mua hộ** (cần đăng nhập). **Xe ôm** vẫn "sắp ra mắt".
+- **Tính phí ngay khi chọn điểm:** khách bấm "Ghim điểm trên bản đồ", kéo bản đồ để đưa ghim đỏ vào đúng chỗ (có ô tìm địa chỉ và nút "Vị trí của tôi"). Phí hiện ngay khi kéo, theo đúng công thức phí ship của Admin (phí cơ bản + mỗi km tiếp theo, hệ số đường đi). Bản đồ dùng OpenStreetMap + Leaflet, miễn phí, không cần khóa API.
+- **Giao hàng:** khách chọn điểm lấy hàng, người nhận, loại hàng, khối lượng, tiền thu hộ (COD), ai trả phí. **Mua hộ:** khách ghi danh sách, nơi mua (ghim vị trí), tiền ứng trước tối đa; tiền hàng trả theo hóa đơn thực tế.
+- **Admin → Liên hệ → Phí giao hàng:** có thêm 3 ô: phụ phí hàng 5–10 kg, phụ phí trên 10 kg, phí mua hộ. Quãng đường tối đa là 50 km.
+- **Shipper** nhận đơn như đơn đồ ăn trong `quanly.html`; thẻ đơn hiện thêm tiền thu hộ, ứng trước, ai trả phí. Admin thấy các đơn này trong tab Đơn hàng (tên "Giao hàng" / "Mua hộ"). Quán không thấy đơn loại này.
+- **Cách cập nhật:** (1) tải toàn bộ file mới lên GitHub; (2) Firebase → Firestore → Rules: dán lại `firestore.rules` → Publish (bắt buộc, nếu không đơn Giao hàng/Mua hộ sẽ bị từ chối); (3) Apps Script: dán lại `google-apps-script.gs` → Deploy → New version (để báo Zalo/Gmail đúng nội dung); (4) Ctrl+F5.
+- **Lưu ý vận hành:** tìm địa chỉ tự động ở vùng nông thôn chưa chính xác, hãy hướng dẫn khách ghim vị trí trên bản đồ. Phí tính theo đường chim bay × hệ số, nên nếu thấy chênh thực tế thì chỉnh hệ số đường đi trong Admin.
+
 ## Giới hạn cần biết
 - **Quên mật khẩu:** người dùng nhắn Admin (Zalo/hotline), Admin vào **Người dùng → Đặt lại MK** (xem mục "Đặt lại mật khẩu" bên dưới). Chưa có tự đặt lại vì không dùng email thật.
 - **Giá đơn hàng** do trình duyệt khách tính; luật bảo mật chặn sửa đơn người khác và chặn giá trị vô lý (âm, giảm quá tạm tính, phí ship quá cao) nhưng chưa đối chiếu giá từng món với thực đơn. Với quy mô địa phương là đủ; muốn chặt hơn cần thêm Cloud Functions.
