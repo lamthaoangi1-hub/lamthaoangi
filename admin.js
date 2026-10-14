@@ -1,5 +1,5 @@
-import { fb, track, $, $$, esc, money, fmtTime, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261014a';
-import { parseWorkbook } from './import-sheet.js?v=20261014a';
+import { fb, track, $, $$, esc, money, fmtTime, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261014b';
+import { parseWorkbook } from './import-sheet.js?v=20261014b';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
@@ -96,7 +96,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     <div class="grid"><label class="f">Phí cơ bản (đ)<input type="number" id="sh-base" min="0" step="1000" value="${settings.shipBase ?? 15000}"></label><label class="f">Số km đầu tính phí cơ bản<input type="number" id="sh-basekm" min="0" step="0.5" value="${settings.shipBaseKm ?? 3.5}"></label>
     <label class="f">Mỗi km tiếp theo (đ)<input type="number" id="sh-perkm" min="0" step="500" value="${settings.shipPerKm ?? 3000}"></label><label class="f">Hệ số đường đi (1,3 = đường thực dài hơn đường chim bay 30%)<input type="number" id="sh-road" min="1" max="2" step="0.05" value="${settings.shipRoad ?? 1.3}"></label></div>
     <button class="btn" style="margin-top:12px" data-saveship>Lưu phí giao hàng</button></div>`;
-  const contactView = () => `<div class="card"><h3>Thông tin liên hệ hiển thị trên website</h3><div class="grid"><label class="f">Hotline<input type="tel" id="c-hot" value="${esc(settings.hotline || '')}"></label><label class="f">Email<input type="text" id="c-mail" value="${esc(settings.email || '')}"></label><label class="f">Zalo (số hoặc link)<input type="text" id="c-zalo" value="${esc(settings.zalo || '')}"></label></div><button class="btn" style="margin-top:12px" data-savesettings>Lưu</button></div>`;
+  const contactView = () => `<div class="card"><h3>Thông tin liên hệ hiển thị trên website</h3><div class="grid"><label class="f">Hotline<input type="tel" id="c-hot" value="${esc(settings.hotline || '')}"></label><label class="f">Email<input type="text" id="c-mail" value="${esc(settings.email || '')}"></label><label class="f">Zalo nhận tin khách (số điện thoại hoặc link zalo.me)<input type="text" id="c-zalo" placeholder="VD: 0912345678" value="${esc(settings.zalo || '')}"></label></div><button class="btn" style="margin-top:12px" data-savesettings>Lưu</button></div>`;
   const settingsView = () => contactView() + shipCfgView();
 
   function draw() {

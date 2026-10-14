@@ -127,6 +127,7 @@
   const SP = { id:null, cat:'Tất cả' };
   let shopPageOpen = false;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const zaloLink = () => { const z = String(CONTACT.zalo || '').trim(); if (!z) return ''; if (/^(https?:)?\/\//i.test(z)) return z; if (/^(zalo\.me|chat\.zalo\.me)\//i.test(z)) return 'https://' + z; const d = z.replace(/[\s.\-()]/g, '').replace(/^\+?84/, '0'); return /^\d{8,15}$/.test(d) ? 'https://zalo.me/' + d : ''; };
   const telHot = () => CONTACT.hotline.replace(/\s/g, '');
 
   /* ---------------- STATE ---------------- */
@@ -406,13 +407,6 @@
   /* ---------------- PROFILE ---------------- */
   const menuItem = (act, icon, color, t, sub, extra = '') => `<button class="mi ${extra}" data-menu="${act}"><span class="mic ${color}">${icon}</span><span class="mt"><b>${t}</b><small>${sub}</small></span>${ic('chevRight', 'ch')}</button>`;
   const fmtPhone = p => p.replace(/(\d{4})(\d{3})(\d{3})/, '$1 $2 $3');
-  function panelMenu() {
-    const r = S.user && S.user.role;
-    if (r === 'admin') return menuItem('open-admin', ic('gear'), '', 'Trang Admin', 'Quản lý cửa hàng, đơn hàng, người dùng') + menuItem('open-seller', ic('shop'), '', 'Trang Nhà bán hàng', 'Đơn và thực đơn của cửa hàng') + menuItem('open-shipper', ic('truck'), '', 'Trang Shipper', 'Nhận và giao đơn');
-    if (r === 'seller') return menuItem('open-seller', ic('shop'), '', 'Trang Nhà bán hàng', 'Nhận đơn, sửa thực đơn');
-    if (r === 'shipper') return menuItem('open-shipper', ic('truck'), '', 'Trang Shipper', 'Nhận và giao đơn');
-    return '';
-  }
   function renderProfile() {
     const el = $('#view-profile');
     if (S.user) {
@@ -430,7 +424,6 @@
           ${menuItem('address', fx.pinF, '', 'Địa chỉ đã lưu', 'Quản lý các địa chỉ giao hàng')}
           ${menuItem('payment', fx.walletF, '', 'Phương thức thanh toán', 'Thẻ ngân hàng, Ví điện tử, Tiền mặt')}
           ${menuItem('coupons', fx.ticketF, '', 'Mã giảm giá', 'Xem và sử dụng các ưu đãi của bạn')}
-          ${panelMenu()}
         </div>
         <div class="group-title">Hỗ trợ &amp; Cài đặt</div>
         <div class="menu">
@@ -842,10 +835,10 @@
     if (k === 'coupons') return openSheet(`<h3>Mã giảm giá của bạn</h3>${(LIVE ? PROMOS.map(p => [esc(p.code), esc(p.desc)]) : [['GIAM30K','Giảm 30K cho đơn từ 100K'],['CUOITUAN','Giảm 20K cho đơn từ 80K'],['FREESHIP','Miễn phí giao hàng đơn từ 60K']]).map(([c, d]) => `<div class="row-kv"><span><b>${c}</b><br><small style="color:var(--ink-2)">${d}</small></span><button style="color:var(--green-d);font-weight:700" data-copy="${c}">Sao chép</button></div>`).join('')}`);
     if (k === 'points') return openSheet(`<h3>Điểm tích lũy</h3><div style="font-family:var(--font-h);font-weight:700;font-size:28px;color:var(--green-d);margin-top:10px">${LIVE ? S.points : 820} điểm</div><div class="sub">${LIVE ? 'Tích 1 điểm cho mỗi 1.000đ của đơn đã hoàn thành' : 'Còn 180 điểm để lên hạng Vàng'}</div>`);
     if (k === 'lang') return openSheet(`<h3>Ngôn ngữ</h3><button class="opt sel">Tiếng Việt<span class="tick">${ic('check')}</span></button><button class="opt" data-sheetmsg="English – sắp ra mắt">English</button>`);
-    if (k === 'contact') return openSheet(`<h3>Liên hệ Lâm Thao Ăn Gì</h3><a class="opt" href="tel:${telHot()}">${ic('phone')}Hotline: ${esc(CONTACT.hotline)}</a><a class="opt" href="mailto:${esc(CONTACT.email)}">${ic('mail')}${esc(CONTACT.email)}</a>${CONTACT.zalo ? `<div class="row-kv"><span>Zalo</span><b>${esc(CONTACT.zalo)}</b></div>` : ''}`);
+    if (k === 'contact') return openSheet(`<h3>Liên hệ Lâm Thao Ăn Gì</h3><a class="opt" href="tel:${telHot()}">${ic('phone')}Hotline: ${esc(CONTACT.hotline)}</a><a class="opt" href="mailto:${esc(CONTACT.email)}">${ic('mail')}${esc(CONTACT.email)}</a>${zaloLink() ? `<a class="opt" href="${esc(zaloLink())}" target="_blank" rel="noopener">${ic('chat')}Nhắn Zalo: ${esc(CONTACT.zalo)}</a>` : ''}`);
     if (k === 'notif' || k === 'settings') return openSheet(`<h3>${k === 'notif' ? 'Cài đặt thông báo' : 'Cài đặt'}</h3>${['Thông báo đơn hàng','Thông báo ưu đãi','Thông báo hệ thống'].map(x => `<div class="row-kv"><span>${x}</span><b style="color:var(--green-d)">Bật</b></div>`).join('')}`);
     if (k === 'policy') return openSheet(`<h3>Chính sách &amp; Điều khoản</h3><p style="margin-top:12px;color:var(--ink-2);line-height:1.55">Nội dung mẫu – hãy thay bằng chính sách chính thức.</p>`);
-    if (k === 'help') return openSheet(`<h3>Trung tâm hỗ trợ</h3><a class="opt" href="tel:${telHot()}">${ic('headset')}Gọi hotline hỗ trợ</a><button class="opt" data-sheetmsg="Câu hỏi thường gặp – sắp ra mắt">${ic('doc')}Câu hỏi thường gặp</button>`);
+    if (k === 'help') { const zl = zaloLink(); return openSheet(`<h3>Trung tâm hỗ trợ</h3><p style="margin:8px 0 4px;color:var(--ink-2);line-height:1.5">Cần giúp đỡ về đơn hàng hoặc tài khoản? Nhắn trực tiếp cho chúng tôi.</p>${zl ? `<a class="opt" href="${esc(zl)}" target="_blank" rel="noopener">${ic('chat')}Nhắn tin Zalo cho Admin<span class="tick">${ic('chevRight')}</span></a>` : ''}<a class="opt" href="tel:${telHot()}">${ic('headset')}Gọi hotline: ${esc(CONTACT.hotline)}</a>${CONTACT.email ? `<a class="opt" href="mailto:${esc(CONTACT.email)}">${ic('mail')}${esc(CONTACT.email)}</a>` : ''}`); }
   }
   document.addEventListener('click', e => {
     if (e.target.closest('[data-dologout]')) { if (LIVE) FB.logout(); S.user = null; store.set('user', null); closeSheet(); toast('Đã đăng xuất'); renderProfile(); }
@@ -908,7 +901,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261014a').then(m => {
+    import('./fb.js?v=20261014b').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -941,7 +934,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261014a')
+  import('./firebase-config.js?v=20261014b')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });
