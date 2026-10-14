@@ -812,9 +812,8 @@
   const loadLeaflet = () => window.L ? Promise.resolve() : Promise.all([loadAsset('link', { rel:'stylesheet', href:LF + 'css' }), loadAsset('script', { src:LF + 'js' })]);
   /* Nguồn ô bản đồ: thử lần lượt, nếu nguồn đầu không tải được (mạng chặn/chậm) tự chuyển sang nguồn dự phòng */
   const TILES = [
-    { url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', sub:'abc', attr:'© OpenStreetMap' },
-    { url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', sub:'abcd', attr:'© OpenStreetMap © CARTO' },
-    { url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', sub:'abc', attr:'Tiles © Esri' },
+    { name:'OpenStreetMap', url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', sub:'abc', attr:'© OpenStreetMap' },
+    { url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', sub:'abc', attr:'Tiles © Esri' , name:'Esri' },
   ];
   function mpTiles(i = 0) {
     if (!MAP) return;
@@ -825,7 +824,8 @@
       if (i + 1 < TILES.length) mpTiles(i + 1);
       else { const el = $('#mp-a'); if (el) el.textContent = 'Không tải được bản đồ. Hãy kiểm tra mạng (Wi-Fi/4G) rồi mở lại.'; }
     };
-    const l = L.tileLayer(T.url, { maxZoom:19, subdomains:T.sub, attribution:T.attr });
+    const l = L.tileLayer(T.url, { maxZoom:19, subdomains:T.sub, attribution:T.attr, referrerPolicy:'strict-origin-when-cross-origin' });
+    const src = $('#mp-src'); if (src) src.textContent = 'Nguồn bản đồ: ' + T.name;
     l.on('tileload', () => { ok++; }); l.on('tileerror', () => { if (++bad >= 4) next(); });
     setTimeout(next, 6000);
     MAP._tl = l; l.addTo(MAP);
@@ -838,7 +838,7 @@
     el.innerHTML = `<div class="mp-top"><button type="button" class="mp-x" data-mpclose aria-label="Quay lại">←</button><b>${title}</b></div>
       <form class="mp-search" data-mpform><input id="mp-q" placeholder="Tìm địa chỉ, chợ, trường học…" autocomplete="off"><button type="submit">Tìm</button></form>
       <div class="mp-map"><div id="mp-m"></div><i class="mp-pin"></i></div>
-      <div class="mp-bar"><button type="button" class="mp-me" data-mpme>📍 Vị trí của tôi</button><div class="mp-addr" id="mp-a"></div><button type="button" class="sheet-btn" data-mpok>Chọn vị trí này</button></div>`;
+      <div class="mp-bar"><button type="button" class="mp-me" data-mpme>📍 Vị trí của tôi</button><div class="mp-addr" id="mp-a"></div><div class="mp-src" id="mp-src"></div><button type="button" class="sheet-btn" data-mpok>Chọn vị trí này</button></div>`;
     el.hidden = false; closeSheet();
     try { await loadLeaflet(); } catch (e) { closeMapPicker(); svcSheet(); return toast('Không tải được bản đồ, hãy kiểm tra mạng'); }
     const cur = SV[key] || SV[key === 'pick' ? 'drop' : 'pick'] || CART.loc || { lat:21.32, lng:105.31 };
@@ -1111,7 +1111,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261014g').then(m => {
+    import('./fb.js?v=20261014h').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -1145,7 +1145,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261014g')
+  import('./firebase-config.js?v=20261014h')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });
