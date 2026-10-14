@@ -15,7 +15,7 @@ const FIREBASE_API_KEY = 'AIzaSyC9jqo52PyA3QT51XGCyWcOs0ViC1fL-a0';
 const MAX_BYTES = 3 * 1024 * 1024;
 
 const ADMIN_EMAIL = 'lamthaoangi1@gmail.com';             // Gmail nhận thông báo đơn mới (có thể ghi nhiều, cách nhau dấu phẩy)
-const SITE_URL = '';                                       // (tuỳ chọn) link website/admin, vd https://lamthaoangi.io.vn/quanly.html
+const SITE_URL = 'https://lamthaoangi.io.vn/quanly.html';  // link trang quản lý (đăng nhập chung) gắn vào email báo đơn
 
 /**
  * Script properties (Project Settings → Script properties) – dùng cho Zalo Bot:
@@ -129,9 +129,9 @@ function notifyOrder(body) {
     if (sent[id]) return; sent[id] = 1;
     try { if (sendZalo(id, text)) result[kind]++; } catch (e) { console.error('Zalo ' + kind + ': ' + e); }
   });
-  push(adminIds, 'admin', zaloText(order, shop, 'Vui lòng mở trang quản trị để theo dõi đơn.'));
-  push(shopIds, 'shop', zaloText(order, shop, 'Vui lòng mở trang quán để NHẬN ĐƠN.'));
-  push(shipperIds, 'shipper', '🛎 Có đơn mới! Mở trang shipper để xem và nhận đơn.');
+  push(adminIds, 'admin', zaloText(order, shop, 'Vui lòng mở lamthaoangi.io.vn/quanly.html để theo dõi đơn.'));
+  push(shopIds, 'shop', zaloText(order, shop, 'Vui lòng mở lamthaoangi.io.vn/quanly.html để xem đơn.'));
+  push(shipperIds, 'shipper', '🛎 Có đơn mới! Mở lamthaoangi.io.vn/quanly.html để xem và nhận đơn.');
   return out({ ok: true, result: result });
 }
 
@@ -149,7 +149,7 @@ function zaloText(order, shop, footer) {
     + 'Giao đến: ' + (order.address || '') + '\n'
     + (order.note ? 'Ghi chú: ' + order.note + '\n' : '')
     + (order.lat ? 'Bản đồ: https://maps.google.com/?q=' + order.lat + ',' + order.lng + '\n' : '')
-    + (footer || 'Vui lòng mở trang quán để NHẬN ĐƠN.');
+    + (footer || 'Vui lòng mở lamthaoangi.io.vn/quanly.html để xem đơn.');
 }
 
 function sendOrderEmail(order, shop) {

@@ -1,5 +1,5 @@
 /* Khung dùng chung cho 3 trang quản lý: đăng nhập, kiểm tra quyền, tiện ích hiển thị */
-import * as fb from './fb.js?v=20261014c';
+import * as fb from './fb.js?v=20261014d';
 export { fb };
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -20,12 +20,24 @@ export function toast(msg) {
   let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.append(t); }
   t.textContent = msg; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 2400);
 }
+/* Âm "ting" báo đơn: trình duyệt chỉ cho phát sau khi người dùng chạm vào trang ít nhất 1 lần, nên mở khóa ở lần chạm đầu tiên */
+let actx = null;
+const audioCtx = () => { try { return actx || (actx = new (window.AudioContext || window.webkitAudioContext)()); } catch { return null; } };
+['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { const c = audioCtx(); if (c && c.state === 'suspended') c.resume().catch(() => {}); }, { passive:true }));
 export function beep() {
   try {
-    const c = new (window.AudioContext || window.webkitAudioContext)(), o = c.createOscillator(), g = c.createGain();
-    o.connect(g); g.connect(c.destination); o.frequency.value = 880; g.gain.value = .15; o.start(); o.stop(c.currentTime + .25);
+    const c = audioCtx(); if (!c) return;
+    const play = () => { [0, .32].forEach(t => { const o = c.createOscillator(), g = c.createGain(); o.connect(g); g.connect(c.destination); o.frequency.value = 880; g.gain.value = .25; o.start(c.currentTime + t); o.stop(c.currentTime + t + .22); }); };
+    if (c.state === 'suspended') c.resume().then(play).catch(() => {}); else play();
+    if (navigator.vibrate) navigator.vibrate([250, 120, 250]);
   } catch {}
 }
+/* Giữ màn hình sáng khi đang mở trang để không lỡ đơn mới (điện thoại tắt màn hình sẽ ngừng nhận đơn) */
+let wl = null;
+async function keepAwake() {
+  try { if ('wakeLock' in navigator && document.visibilityState === 'visible' && !wl) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); } } catch {}
+}
+document.addEventListener('visibilitychange', keepAwake);
 const unsubs = [];
 export const track = u => { unsubs.push(u); return u; };
 const clearTracked = () => { while (unsubs.length) { try { unsubs.pop()(); } catch {} } };
@@ -111,6 +123,7 @@ export function startPortal(panels) {
       $('#lo').onclick = () => fb.logout();
       if (sw) $('#sw').onchange = e => show(e.target.value);
       cur.render($('#body'), p);
+      keepAwake();
     };
     show(store.get('panel'));
   });

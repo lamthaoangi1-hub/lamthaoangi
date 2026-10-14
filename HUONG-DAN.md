@@ -21,7 +21,7 @@ Khách đặt (shipper và quán thấy đơn ngay, shipper nhận Zalo "Có đ�
 1. Vào https://console.firebase.google.com → **Add project** (tên tùy ý, tắt Google Analytics được).
 2. **Build → Authentication → Get started → Sign-in method → Email/Password → Enable → Save.**
    (Website đăng nhập bằng *số điện thoại + mật khẩu*; số điện thoại được đổi thành email nội bộ `SĐT@lamthaoangi.app`, không tốn tiền SMS.)
-3. **Authentication → Settings → Authorized domains → Add domain:** `lamthaoangi1-hub.github.io`
+3. **Authentication → Settings → Authorized domains → Add domain:** thêm **`lamthaoangi.io.vn`** (tên miền chính) và `lamthaoangi1-hub.github.io` (link GitHub). Thiếu tên miền chính thì đăng nhập/đăng ký trên `lamthaoangi.io.vn` sẽ báo lỗi.
 4. **Build → Firestore Database → Create database** → chọn vị trí `asia-southeast1` (Singapore) → chế độ **Production**.
 5. Tab **Rules** của Firestore: xóa nội dung cũ, dán toàn bộ file `firestore.rules` trong thư mục này → **Publish**.
 6. **Project settings (biểu tượng bánh răng) → Your apps → biểu tượng Web `</>`** → đăng ký app → copy khối `firebaseConfig` và dán vào file **`firebase-config.js`** (thay các chữ `DAN_...`).
@@ -30,14 +30,14 @@ Khách đặt (shipper và quán thấy đơn ngay, shipper nhận Zalo "Có đ�
 ## Tạo tài khoản Admin (chỉ làm một lần)
 1. Trên website, vào **Cá nhân → Đăng ký** bằng số điện thoại của bạn.
 2. Firebase Console → **Firestore Database → Data → collection `users`** → mở tài liệu vừa tạo → sửa trường `role` từ `customer` thành **`admin`**.
-3. Mở `quanly.html`, đăng nhập. (Trên website, mục Cá nhân sẽ có thêm "Trang Admin".)
+3. Mở `https://lamthaoangi.io.vn/quanly.html`, đăng nhập bằng chính số điện thoại đó. (Các trang quản lý không còn hiện trong mục Cá nhân của website; hãy lưu link `quanly.html`.)
 
 ## Thêm quán, chủ quán, shipper
 1. **Admin → Cửa hàng → Thêm cửa hàng:** nhập tên, loại, địa chỉ, SĐT, phí ship, thực đơn... (Có nút "Thêm 2 quán mẫu" để thử.)
 2. Chủ quán và shipper **tự đăng ký tài khoản trên website** như khách.
 3. **Admin → Người dùng:** chọn vai trò `seller` (kèm chọn **cửa hàng**) hoặc `shipper` cho họ.
-4. Họ mở cùng link `quanly.html` (hoặc bấm mục tương ứng trong Cá nhân) để làm việc. Trang quán/shipper phát tiếng "ting" khi có đơn mới (cần để trang mở).
-5. Chủ quán tự sửa: thực đơn, giá, món hết, mở/đóng cửa, phí ship, giảm giá, ảnh. Tên quán, loại, đánh giá do Admin sửa.
+4. Họ mở cùng link `quanly.html` để làm việc (nên chọn "Thêm vào màn hình chính" trên điện thoại). Trang quán/shipper phát tiếng "ting" khi có đơn mới (cần để trang mở).
+5. Chủ quán tự sửa: thực đơn, giá, món hết, mở/đóng cửa, giảm giá, ảnh, địa chỉ, SĐT, vị trí GPS (chỉ lưu được 1 lần). Tên quán, loại, đánh giá và **phí giao hàng** do Admin sửa.
 
 ## Ảnh quán
 Bấm **Tải ảnh lên** (xem mục "Lưu ảnh lên Google Drive" bên dưới). Các quán cũ đang dùng tên file như `pho.jpg` vẫn hiển thị bình thường.
@@ -82,10 +82,26 @@ Phí tính từ khoảng cách quán → vị trí khách chia sẻ: **3,5 km đ
 - Quán **bắt buộc đã lưu vị trí GPS** (chủ quán bấm "Chia sẻ vị trí quán"). Quán chưa có GPS tạm dùng phí cố định ghi ở Admin → Cửa hàng → Sửa.
 - "Miễn phí cơ bản từ đơn": đơn đạt mức này chỉ được miễn phần phí cơ bản, vẫn trả phần km vượt.
 
+## Cài đặt Liên hệ và Trung tâm hỗ trợ
+Admin → tab **Liên hệ**: nhập **Hotline**, **Email**, **Zalo** (số điện thoại hoặc link `zalo.me/...`) → **Lưu**. Mục **Trung tâm hỗ trợ**, **Liên hệ** và **Quên mật khẩu** của khách tự hiện đúng các nút này (Zalo mở thẳng chat với Admin); mục nào để trống thì không hiện.
+
+## Danh sách việc trước khi mở bán thật
+1. Firebase → Authentication → Authorized domains: đã có `lamthaoangi.io.vn`.
+2. Firebase → Firestore → Rules: dán lại toàn bộ `firestore.rules` mới nhất → **Publish**.
+3. GitHub → Settings → Pages: tên miền `lamthaoangi.io.vn` và bật **Enforce HTTPS** (bắt buộc, không có HTTPS thì điện thoại không cho lấy vị trí GPS).
+4. Apps Script: dán lại `google-apps-script.gs` mới → **Deploy → Manage deployments → Edit → New version**; chạy `testNotify` để thử.
+5. Admin → Cửa hàng: nhập đủ tên, địa chỉ, SĐT, thực đơn thật cho từng quán; xóa quán/đơn thử.
+6. Mỗi chủ quán đăng nhập `quanly.html` → tab Cửa hàng → bấm **Chia sẻ vị trí quán** (đứng tại quán).
+7. Admin → Liên hệ: nhập Hotline, Email, Zalo; chỉnh phí giao hàng theo ý.
+8. Admin → Khuyến mãi: xóa mã thử, tạo mã thật.
+9. Admin → Người dùng: gán vai trò `seller` / `shipper`, nhập Zalo ID để nhận báo đơn (xem mục Zalo ở trên).
+10. Đặt thử 1 đơn bằng điện thoại thật: quán thấy đơn, shipper nhận được, khách thấy trạng thái đổi, hoàn thành đơn.
+11. Đọc lại **Chính sách & Điều khoản** trong website (nội dung ở hàm `POLICY` trong `app.js`) và sửa cho đúng quy định bạn áp dụng.
+
 ## Giới hạn cần biết
 - **Quên mật khẩu:** chưa có tự đặt lại (vì không dùng email thật). Cách xử lý: xóa tài khoản đó trong Firebase Console → Authentication, rồi khách đăng ký lại.
-- **Giá đơn hàng** do trình duyệt khách tính; luật bảo mật chặn sửa trái phép đơn của người khác nhưng chưa kiểm tra giá theo thực đơn. Với quy mô địa phương là đủ; muốn chặt hơn cần thêm Cloud Functions.
-- **Thông báo đẩy** trên điện thoại chưa có: đơn mới được báo qua Gmail/Zalo (xem mục trên); quán/shipper vẫn nên mở trang để nghe tiếng "ting".
+- **Giá đơn hàng** do trình duyệt khách tính; luật bảo mật chặn sửa đơn người khác và chặn giá trị vô lý (âm, giảm quá tạm tính, phí ship quá cao) nhưng chưa đối chiếu giá từng món với thực đơn. Với quy mô địa phương là đủ; muốn chặt hơn cần thêm Cloud Functions.
+- **Thông báo đẩy** trên điện thoại chưa có: đơn mới được báo qua Gmail/Zalo (xem mục trên). Shipper/quán cần **mở sẵn trang `quanly.html`** và chạm vào màn hình 1 lần để có tiếng "ting"; trang tự giữ màn hình sáng khi đang mở.
 - **Thanh toán** hiện chỉ tiền mặt khi nhận hàng.
 - Gói miễn phí Firebase (Spark) giới hạn 50.000 lượt đọc/ngày – đủ cho vài chục đến vài trăm đơn mỗi ngày.
 - Dịch vụ Xe ôm, Giao hàng, Mua hộ vẫn hiển thị "sắp ra mắt".

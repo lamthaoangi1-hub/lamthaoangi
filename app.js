@@ -128,7 +128,15 @@
   let shopPageOpen = false;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const zaloLink = () => { const z = String(CONTACT.zalo || '').trim(); if (!z) return ''; if (/^(https?:)?\/\//i.test(z)) return z; if (/^(zalo\.me|chat\.zalo\.me)\//i.test(z)) return 'https://' + z; const d = z.replace(/[\s.\-()]/g, '').replace(/^\+?84/, '0'); return /^\d{8,15}$/.test(d) ? 'https://zalo.me/' + d : ''; };
-  const telHot = () => CONTACT.hotline.replace(/\s/g, '');
+  const telHot = () => String(CONTACT.hotline || '').replace(/\s/g, '');
+  /* Các nút liên hệ lấy từ phần Admin → Liên hệ; mục nào Admin chưa nhập thì không hiện */
+  const contactOpts = () => {
+    const zl = zaloLink();
+    return (zl ? `<a class="opt" href="${esc(zl)}" target="_blank" rel="noopener">${ic('chat')}Nhắn tin Zalo cho Admin<span class="tick">${ic('chevRight')}</span></a>` : '')
+      + (telHot() ? `<a class="opt" href="tel:${telHot()}">${ic('headset')}Gọi hotline: ${esc(CONTACT.hotline)}</a>` : '')
+      + (CONTACT.email ? `<a class="opt" href="mailto:${esc(CONTACT.email)}">${ic('mail')}${esc(CONTACT.email)}</a>` : '')
+      || '<p class="sub" style="margin-top:10px">Hiện chưa có thông tin liên hệ. Vui lòng thử lại sau.</p>';
+  };
 
   /* ---------------- STATE ---------------- */
   const store = {
@@ -327,7 +335,7 @@
   function contactSheet(o) {
     const s = shopBy(o.shop);
     openSheet(`<h3>Liên hệ ${s.name}</h3><div class="sub">Đơn #${o.code}</div>
-      <a class="opt" href="tel:${(s.phone || CONTACT.hotline).replace(/\s/g, '')}">${ic('phone')}Gọi điện cho quán<span class="tick">${ic('chevRight')}</span></a>
+      ${(s.phone || telHot()) ? `<a class="opt" href="tel:${String(s.phone || telHot()).replace(/\s/g, '')}">${ic('phone')}Gọi điện cho quán<span class="tick">${ic('chevRight')}</span></a>` : contactOpts()}
       ${LIVE ? '' : `<button class="opt" data-sheetmsg="Đã gửi tin nhắn tới quán">${ic('chat')}Nhắn tin cho quán<span class="tick">${ic('chevRight')}</span></button>`}`);
   }
 
@@ -428,7 +436,7 @@
         <div class="group-title">Hỗ trợ &amp; Cài đặt</div>
         <div class="menu">
           ${menuItem('help', ic('headset'), '', 'Trung tâm hỗ trợ', 'Giải đáp thắc mắc, liên hệ chúng tôi')}
-          ${menuItem('settings', ic('gear'), '', 'Cài đặt', 'Ngôn ngữ, thông báo, quyền riêng tư')}
+          ${LIVE ? menuItem('policy', ic('doc'), '', 'Chính sách & Điều khoản', 'Điều khoản sử dụng, bảo mật thông tin') : menuItem('settings', ic('gear'), '', 'Cài đặt', 'Ngôn ngữ, thông báo, quyền riêng tư')}
           ${menuItem('logout', ic('logout'), '', 'Đăng xuất', 'Thoát khỏi tài khoản hiện tại', 'danger')}
         </div><div class="pad-bottom"></div>`;
     } else {
@@ -442,9 +450,9 @@
         <div class="menu">
           ${menuItem('help', ic('headset'), '', 'Trung tâm hỗ trợ', 'Giải đáp thắc mắc, liên hệ chúng tôi')}
           ${menuItem('policy', fx.gearBlue, 'blue', 'Chính sách &amp; Điều khoản', 'Xem các chính sách, điều khoản sử dụng')}
-          ${menuItem('lang', fx.globeP, 'purple', 'Ngôn ngữ', 'Lựa chọn ngôn ngữ ứng dụng')}
+          ${LIVE ? '' : menuItem('lang', fx.globeP, 'purple', 'Ngôn ngữ', 'Lựa chọn ngôn ngữ ứng dụng')}
           ${menuItem('contact', fx.phoneO, 'orange', 'Liên hệ', 'Kết nối với Lâm Thao Ăn Gì')}
-          ${menuItem('notif', fx.bellR, 'red', 'Cài đặt thông báo', 'Quản lý thông báo và nhận ưu đãi')}
+          ${LIVE ? '' : menuItem('notif', fx.bellR, 'red', 'Cài đặt thông báo', 'Quản lý thông báo và nhận ưu đãi')}
         </div><div class="pad-bottom"></div>`;
     }
   }
@@ -462,8 +470,8 @@
           ${field(fx.lockF, 'Mật khẩu', 'password', 'pass', true)}
           <a class="forgot" href="#" data-act="forgot">Quên mật khẩu?</a>
           <button class="btn-main" type="submit">Đăng nhập</button>
-          <div class="or">Hoặc tiếp tục với</div>
-          <div class="social"><button type="button" data-social="Google">${fx.google}Google</button><button type="button" data-social="Facebook">${fx.facebook}Facebook</button><button type="button" data-social="Apple">${fx.apple}Apple</button></div>
+          ${LIVE ? '' : `<div class="or">Hoặc tiếp tục với</div>
+          <div class="social"><button type="button" data-social="Google">${fx.google}Google</button><button type="button" data-social="Facebook">${fx.facebook}Facebook</button><button type="button" data-social="Apple">${fx.apple}Apple</button></div>`}
         </form>
       </div>
       <div class="reg-card" id="reg-card"><h2>Đăng ký tài khoản</h2><p>Tạo tài khoản để khám phá nhiều món ngon tại Lâm Thao</p>
@@ -800,15 +808,15 @@
     const au = t.closest('[data-auth]'); if (au) { S.authTab = au.dataset.auth; go('auth'); if (S.authTab === 'register') setTimeout(() => $('#reg-card')?.scrollIntoView({ behavior:'smooth' }), 120); return; }
     const eye = t.closest('[data-eye]');
     if (eye) { const inp = eye.parentElement.querySelector('input'); const show = inp.type === 'password'; inp.type = show ? 'text' : 'password'; eye.innerHTML = ic(show ? 'eye' : 'eyeOff'); return; }
-    const soc = t.closest('[data-social]'); if (soc) { toast('Đăng nhập bằng ' + soc.dataset.social + ' (demo)'); loginAs({ name:DEMO.name, phone:DEMO.phone }); return; }
+    const soc = t.closest('[data-social]'); if (soc && !LIVE) { toast('Đăng nhập bằng ' + soc.dataset.social + ' (demo)'); loginAs({ name:DEMO.name, phone:DEMO.phone }); return; }
     const menu = t.closest('[data-menu]'); if (menu) return menuAction(menu.dataset.menu);
 
     const act = t.closest('[data-act]');
     if (!act) return;
     const a = act.dataset.act;
-    if (a === 'forgot' && LIVE) { e.preventDefault(); return openSheet(`<h3>Quên mật khẩu?</h3><div class="sub">Vui lòng gọi hotline <b>${CONTACT.hotline}</b> để được đặt lại mật khẩu.</div><a class="sheet-btn" style="display:block;text-align:center;text-decoration:none" href="tel:${telHot()}">Gọi hotline</a>`); }
+    if (a === 'forgot' && LIVE) { e.preventDefault(); return openSheet(`<h3>Quên mật khẩu?</h3><div class="sub">Hãy liên hệ Admin để được đặt lại mật khẩu. Vui lòng cung cấp số điện thoại đã đăng ký.</div>${contactOpts()}`); }
     if (a === 'forgot') { e.preventDefault(); return openSheet(`<h3>Quên mật khẩu?</h3><div class="sub">Nhập số điện thoại để nhận mã đặt lại mật khẩu.</div><div class="sheet-input">${fx.phoneF.replace('<svg','<svg width="24" height="24"')}<input type="tel" placeholder="Số điện thoại" inputmode="numeric"></div><button class="sheet-btn" data-sheetmsg="Đã gửi mã xác nhận (demo)">Gửi mã xác nhận</button>`); }
-    if (a === 'terms' || a === 'privacy') { e.preventDefault(); return openSheet(`<h3>${a === 'terms' ? 'Điều khoản sử dụng' : 'Chính sách bảo mật'}</h3><p style="margin-top:12px;color:var(--ink-2);line-height:1.55;font-size:14px">Nội dung mẫu. Hãy thay bằng ${a === 'terms' ? 'điều khoản sử dụng' : 'chính sách bảo mật'} chính thức của Lâm Thao Ăn Gì.</p><button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`); }
+    if (a === 'terms' || a === 'privacy') { e.preventDefault(); return policySheet(a); }
     if (a === 'area') return openSheet(`<h3>Chọn khu vực giao hàng</h3>${AREAS.map(x => `<button class="opt ${x === S.area ? 'sel' : ''}" data-setarea="${x}">${ic('mapPin')}${x}${x === S.area ? `<span class="tick">${ic('check')}</span>` : ''}</button>`).join('')}`);
     if (a === 'filter') return openSheet(`<h3>Sắp xếp &amp; lọc</h3>${[['default','Mặc định'],['rate','Đánh giá cao nhất'],['fast','Giao nhanh nhất'],['sale','Đang giảm giá']].map(([k, l]) => `<button class="opt ${S.home.sort === k ? 'sel' : ''}" data-setsort="${k}">${l}${S.home.sort === k ? `<span class="tick">${ic('check')}</span>` : ''}</button>`).join('')}`);
     if (a === 'filter-fav') return openSheet(`<h3>Sắp xếp yêu thích</h3>${[['recent','Mới lưu nhất'],['rate','Đánh giá cao'],['name','Tên A - Z']].map(([k, l]) => `<button class="opt ${S.fav.sort === k ? 'sel' : ''}" data-setfsort="${k}">${l}${S.fav.sort === k ? `<span class="tick">${ic('check')}</span>` : ''}</button>`).join('')}`);
@@ -823,6 +831,25 @@
     const f = e.target.closest('[data-setfsort]'); if (f) { S.fav.sort = f.dataset.setfsort; closeSheet(); renderFavorites(); }
   });
 
+  const POLICY = {
+    terms: ['Điều khoản sử dụng', [
+      'Lâm Thao Ăn Gì? là nền tảng kết nối khách hàng với các quán ăn và tài xế giao hàng tại Lâm Thao, Phú Thọ.',
+      'Giá món do từng quán niêm yết. Phí giao hàng tính theo khoảng cách từ quán đến vị trí bạn chia sẻ và được hiển thị rõ trước khi bạn bấm đặt đơn.',
+      'Thanh toán bằng tiền mặt cho tài xế khi nhận hàng.',
+      'Bạn có thể tự hủy đơn khi chưa có tài xế nhận. Sau đó, vui lòng liên hệ hỗ trợ để được xử lý.',
+      'Bạn cung cấp đúng họ tên, số điện thoại, địa chỉ và tự bảo mật mật khẩu của mình. Đơn đặt với thông tin sai hoặc không có người nhận có thể bị từ chối phục vụ lần sau.']],
+    privacy: ['Chính sách bảo mật', [
+      'Chúng tôi lưu họ tên, số điện thoại, địa chỉ giao hàng, vị trí bạn chia sẻ khi đặt đơn và lịch sử đơn hàng.',
+      'Thông tin chỉ dùng để xử lý đơn: quán nhận đơn và tài xế nhận giao sẽ thấy tên, số điện thoại, địa chỉ và vị trí giao hàng của đơn đó.',
+      'Vị trí chỉ được lấy khi bạn bấm "Chia sẻ vị trí" lúc đặt đơn.',
+      'Dữ liệu được lưu trên hệ thống Google Firebase. Chúng tôi không bán thông tin của bạn cho bên thứ ba.',
+      'Muốn xóa tài khoản hoặc dữ liệu, vui lòng liên hệ qua Trung tâm hỗ trợ.']],
+  };
+  function policySheet(kind) {
+    const keys = kind === 'both' ? ['terms', 'privacy'] : [kind];
+    openSheet(keys.map(k => `<h3 style="margin-top:${k === keys[0] ? 0 : 18}px">${POLICY[k][0]}</h3><ol style="margin:10px 0 0;padding-left:20px;color:var(--ink-2);line-height:1.55;font-size:14px">${POLICY[k][1].map(x => `<li style="margin-bottom:6px">${x}</li>`).join('')}</ol>`).join('') + `<button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`);
+  }
+
   function menuAction(k) {
     if (k.startsWith('open-')) { location.href = 'quanly.html'; return; }
     if (k === 'logout') {
@@ -830,15 +857,19 @@
         <button class="sheet-btn" style="background:var(--red)" data-dologout>Đăng xuất</button><button class="sheet-btn" style="background:var(--chip);color:var(--ink)" onclick="document.getElementById('sheet-backdrop').click()">Hủy</button>`);
     }
     if (k === 'account') return openSheet(`<h3>Thông tin tài khoản</h3><div class="row-kv" style="margin-top:12px"><span>Họ và tên</span><b>${S.user.name}</b></div><div class="row-kv"><span>Số điện thoại</span><b>${fmtPhone(S.user.phone)}</b></div><div class="row-kv"><span>Hạng thành viên</span><b>${LIVE ? 'Thành viên' : 'Thành viên bạc'}</b></div>`);
-    if (k === 'address') return openSheet(`<h3>Địa chỉ đã lưu</h3><button class="opt">${ic('mapPin')}<span><b>Nhà</b><br><small style="color:var(--ink-2)">${S.area}</small></span></button><button class="sheet-btn" data-sheetmsg="Thêm địa chỉ mới (demo)">+ Thêm địa chỉ mới</button>`);
-    if (k === 'payment') return openSheet(`<h3>Phương thức thanh toán</h3>${['Tiền mặt','Thẻ ngân hàng','Ví điện tử'].map((x, i) => `<button class="opt ${i === 0 ? 'sel' : ''}">${ic('check')}${x}</button>`).join('')}`);
+    if (k === 'address') return openSheet(LIVE
+      ? `<h3>Địa chỉ giao hàng</h3>${S.user.address ? `<div class="row-kv" style="margin-top:12px"><span><b>Địa chỉ gần nhất</b><br><small style="color:var(--ink-2)">${esc(S.user.address)}, ${esc(S.area)}</small></span></div>` : '<p class="sub" style="margin-top:10px">Chưa có địa chỉ nào được lưu.</p>'}<p class="sub" style="margin-top:10px">Địa chỉ được lưu tự động sau mỗi lần đặt đơn, và bạn có thể sửa ngay khi đặt món.</p>`
+      : `<h3>Địa chỉ đã lưu</h3><button class="opt">${ic('mapPin')}<span><b>Nhà</b><br><small style="color:var(--ink-2)">${S.area}</small></span></button><button class="sheet-btn" data-sheetmsg="Thêm địa chỉ mới (demo)">+ Thêm địa chỉ mới</button>`);
+    if (k === 'payment') return openSheet(LIVE
+      ? `<h3>Phương thức thanh toán</h3><button class="opt sel">${ic('check')}Tiền mặt khi nhận hàng</button><p class="sub" style="margin-top:10px">Hiện chỉ nhận thanh toán tiền mặt cho tài xế khi giao hàng.</p>`
+      : `<h3>Phương thức thanh toán</h3>${['Tiền mặt','Thẻ ngân hàng','Ví điện tử'].map((x, i) => `<button class="opt ${i === 0 ? 'sel' : ''}">${ic('check')}${x}</button>`).join('')}`);
     if (k === 'coupons') return openSheet(`<h3>Mã giảm giá của bạn</h3>${(LIVE ? PROMOS.map(p => [esc(p.code), esc(p.desc)]) : [['GIAM30K','Giảm 30K cho đơn từ 100K'],['CUOITUAN','Giảm 20K cho đơn từ 80K'],['FREESHIP','Miễn phí giao hàng đơn từ 60K']]).map(([c, d]) => `<div class="row-kv"><span><b>${c}</b><br><small style="color:var(--ink-2)">${d}</small></span><button style="color:var(--green-d);font-weight:700" data-copy="${c}">Sao chép</button></div>`).join('')}`);
     if (k === 'points') return openSheet(`<h3>Điểm tích lũy</h3><div style="font-family:var(--font-h);font-weight:700;font-size:28px;color:var(--green-d);margin-top:10px">${LIVE ? S.points : 820} điểm</div><div class="sub">${LIVE ? 'Tích 1 điểm cho mỗi 1.000đ của đơn đã hoàn thành' : 'Còn 180 điểm để lên hạng Vàng'}</div>`);
     if (k === 'lang') return openSheet(`<h3>Ngôn ngữ</h3><button class="opt sel">Tiếng Việt<span class="tick">${ic('check')}</span></button><button class="opt" data-sheetmsg="English – sắp ra mắt">English</button>`);
-    if (k === 'contact') return openSheet(`<h3>Liên hệ Lâm Thao Ăn Gì</h3><a class="opt" href="tel:${telHot()}">${ic('phone')}Hotline: ${esc(CONTACT.hotline)}</a><a class="opt" href="mailto:${esc(CONTACT.email)}">${ic('mail')}${esc(CONTACT.email)}</a>${zaloLink() ? `<a class="opt" href="${esc(zaloLink())}" target="_blank" rel="noopener">${ic('chat')}Nhắn Zalo: ${esc(CONTACT.zalo)}</a>` : ''}`);
+    if (k === 'contact') return openSheet(`<h3>Liên hệ Lâm Thao Ăn Gì</h3>${contactOpts()}`);
     if (k === 'notif' || k === 'settings') return openSheet(`<h3>${k === 'notif' ? 'Cài đặt thông báo' : 'Cài đặt'}</h3>${['Thông báo đơn hàng','Thông báo ưu đãi','Thông báo hệ thống'].map(x => `<div class="row-kv"><span>${x}</span><b style="color:var(--green-d)">Bật</b></div>`).join('')}`);
-    if (k === 'policy') return openSheet(`<h3>Chính sách &amp; Điều khoản</h3><p style="margin-top:12px;color:var(--ink-2);line-height:1.55">Nội dung mẫu – hãy thay bằng chính sách chính thức.</p>`);
-    if (k === 'help') { const zl = zaloLink(); return openSheet(`<h3>Trung tâm hỗ trợ</h3><p style="margin:8px 0 4px;color:var(--ink-2);line-height:1.5">Cần giúp đỡ về đơn hàng hoặc tài khoản? Nhắn trực tiếp cho chúng tôi.</p>${zl ? `<a class="opt" href="${esc(zl)}" target="_blank" rel="noopener">${ic('chat')}Nhắn tin Zalo cho Admin<span class="tick">${ic('chevRight')}</span></a>` : ''}<a class="opt" href="tel:${telHot()}">${ic('headset')}Gọi hotline: ${esc(CONTACT.hotline)}</a>${CONTACT.email ? `<a class="opt" href="mailto:${esc(CONTACT.email)}">${ic('mail')}${esc(CONTACT.email)}</a>` : ''}`); }
+    if (k === 'policy') return policySheet('both');
+    if (k === 'help') return openSheet(`<h3>Trung tâm hỗ trợ</h3><p style="margin:8px 0 4px;color:var(--ink-2);line-height:1.5">Cần giúp đỡ về đơn hàng hoặc tài khoản? Nhắn trực tiếp cho chúng tôi.</p>${contactOpts()}`);
   }
   document.addEventListener('click', e => {
     if (e.target.closest('[data-dologout]')) { if (LIVE) FB.logout(); S.user = null; store.set('user', null); closeSheet(); toast('Đã đăng xuất'); renderProfile(); }
@@ -896,12 +927,12 @@
     if (S.tab === 'profile') renderProfile();
   }
   function prepareLive() {
-    SHOPS = []; ORDERS = []; NOTICES = [];
+    SHOPS = []; ORDERS = []; NOTICES = []; CONTACT = { hotline:'', email:'', zalo:'' };   // bản thật: chỉ hiện liên hệ do Admin cài đặt
     S.user = null; S.users = []; S.notices = []; S.favs = store.get('favs', []);
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261014c').then(m => {
+    import('./fb.js?v=20261014d').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -934,7 +965,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261014c')
+  import('./firebase-config.js?v=20261014d')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });
