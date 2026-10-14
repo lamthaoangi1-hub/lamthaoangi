@@ -2,6 +2,7 @@
  * GOOGLE APPS SCRIPT – Lâm Thao Ăn Gì?
  * 1) Lưu ảnh lên Google Drive (admin / seller)
  * 2) Thông báo ĐƠN MỚI: gửi Gmail cho Admin + tin Zalo Bot cho Quán và Admin
+ * 3) Admin ĐẶT LẠI MẬT KHẨU cho người dùng (cần file appsscript.json đi kèm, xem HUONG-DAN.md)
  *
  * Dán toàn bộ file vào https://script.google.com, điền các hằng số bên dưới,
  * rồi Deploy → Manage deployments → Edit → New version (xem HUONG-DAN.md).
@@ -66,6 +67,7 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     if (body.action === 'notifyOrder') return notifyOrder(body);
+    if (body.action === 'resetPassword') return resetPassword(body);
     return uploadImage(body);
   } catch (err) {
     return out({ ok: false, error: 'Lỗi máy chủ: ' + err });
@@ -89,6 +91,48 @@ function uploadImage(body) {
   const file = DriveApp.getFolderById(FOLDER_ID).createFile(Utilities.newBlob(bytes, mime, name));
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return out({ ok: true, id: file.getId(), url: 'https://lh3.googleusercontent.com/d/' + file.getId() + '=w900' });
+}
+
+// ===================== 3) ADMIN ĐẶT LẠI MẬT KHẨU =====================
+// Trình duyệt không thể đổi mật khẩu người khác, nên việc này làm ở đây bằng quyền của chủ script
+// (tài khoản Google triển khai script phải là Owner/Editor của project Firebase).
+function resetPassword(body) {
+  if (!body.token || !body.uid || !body.password) return out({ ok: false, error: 'Thiếu dữ liệu' });
+  const adminUid = verifyToken(body.token);
+  if (!adminUid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn, hãy đăng nhập lại' });
+
+  // Đọc hồ sơ bằng chính token của người gọi → chỉ tin vai trò thật lưu trong Firestore
+  const me = getDoc('users/' + adminUid, body.token);
+  if (!me || me.role !== 'admin') return out({ ok: false, error: 'Chỉ Admin mới được đặt lại mật khẩu' });
+
+  const pass = String(body.password);
+  if (pass.length < 6 || pass.length > 64) return out({ ok: false, error: 'Mật khẩu phải từ 6 đến 64 ký tự' });
+  const target = getDoc('users/' + body.uid, body.token);
+  if (!target) return out({ ok: false, error: 'Không tìm thấy tài khoản này' });
+
+  const r = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/projects/' + FIREBASE_PROJECT + '/accounts:update', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Goog-User-Project': FIREBASE_PROJECT },
+    payload: JSON.stringify({ localId: String(body.uid), password: pass }) });
+  const code = r.getResponseCode();
+  if (code === 200) {
+    console.log('resetPassword: admin ' + adminUid + ' đã đặt lại mật khẩu cho ' + body.uid + ' (' + (target.phone || '') + ')');   // KHÔNG ghi mật khẩu vào log
+    return out({ ok: true });
+  }
+  console.error('resetPassword lỗi ' + code + ': ' + r.getContentText());
+  let msg = 'Không đặt lại được mật khẩu (mã ' + code + ')';
+  if (code === 403) msg = 'Script chưa có quyền quản lý tài khoản Firebase. Xem mục "Đặt lại mật khẩu" trong HUONG-DAN.md';
+  else if (code === 404) msg = 'Tài khoản này chưa có trong Firebase Authentication';
+  return out({ ok: false, error: msg });
+}
+
+// Chạy tay 1 lần trong trình soạn thảo (chọn hàm này → Run) để cấp quyền và kiểm tra kết nối với Firebase Authentication
+function checkResetAccess() {
+  const r = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/projects/' + FIREBASE_PROJECT + '/accounts:query', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Goog-User-Project': FIREBASE_PROJECT },
+    payload: JSON.stringify({ returnUserInfo: false, limit: '1' }) });
+  Logger.log(r.getResponseCode() === 200 ? 'OK – đã có quyền đặt lại mật khẩu.' : 'LỖI ' + r.getResponseCode() + ': ' + r.getContentText());
 }
 
 // ===================== 2) THÔNG BÁO ĐƠN MỚI =====================

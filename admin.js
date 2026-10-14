@@ -12,7 +12,7 @@ const loadXLSX = () => window.XLSX ? Promise.resolve(window.XLSX) : new Promise(
 });
 
 export const panel = { key:'admin', title:'Quản trị', roles:['admin'], render(root, me) {
-  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null;
+  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null;
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
 
   const ordersView = () => {
@@ -48,6 +48,16 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       <p class="muted" style="margin-top:8px">Nếu số điện thoại đã có tài khoản, hệ thống chỉ gán quyền chủ quán (không đổi mật khẩu).</p>
       <div class="row" style="margin-top:12px"><button class="btn" data-mkgo ${mk.busy ? 'disabled' : ''}>${mk.busy ? 'Đang tạo…' : 'Tạo tài khoản'}</button><button class="btn sm o" data-mkrand>Tạo mật khẩu ngẫu nhiên</button><button class="btn o" data-mkclose>Hủy</button></div></div>`;
   }
+  /* Form đặt lại mật khẩu: Admin nhập (hoặc tạo ngẫu nhiên) mật khẩu mới rồi gửi cho người dùng */
+  const rpUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '') + (rp.role === 'customer' ? '' : 'quanly.html');
+  const rpMsg = () => `Mật khẩu mới - Lâm Thao Ăn Gì?\nTrang đăng nhập: ${rpUrl()}\nTài khoản (SĐT): ${rp.phone}\nMật khẩu mới: ${rp.pass}`;
+  const rpForm = () => `<div class="card"><h3>Đặt lại mật khẩu</h3><p class="muted">Cho: <b>${esc(rp.name || '(chưa có tên)')}</b> · SĐT <b>${esc(rp.phone)}</b>. Mật khẩu cũ sẽ ngừng dùng được ngay sau khi đặt.</p>
+    ${rp.done ? `<div class="card" style="background:#f6faf7;line-height:1.9"><div>Tài khoản (SĐT): <b>${esc(rp.phone)}</b></div><div>Mật khẩu mới: <b>${esc(rp.pass)}</b></div></div>
+      <p class="muted">Hãy gửi mật khẩu này cho người dùng và nhắc họ không chia sẻ cho ai.</p>
+      <div class="row" style="margin-top:12px"><button class="btn" data-rpcopy>Sao chép tin nhắn gửi người dùng</button><button class="btn o" data-rpclose>Xong</button></div>`
+    : `<label class="f">Mật khẩu mới (tối thiểu 6 ký tự) *<input type="text" id="rp-pass" value="${esc(rp.pass)}" placeholder="Nhập mật khẩu mới" autocomplete="off"></label>
+      <div class="row" style="margin-top:12px"><button class="btn" data-rpgo ${rp.busy ? 'disabled' : ''}>${rp.busy ? 'Đang đặt…' : 'Đặt mật khẩu'}</button><button class="btn sm o" data-rprand ${rp.busy ? 'disabled' : ''}>Tạo mật khẩu ngẫu nhiên</button><button class="btn o" data-rpclose ${rp.busy ? 'disabled' : ''}>Hủy</button></div>`}</div>`;
+  const randPass = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), x => 'abcdefghjkmnpqrstuvwxyz23456789'[x % 31]).join('');
   const readMk = () => { if ($('#mk-phone')) { mk.phone = $('#mk-phone').value.replace(/\D/g, ''); mk.pass = $('#mk-pass').value.trim(); mk.zalo = $('#mk-zalo').value.trim(); } };
   function shopForm() {
     const s = edit, n = (k, d = '') => esc(s[k] ?? d);
@@ -75,18 +85,19 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   const byNewest = (a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0);
   const userTable = (role, list) => {
     list = [...list].sort(byNewest);
-    const isS = role === 'seller', hasZ = isS || role === 'shipper', cols = 4 + (isS ? 1 : 0) + (hasZ ? 1 : 0);
+    const isS = role === 'seller', hasZ = isS || role === 'shipper', cols = 5 + (isS ? 1 : 0) + (hasZ ? 1 : 0);
     const zalo = u => `<td><input type="text" data-uzalo="${u.uid}" value="${esc(u.zaloId || '')}" placeholder="Zalo ID (nhận báo đơn)" style="min-width:150px"></td>`;
-    return `<div class="card" style="overflow:auto"><table><tr><th>Tên</th><th>SĐT</th><th>Đăng ký lúc</th>${isS ? '<th>Cửa hàng</th>' : ''}${hasZ ? '<th>Zalo ID</th>' : ''}<th>Vai trò</th></tr>${list.length ? list.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td><td style="white-space:nowrap">${regAt(u) ? esc(regAt(u)) : '<span class="muted">—</span>'}</td>${isS ? `<td><select data-ushop="${u.uid}" style="width:auto"><option value="">— chọn quán —</option>${shops.map(s => `<option value="${s.id}" ${u.shopId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>${u.shopId ? '' : '<br><span class="badge warn">Chưa gán quán</span>'}</td>` : ''}${hasZ ? zalo(u) : ''}<td>${roleSel(u)}</td></tr>`).join('') : `<tr><td colspan="${cols}" class="muted">Chưa có ai trong nhóm này</td></tr>`}</table></div>`;
+    return `<div class="card" style="overflow:auto"><table><tr><th>Tên</th><th>SĐT</th><th>Đăng ký lúc</th>${isS ? '<th>Cửa hàng</th>' : ''}${hasZ ? '<th>Zalo ID</th>' : ''}<th>Vai trò</th><th>Mật khẩu</th></tr>${list.length ? list.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td><td style="white-space:nowrap">${regAt(u) ? esc(regAt(u)) : '<span class="muted">—</span>'}</td>${isS ? `<td><select data-ushop="${u.uid}" style="width:auto"><option value="">— chọn quán —</option>${shops.map(s => `<option value="${s.id}" ${u.shopId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>${u.shopId ? '' : '<br><span class="badge warn">Chưa gán quán</span>'}</td>` : ''}${hasZ ? zalo(u) : ''}<td>${roleSel(u)}</td><td><button class="btn sm o" data-rp="${u.uid}">Đặt lại MK</button></td></tr>`).join('') : `<tr><td colspan="${cols}" class="muted">Chưa có ai trong nhóm này</td></tr>`}</table></div>`;
   };
   const usersView = () => {
+    if (rp) return rpForm();
     const q = flat($('#uq')?.value.trim());
     const match = u => !q || flat(u.phone).includes(q) || flat(u.name).includes(q);
     const cnt = r => users.filter(u => u.role === r).length;
     const pills = [['all', 'Tất cả', users.length], ...ROLES.map(([r, l]) => [r, l, cnt(r)])];
     const groups = ufil === 'all' ? ROLES : ROLES.filter(([r]) => r === ufil);
     return `<div class="card"><div class="row"><input type="search" id="uq" placeholder="Tìm theo tên hoặc số điện thoại" style="max-width:280px;margin:0"><button class="btn sm" data-ureload>Tải lại danh sách</button></div>
-    <p class="muted" style="margin-top:8px">Khách tự đăng ký trên website (vai trò “Khách hàng”). Đổi vai trò tại đây; <b>Nhà bán hàng</b> cần gán cửa hàng, hoặc dùng nút “Cấp TK” ở tab Cửa hàng.</p></div>
+    <p class="muted" style="margin-top:8px">Khách tự đăng ký trên website (vai trò “Khách hàng”). Đổi vai trò tại đây; <b>Nhà bán hàng</b> cần gán cửa hàng, hoặc dùng nút “Cấp TK” ở tab Cửa hàng. Người dùng quên mật khẩu: bấm <b>Đặt lại MK</b> ở cuối dòng.</p></div>
     <div class="tabs" style="position:static;border:0;padding:0;background:none;margin:2px 0 10px">${pills.map(([k, l, n]) => `<button class="${ufil === k ? 'on' : ''}" data-ufil="${k}">${l} (${n})</button>`).join('')}</div>
     ${groups.map(([r, l]) => `${ufil === 'all' ? `<h3 style="margin:14px 0 6px">${l} (${cnt(r)})</h3>` : ''}${userTable(r, users.filter(u => u.role === r && match(u)))}`).join('')}`;
   };
@@ -153,7 +164,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   });
   root.addEventListener('click', async e => {
     const g = s => e.target.closest(s);
-    if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; draw(); return; }
+    if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; rp = null; draw(); return; }
     try {
       if (g('[data-newshop]')) { edit = { menu:[] }; draw(); }
       else if (g('[data-editshop]')) { edit = JSON.parse(JSON.stringify(shops.find(s => s.id === g('[data-editshop]').dataset.editshop))); draw(); }
@@ -191,6 +202,21 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
           await loadUsers(); await syncNotify().catch(() => {});
           mk.busy = false; mk.done = true; draw(); toast('Đã cấp tài khoản nhà bán hàng');
         } catch (er) { mk.busy = false; draw(); toast(er.code ? fb.errMsg(er) : er.message); }
+      }
+      else if (g('[data-rp]')) {
+        const u = users.find(x => x.uid === g('[data-rp]').dataset.rp); if (!u) return;
+        rp = { uid:u.uid, name:u.name, phone:u.phone, role:u.role, pass:'', busy:false, done:false }; draw();
+      }
+      else if (g('[data-rpclose]')) { rp = null; draw(); }
+      else if (g('[data-rprand]')) { rp.pass = randPass(); draw(); }
+      else if (g('[data-rpcopy]')) { try { await navigator.clipboard.writeText(rpMsg()); toast('Đã sao chép, hãy dán gửi cho người dùng'); } catch { prompt('Sao chép nội dung dưới đây:', rpMsg()); } }
+      else if (g('[data-rpgo]')) {
+        rp.pass = $('#rp-pass').value.trim();
+        if (rp.pass.length < 6) return toast('Mật khẩu tối thiểu 6 ký tự');
+        if (!confirm(`Đặt mật khẩu mới cho ${rp.name || rp.phone} (${rp.phone})? Mật khẩu cũ sẽ không dùng được nữa.`)) return;
+        rp.busy = true; draw();
+        try { await fb.resetUserPassword(rp.uid, rp.pass); rp.busy = false; rp.done = true; draw(); toast('Đã đặt lại mật khẩu'); }
+        catch (er) { rp.busy = false; draw(); toast(er.code ? fb.errMsg(er) : er.message); }
       }
       else if (g('[data-impfile]')) { $('#imp-file').click(); }
       else if (g('[data-impcancel]')) { imp = null; draw(); }

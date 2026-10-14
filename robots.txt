@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Các trang quản lý đã có thẻ noindex (không để Disallow, để Google đọc được thẻ này)
+Sitemap: https://lamthaoangi.io.vn/sitemap.xml

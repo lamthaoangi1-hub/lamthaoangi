@@ -96,6 +96,14 @@ export const patchShop = (id, patch) => updateDoc(doc(db, 'shops', id), patch);
 export const removeShop = id => deleteDoc(doc(db, 'shops', id));
 export const listUsers = async () => (await getDocs(query(collection(db, 'users'), limit(300)))).docs.map(d => ({ uid:d.id, ...d.data() }));
 export const patchUser = (uid, patch) => updateDoc(doc(db, 'users', uid), patch);
+/* Admin đặt lại mật khẩu cho người dùng: gọi Apps Script (script tự kiểm tra người gọi là Admin rồi đổi mật khẩu trong Firebase Auth) */
+export async function resetUserPassword(uid, password) {
+  if (!UPLOAD_URL) throw new Error('Chưa cấu hình Google Apps Script (upload-config.js)');
+  const token = await idToken();
+  const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'resetPassword', token, uid, password }) });
+  const j = await res.json().catch(() => null);
+  if (!j || !j.ok) throw new Error((j && j.error) || 'Không đặt lại được mật khẩu, thử lại sau');
+}
 export const savePromo = (id, d) => id ? setDoc(doc(db, 'promos', id), d) : addDoc(collection(db, 'promos'), d);
 export const removePromo = id => deleteDoc(doc(db, 'promos', id));
 /* Danh sách Zalo ID nhận báo đơn mới: { shops:{ shopId:[id...] }, shippers:[id...] } – Admin ghi, Apps Script đọc */

@@ -89,7 +89,7 @@ Admin → tab **Liên hệ**: nhập **Hotline**, **Email**, **Zalo** (số đi�
 1. Firebase → Authentication → Authorized domains: đã có `lamthaoangi.io.vn`.
 2. Firebase → Firestore → Rules: dán lại toàn bộ `firestore.rules` mới nhất → **Publish**.
 3. GitHub → Settings → Pages: tên miền `lamthaoangi.io.vn` và bật **Enforce HTTPS** (bắt buộc, không có HTTPS thì điện thoại không cho lấy vị trí GPS).
-4. Apps Script: dán lại `google-apps-script.gs` mới → **Deploy → Manage deployments → Edit → New version**; chạy `testNotify` để thử.
+4. Apps Script: dán lại `google-apps-script.gs` mới + `appsscript.json` → chạy `checkResetAccess` → **Deploy → Manage deployments → Edit → New version**; chạy `testNotify` để thử.
 5. Admin → Cửa hàng: nhập đủ tên, địa chỉ, SĐT, thực đơn thật cho từng quán; xóa quán/đơn thử.
 6. Mỗi chủ quán đăng nhập `quanly.html` → tab Cửa hàng → bấm **Chia sẻ vị trí quán** (đứng tại quán).
 7. Admin → Liên hệ: nhập Hotline, Email, Zalo; chỉnh phí giao hàng theo ý.
@@ -98,8 +98,30 @@ Admin → tab **Liên hệ**: nhập **Hotline**, **Email**, **Zalo** (số đi�
 10. Đặt thử 1 đơn bằng điện thoại thật: quán thấy đơn, shipper nhận được, khách thấy trạng thái đổi, hoàn thành đơn.
 11. Đọc lại **Chính sách & Điều khoản** trong website (nội dung ở hàm `POLICY` trong `app.js`) và sửa cho đúng quy định bạn áp dụng.
 
+## Đặt lại mật khẩu cho người dùng (Admin)
+Admin → tab **Người dùng** → bấm **Đặt lại MK** ở cuối dòng người cần đổi → nhập mật khẩu mới (hoặc **Tạo mật khẩu ngẫu nhiên**) → **Đặt mật khẩu** → **Sao chép tin nhắn** gửi cho họ. Dùng được cho khách, chủ quán, shipper. Mật khẩu cũ ngừng dùng ngay.
+
+Thiết lập một lần (vì trình duyệt không được phép đổi mật khẩu người khác nên việc này do Apps Script làm):
+1. Apps Script → dán lại toàn bộ `google-apps-script.gs` mới.
+2. **Project Settings (bánh răng)** → tick **Show "appsscript.json" manifest file in editor** → quay lại Editor, mở `appsscript.json` và dán đè nội dung file `appsscript.json` đi kèm (có thêm quyền `cloud-platform`).
+3. Chọn hàm **`checkResetAccess`** → **Run** → cấp quyền khi Google hỏi. Xem **Execution log**: thấy `OK` là xong. Nếu báo lỗi 403 *API not enabled*: vào https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com , chọn project `lamthaoangi1-c01cb` → **Enable**, rồi chạy lại. (Tài khoản Google dùng để triển khai script phải là Owner/Editor của project Firebase.)
+4. **Deploy → Manage deployments → Edit → New version → Deploy.** URL giữ nguyên.
+5. Tải `fb.js` và `admin.js` mới lên GitHub rồi nhấn Ctrl+F5.
+
+Bảo mật: script chỉ chấp nhận khi người gọi đăng nhập bằng tài khoản có vai trò `admin` trong Firestore; mật khẩu không được ghi vào log.
+
+## Đưa website lên Google (SEO)
+Không ai cam kết được "top 1" tuyệt đối, nhưng với cụm tên riêng **"Lâm Thao Ăn Gì"** thì làm đủ các bước dưới đây thường lên đầu kết quả sau vài ngày đến vài tuần. Website đã được thêm sẵn: tiêu đề/mô tả chuẩn, thẻ canonical, Open Graph (ảnh chia sẻ `og-image.jpg`), dữ liệu có cấu trúc JSON-LD, `robots.txt`, `sitemap.xml`. Bạn cần làm thêm:
+1. Tải lên GitHub: `index.html`, `robots.txt`, `sitemap.xml`, `og-image.jpg`. Kiểm tra `https://lamthaoangi.io.vn/robots.txt` và `/sitemap.xml` mở được.
+2. Vào https://search.google.com/search-console → **Add property** → chọn **Domain** `lamthaoangi.io.vn` (Google đưa 1 dòng TXT, thêm vào DNS ở nơi bạn mua tên miền) hoặc **URL prefix** `https://lamthaoangi.io.vn/` (xác minh bằng thẻ HTML: dán vào chỗ có ghi chú trong `index.html`).
+3. Search Console → **Sitemaps** → nhập `sitemap.xml` → Submit.
+4. Search Console → ô **URL Inspection** (kiểm tra URL) dán `https://lamthaoangi.io.vn/` → **Request indexing**.
+5. Tạo **Google Business Profile** (Google Maps) cho "Lâm Thao Ăn Gì" tại https://business.google.com : điền địa chỉ/khu vực phục vụ Lâm Thao, SĐT, link website. Đây là cách nhanh nhất để hiện khung thông tin bên phải kết quả tìm kiếm.
+6. Tạo Fanpage Facebook, nhóm Zalo, kênh TikTok cùng tên "Lâm Thao Ăn Gì" và để **link website** ở phần giới thiệu; nhờ các quán, nhóm cộng đồng Lâm Thao chia sẻ link. Liên kết từ các trang uy tín giúp Google tin tưởng và xếp hạng cao hơn.
+7. Dùng đúng cụm "Lâm Thao Ăn Gì" thống nhất ở mọi nơi (tên, ảnh đại diện, mô tả). Kiểm tra sau 1–2 tuần bằng cách tìm `site:lamthaoangi.io.vn` trên Google: có kết quả là đã được lập chỉ mục.
+
 ## Giới hạn cần biết
-- **Quên mật khẩu:** chưa có tự đặt lại (vì không dùng email thật). Cách xử lý: xóa tài khoản đó trong Firebase Console → Authentication, rồi khách đăng ký lại.
+- **Quên mật khẩu:** người dùng nhắn Admin (Zalo/hotline), Admin vào **Người dùng → Đặt lại MK** (xem mục "Đặt lại mật khẩu" bên dưới). Chưa có tự đặt lại vì không dùng email thật.
 - **Giá đơn hàng** do trình duyệt khách tính; luật bảo mật chặn sửa đơn người khác và chặn giá trị vô lý (âm, giảm quá tạm tính, phí ship quá cao) nhưng chưa đối chiếu giá từng món với thực đơn. Với quy mô địa phương là đủ; muốn chặt hơn cần thêm Cloud Functions.
 - **Thông báo đẩy** trên điện thoại chưa có: đơn mới được báo qua Gmail/Zalo (xem mục trên). Shipper/quán cần **mở sẵn trang `quanly.html`** và chạm vào màn hình 1 lần để có tiếng "ting"; trang tự giữ màn hình sáng khi đang mở.
 - **Thanh toán** hiện chỉ tiền mặt khi nhận hàng.
