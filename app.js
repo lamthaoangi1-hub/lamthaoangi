@@ -807,10 +807,29 @@
   }
 
   /* ----- bản đồ chọn điểm: kéo bản đồ để đưa ghim đỏ vào đúng chỗ ----- */
-  const loadLeaflet = () => window.L ? Promise.resolve() : new Promise((ok, no) => {
-    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(l);
-    const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; s.onload = ok; s.onerror = () => no(new Error('leaflet')); document.head.appendChild(s);
-  });
+  const LF = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.';
+  const loadAsset = (tag, attrs) => new Promise((ok, no) => { const e = document.createElement(tag); Object.assign(e, attrs); e.onload = ok; e.onerror = () => no(new Error(tag)); document.head.appendChild(e); });
+  const loadLeaflet = () => window.L ? Promise.resolve() : Promise.all([loadAsset('link', { rel:'stylesheet', href:LF + 'css' }), loadAsset('script', { src:LF + 'js' })]);
+  /* Nguồn ô bản đồ: thử lần lượt, nếu nguồn đầu không tải được (mạng chặn/chậm) tự chuyển sang nguồn dự phòng */
+  const TILES = [
+    { url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', sub:'abc', attr:'© OpenStreetMap' },
+    { url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', sub:'abcd', attr:'© OpenStreetMap © CARTO' },
+    { url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', sub:'abc', attr:'Tiles © Esri' },
+  ];
+  function mpTiles(i = 0) {
+    if (!MAP) return;
+    if (MAP._tl) MAP.removeLayer(MAP._tl);
+    const T = TILES[i]; let ok = 0, bad = 0, moved = false;
+    const next = () => {
+      if (moved || ok || !MAP) return; moved = true;
+      if (i + 1 < TILES.length) mpTiles(i + 1);
+      else { const el = $('#mp-a'); if (el) el.textContent = 'Không tải được bản đồ. Hãy kiểm tra mạng (Wi-Fi/4G) rồi mở lại.'; }
+    };
+    const l = L.tileLayer(T.url, { maxZoom:19, subdomains:T.sub, attribution:T.attr });
+    l.on('tileload', () => { ok++; }); l.on('tileerror', () => { if (++bad >= 4) next(); });
+    setTimeout(next, 6000);
+    MAP._tl = l; l.addTo(MAP);
+  }
   function closeMapPicker() { if (MAP) { MAP.remove(); MAP = null; } const el = $('#mp'); if (el) el.hidden = true; }
   async function openMapPicker(key) {
     svcRead(); MP_KEY = key;
@@ -824,8 +843,8 @@
     try { await loadLeaflet(); } catch (e) { closeMapPicker(); svcSheet(); return toast('Không tải được bản đồ, hãy kiểm tra mạng'); }
     const cur = SV[key] || SV[key === 'pick' ? 'drop' : 'pick'] || CART.loc || { lat:21.32, lng:105.31 };
     MAP = L.map('mp-m', { zoomControl:false }).setView([cur.lat, cur.lng], SV[key] ? 17 : 15);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(MAP);
-    MAP.on('move', mpInfo); setTimeout(() => { if (MAP) { MAP.invalidateSize(); mpInfo(); } }, 120);
+    mpTiles(0);
+    MAP.on('move', mpInfo); [100, 400, 1000].forEach(ms => setTimeout(() => { if (MAP) { MAP.invalidateSize(); mpInfo(); } }, ms));
   }
   function mpInfo() {
     const el = $('#mp-a'); if (!MAP || !el) return;
@@ -839,13 +858,20 @@
     navigator.geolocation.getCurrentPosition(p => { if (MAP) MAP.setView([p.coords.latitude, p.coords.longitude], 17); },
       e => toast(e.code === 1 ? 'Bạn đã chặn quyền vị trí cho trang web' : 'Không lấy được vị trí, hãy bật GPS'), { enableHighAccuracy:true, timeout:15000 });
   }
+  async function geocode(q) {
+    const withArea = /phú thọ|phu tho/i.test(q) ? q : q + ', Lâm Thao, Phú Thọ';
+    const tryNom = async t => { try { const j = await (await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=vn&accept-language=vi&viewbox=105.15,21.45,105.45,21.2&q=' + encodeURIComponent(t))).json(); return j[0] ? { lat:+j[0].lat, lng:+j[0].lon } : null; } catch (e) { return null; } };
+    const tryPho = async t => { try { const j = await (await fetch('https://photon.komoot.io/api/?limit=1&lat=21.32&lon=105.31&q=' + encodeURIComponent(t))).json(); const c = j.features && j.features[0] && j.features[0].geometry.coordinates; return c ? { lat:c[1], lng:c[0] } : null; } catch (e) { return null; } };
+    return (await tryNom(withArea)) || (await tryPho(withArea)) || (await tryNom(q)) || (await tryPho(q));
+  }
   async function mpSearch() {
-    const q = ($('#mp-q').value || '').trim(); if (!q || !MAP) return;
-    try {
-      const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=vn&accept-language=vi&viewbox=105.15,21.45,105.45,21.2&q=' + encodeURIComponent(/phú thọ|phu tho/i.test(q) ? q : q + ', Lâm Thao, Phú Thọ'));
-      const j = await r.json();
-      if (j[0]) MAP.setView([+j[0].lat, +j[0].lon], 17); else toast('Không tìm thấy, hãy kéo bản đồ để chọn');
-    } catch (e) { toast('Không tìm được lúc này, hãy kéo bản đồ để chọn'); }
+    const q = ($('#mp-q').value || '').trim(); if (!q) return toast('Nhập địa chỉ hoặc tên nơi cần tìm');
+    if (!MAP) return;
+    toast('Đang tìm…');
+    const p = await geocode(q);
+    if (!MAP) return;
+    if (p) { MAP.setView([p.lat, p.lng], 17); toast('Đã tìm thấy. Kéo bản đồ để chỉnh ghim đúng nơi'); }
+    else toast('Không tìm thấy địa chỉ này. Hãy kéo bản đồ để ghim tay');
   }
   function mpConfirm() {
     if (!MAP) return;
@@ -1085,7 +1111,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261014f').then(m => {
+    import('./fb.js?v=20261014g').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -1119,7 +1145,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261014f')
+  import('./firebase-config.js?v=20261014g')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });
