@@ -58,3 +58,36 @@ html{touch-action:manipulation;-webkit-text-size-adjust:100%}
 [hidden]{display:none!important}
 .imgup{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .imgup .th{width:46px;height:46px;border-radius:10px;object-fit:cover;background:#eef2ef;flex:none;display:grid;place-items:center;font-size:11px;color:var(--ink2)}
+
+/* ---- Thẻ đơn của shipper ---- */
+.oc{background:#fff;border:1px solid var(--line);border-radius:20px;margin-bottom:14px;overflow:hidden;box-shadow:0 10px 24px -16px rgba(16,19,26,.35)}
+.oc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:14px 16px 0}
+.oc-code{font-weight:800;font-size:17px}
+.oc-time{color:var(--ink2);font-size:12.5px;margin-top:1px}
+.oc-money{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 16px}
+.oc-money>div{background:var(--bg);border-radius:14px;padding:10px 12px}
+.oc-money small{display:block;color:var(--ink2);font-size:12px;line-height:1.3}
+.oc-money b{display:block;font-size:20px;font-weight:800;margin-top:2px}
+.oc-money .earn{background:var(--gl)}.oc-money .earn b{color:var(--gd)}
+.oc-route{padding:4px 16px 0}
+.oc-stop{display:grid;grid-template-columns:22px 1fr;gap:10px;position:relative;padding-bottom:16px}
+.oc-stop.from::before{content:"";position:absolute;left:10px;top:22px;bottom:2px;border-left:2px dashed #c9d1cc}
+.oc-dot{width:14px;height:14px;border-radius:50%;margin:4px 0 0 4px;background:var(--g);box-shadow:0 0 0 4px var(--gl)}
+.oc-stop.to .oc-dot{background:var(--or);box-shadow:0 0 0 4px var(--ol)}
+.oc-lbl{font-size:12.5px;color:var(--ink2);font-weight:600}
+.oc-name{font-weight:700;font-size:15.5px;line-height:1.35;margin-top:1px;overflow-wrap:anywhere}
+.oc-addr{color:#4b525c;font-size:13.5px;line-height:1.4;margin-top:2px}
+.oc-addr.none{color:var(--ink2);font-style:italic}
+.oc-note{margin-top:6px;padding:6px 10px;background:var(--ol);color:#8a4b05;border-radius:10px;font-size:13px}
+.oc-chip{display:inline-block;padding:3px 10px;border-radius:999px;background:var(--gl);color:var(--gd);font-weight:700;font-size:12.5px}
+.oc-chip.off{background:#eef0f2;color:var(--ink2);font-weight:500}
+.oc-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.oc-act{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 14px;border-radius:999px;background:var(--gl);color:var(--gd);font-weight:700;font-size:13.5px;text-decoration:none}
+.oc-stop.to .oc-act{background:var(--ol);color:#b45f06}
+.oc-items{margin:0 16px 14px;padding:10px 12px;border:1px dashed #cfd6d1;border-radius:12px;font-size:13.5px;line-height:1.6}
+.oc-items .sep{display:inline-block;width:4px;height:4px;border-radius:50%;background:#b8c0ba;margin:0 8px;vertical-align:middle}
+.oc-foot{padding:0 16px 16px}
+.oc-go{width:100%;min-height:52px;border-radius:14px;background:var(--g);color:#fff;font-size:16px;font-weight:800;box-shadow:0 10px 18px -10px rgba(18,161,80,.9)}
+.oc-go:active{transform:scale(.99)}
+.oc-go.done{background:var(--or);box-shadow:0 10px 18px -10px rgba(240,138,28,.9)}
+.oc-go:disabled{opacity:.55}
