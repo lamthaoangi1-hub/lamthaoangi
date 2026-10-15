@@ -811,13 +811,13 @@
 
   /* ----- bản đồ chọn điểm: kéo bản đồ để đưa ghim đỏ vào đúng chỗ ----- */
   /* ----- Bản đồ: ưu tiên Goong (khóa trong goong-config.js); chưa có khóa hoặc Goong lỗi thì dùng Leaflet + OpenStreetMap/Esri ----- */
-  let GOONG = { map:'', api:'' };
-  import('./goong-config.js?v=20261014j').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
+  let GOONG = { map:'', api:'' }, GOONG_ERR = '';
+  import('./goong-config.js?v=20261014l').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
   const LF = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.', GJ = 'https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.';
   const loadAsset = (tag, attrs) => new Promise((ok, no) => { const e = document.createElement(tag); Object.assign(e, attrs); e.onload = ok; e.onerror = () => no(new Error(tag)); document.head.appendChild(e); });
   const loadLeaflet = () => window.L ? Promise.resolve() : Promise.all([loadAsset('link', { rel:'stylesheet', href:LF + 'css' }), loadAsset('script', { src:LF + 'js' })]);
   const loadGoong = () => window.goongjs ? Promise.resolve() : Promise.all([loadAsset('link', { rel:'stylesheet', href:GJ + 'css' }), loadAsset('script', { src:GJ + 'js' })]);
-  const mpSrc = t => { const e = $('#mp-src'); if (e) e.textContent = 'Nguồn bản đồ: ' + t; };
+  const mpSrc = t => { const e = $('#mp-src'); if (e) e.textContent = 'Nguồn bản đồ: ' + t + (GOONG_ERR && t !== 'Goong' ? ' · Goong lỗi: ' + GOONG_ERR : ''); };
 
   const TILES = [
     { name:'OpenStreetMap', url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', sub:'abc', attr:'© OpenStreetMap' },
@@ -840,9 +840,12 @@
     goongjs.accessToken = GOONG.map;
     const m = new goongjs.Map({ container:'mp-m', style:'https://tiles.goong.io/assets/goong_map_web.json', center:[cur.lng, cur.lat], zoom:z });
     const w = { engine:'Goong', ready:false, c:() => { const c = m.getCenter(); return { lat:c.lat, lng:c.lng }; }, go:(a, b, zz) => m.jumpTo({ center:[b, a], zoom:zz }), onMove:f => m.on('move', f), resize:() => m.resize(), remove:() => m.remove() };
-    let errs = 0; m.on('load', () => { w.ready = true; mpSrc('Goong'); });
-    m.on('error', () => { if (!w.ready && ++errs >= 3) onFail(); });
-    setTimeout(() => { if (!w.ready) onFail(); }, 9000);
+    let errs = 0, idles = 0, done = false;
+    const fail = why => { if (done) return; done = true; GOONG_ERR = why; console.warn('Goong:', why); onFail(); };
+    m.on('error', e => { const er = e && e.error, st = er && (er.status || er.statusCode); if (!w.ready && !done) { const why = st ? 'mã ' + st : ((er && er.message) || 'không rõ'); if (st === 401 || st === 403 || ++errs >= 3) fail(why); } });
+    // chỉ coi là chạy tốt khi bản đồ thật sự vẽ ra dữ liệu (đường, nhà…); trống thì tự chuyển bản đồ dự phòng
+    m.on('idle', () => { if (w.ready || done) return; let n = 0; try { n = m.queryRenderedFeatures().length; } catch (e) {} if (n > 0) { w.ready = true; mpSrc('Goong'); } else if (++idles >= 2) fail('không có dữ liệu (kiểm tra khóa Maptiles và giới hạn tên miền)'); });
+    setTimeout(() => { if (!w.ready) fail('quá thời gian chờ'); }, 10000);
     return w;
   }
   function closeMapPicker() { if (MAP) { try { MAP.remove(); } catch (e) {} MAP = null; } const el = $('#mp'); if (el) el.hidden = true; }
@@ -966,6 +969,7 @@
     if ((b = q('[data-mpsug]'))) { mpPickSuggestion(b.dataset.mpsug); return true; }
     return false;
   }
+  { const zf = document.getElementById('zalo-fab'); if (zf) zf.addEventListener('click', () => { const u = zaloLink(); if (u) zf.href = u; }); }
   document.addEventListener('submit', e => { if (e.target.matches && e.target.matches('[data-mpform]')) { e.preventDefault(); mpSearch(); } });
 
   /* ---------------- EVENTS ---------------- */
@@ -1156,7 +1160,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261014j').then(m => {
+    import('./fb.js?v=20261014l').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -1190,7 +1194,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261014j')
+  import('./firebase-config.js?v=20261014l')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });

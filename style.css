@@ -540,3 +540,10 @@ html{touch-action:manipulation;-webkit-text-size-adjust:100%}
 .mp-sug{display:flex;flex-direction:column;margin:0 14px;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.12)}
 .mp-sug:empty{display:none}
 .mp-sug button{min-height:44px;padding:8px 14px;text-align:left;font-size:14px;border-bottom:1px solid var(--line);background:#fff}
+
+/* Nút Zalo nổi góc phải dưới */
+.zalo-fab{position:absolute;right:14px;bottom:calc(var(--nav-h) + 16px);z-index:25;width:56px;height:56px;border-radius:50%;display:block;box-shadow:0 6px 18px rgba(0,104,255,.45);transition:transform .15s}
+.zalo-fab:active{transform:scale(.92)}
+.zalo-fab svg{display:block}
+@media (prefers-reduced-motion:no-preference){.zalo-fab::after{content:"";position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 0 rgba(0,104,255,.5);animation:zpulse 2.4s infinite}}
+@keyframes zpulse{70%{box-shadow:0 0 0 14px rgba(0,104,255,0)}100%{box-shadow:0 0 0 0 rgba(0,104,255,0)}}

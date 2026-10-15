@@ -143,6 +143,9 @@ Admin → Cửa hàng → bấm Sửa quán → mục **Miễn phí ship cho đ�
 - Khách thấy nhãn "Freeship từ …K" ở quán, và ở giỏ hàng có dòng gợi ý "Mua thêm … để được miễn phí giao hàng". Chủ quán không tự đổi được mức này.
 - Tiền ship được miễn do **quán/nền tảng chịu**: shipper vẫn nhận phí ship bình thường theo quy định của bạn. Hãy tính trước để không bị lỗ.
 
+## Nút Zalo nổi
+Góc phải dưới màn hình khách luôn có nút Zalo, bấm vào mở chat Zalo số **0978472704**. Muốn đổi số/link: Admin → Liên hệ → ô Zalo (nếu có nhập thì dùng số đó), hoặc sửa `href` của thẻ `zalo-fab` trong `index.html`.
+
 ## Giới hạn cần biết
 - **Quên mật khẩu:** người dùng nhắn Admin (Zalo/hotline), Admin vào **Người dùng → Đặt lại MK** (xem mục "Đặt lại mật khẩu" bên dưới). Chưa có tự đặt lại vì không dùng email thật.
 - **Giá đơn hàng** do trình duyệt khách tính; luật bảo mật chặn sửa đơn người khác và chặn giá trị vô lý (âm, giảm quá tạm tính, phí ship quá cao) nhưng chưa đối chiếu giá từng món với thực đơn. Với quy mô địa phương là đủ; muốn chặt hơn cần thêm Cloud Functions.
