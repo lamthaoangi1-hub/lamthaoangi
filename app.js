@@ -612,8 +612,10 @@
     const promoOff = promo ? Math.min(promo.off || 0, sub - disc) : 0;
     const q = shipQuote(s, CART.loc);
     // đơn đạt mức miễn phí ship: chỉ miễn phần phí cơ bản, khách vẫn trả phần km vượt
-    const ship = (s.freeShipMin && sub >= s.freeShipMin) ? (q.mode === 'km' ? q.extraKm * SHIPCFG.perKm : 0) : q.fee;
-    return { sub, disc, promo, promoOff, ship, shipMode:q.mode, km:q.km, extraKm:q.extraKm, freeBase:!!(s.freeShipMin && sub >= s.freeShipMin), total:sub - disc - promoOff + ship };
+    // Admin cài riêng từng quán: freeShipMin = mức đơn được freeship; freeShipAll = miễn TOÀN BỘ phí giao (không thì chỉ miễn phần cơ bản)
+    const hit = !!(s.freeShipMin && sub >= s.freeShipMin);
+    const ship = hit ? (s.freeShipAll ? 0 : (q.mode === 'km' ? q.extraKm * SHIPCFG.perKm : 0)) : q.fee;
+    return { sub, disc, promo, promoOff, ship, shipMode:q.mode, km:q.km, extraKm:q.extraKm, freeBase:hit, freeAll:hit && !!s.freeShipAll, toFree:(s.freeShipMin && !hit) ? s.freeShipMin - sub : 0, freeAllShop:!!s.freeShipAll, total:sub - disc - promoOff + ship };
   }
   function updateCartUI() {
     const bar = $('#cart-bar'), { s, lines } = cartData(); if (!bar || !s) return;
@@ -657,7 +659,8 @@
         ${c.promoOff ? `<div class="co-row off"><span>Mã ${esc(c.promo.code)}</span><b>-${money(c.promoOff)}</b></div>` : ''}
         ${c.shipMode === 'need-loc' ? `<div class="co-row"><span>Phí giao hàng</span><b style="color:var(--orange)">Chia sẻ vị trí để tính</b></div>`
           : `<div class="co-row"><span>Phí giao hàng${c.shipMode === 'km' ? ` <small>· ${String(c.km).replace('.', ',')} km</small>` : ''}</span><b>${c.ship ? money(c.ship) : 'Miễn phí'}</b></div>`}
-        ${c.shipMode === 'km' ? `<div class="co-hint" style="margin:-2px 0 4px">${c.freeBase ? 'Miễn phí ' + money(SHIPCFG.base) + ' cơ bản · ' : money(SHIPCFG.base) + ' cho ' + String(SHIPCFG.baseKm).replace('.', ',') + ' km đầu · '}${c.extraKm ? c.extraKm + ' km tiếp theo × ' + money(SHIPCFG.perKm) : 'không phát sinh thêm km'}</div>` : ''}
+        ${c.toFree > 0 && c.shipMode !== 'need-loc' ? `<div class="co-hint" style="margin:-2px 0 4px;color:var(--green-d);font-weight:600">🎁 Mua thêm ${money(c.toFree)} để được ${c.freeAllShop ? 'miễn phí giao hàng' : 'miễn phí ship cơ bản'}</div>` : ''}${c.freeAll ? `<div class="co-hint" style="margin:-2px 0 4px;color:var(--green-d);font-weight:600">🎉 Đơn đạt mức freeship, miễn phí giao hàng</div>` : ''}
+        ${c.shipMode === 'km' && !c.freeAll ? `<div class="co-hint" style="margin:-2px 0 4px">${c.freeBase ? 'Miễn phí ' + money(SHIPCFG.base) + ' cơ bản · ' : money(SHIPCFG.base) + ' cho ' + String(SHIPCFG.baseKm).replace('.', ',') + ' km đầu · '}${c.extraKm ? c.extraKm + ' km tiếp theo × ' + money(SHIPCFG.perKm) : 'không phát sinh thêm km'}</div>` : ''}
         <div class="co-total"><span>Tổng thanh toán${c.shipMode === 'need-loc' ? ' <small style="font-weight:500;color:var(--ink-3)">(chưa gồm phí ship)</small>' : ''}</span><b>${money(c.total)}</b></div>
         <div class="co-pay">💵 Thanh toán tiền mặt khi nhận hàng</div>
       </section>
@@ -809,7 +812,7 @@
   /* ----- bản đồ chọn điểm: kéo bản đồ để đưa ghim đỏ vào đúng chỗ ----- */
   /* ----- Bản đồ: ưu tiên Goong (khóa trong goong-config.js); chưa có khóa hoặc Goong lỗi thì dùng Leaflet + OpenStreetMap/Esri ----- */
   let GOONG = { map:'', api:'' };
-  import('./goong-config.js?v=20261014i').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
+  import('./goong-config.js?v=20261014j').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
   const LF = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.', GJ = 'https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.';
   const loadAsset = (tag, attrs) => new Promise((ok, no) => { const e = document.createElement(tag); Object.assign(e, attrs); e.onload = ok; e.onerror = () => no(new Error(tag)); document.head.appendChild(e); });
   const loadLeaflet = () => window.L ? Promise.resolve() : Promise.all([loadAsset('link', { rel:'stylesheet', href:LF + 'css' }), loadAsset('script', { src:LF + 'js' })]);
@@ -1118,7 +1121,7 @@
     const free = +d.freeShipMin || 0, cat = d.cat || '';
     return {
       id:d.id, _d:d, name:esc(d.name), cat:esc(cat), homeCat:esc(cat), img:esc(d.img || 'hero.svg'), rate:+d.rate || 0, rc:esc(d.rc || ''),
-      eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, sale:+d.sale || 0, order:(d.order == null || isNaN(+d.order)) ? 9999 : +d.order, featured:!!d.featured,
+      eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, freeShipAll:!!d.freeShipAll, sale:+d.sale || 0, order:(d.order == null || isNaN(+d.order)) ? 9999 : +d.order, featured:!!d.featured,
       group:((d.group && d.group.length) ? d.group : [cat.split('•')[0].trim()]).map(esc), desc:esc(d.desc || ''),
       menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false, esc(m.cat || ''), esc(m.img || '')]), lat:d.lat ?? null, lng:d.lng ?? null, open:d.open !== false, phone:esc(d.phone || ''), address:esc(d.address || ''),
     };
@@ -1153,7 +1156,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261014i').then(m => {
+    import('./fb.js?v=20261014j').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -1187,7 +1190,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261014i')
+  import('./firebase-config.js?v=20261014j')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });

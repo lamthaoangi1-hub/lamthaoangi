@@ -137,6 +137,12 @@ Bản đồ và tìm địa chỉ ở Lâm Thao chính xác hơn khi dùng Goong
 4. Mở bản đồ chọn điểm: dòng nhỏ dưới bản đồ ghi **Nguồn bản đồ: Goong** là thành công. Nếu Goong lỗi (sai khóa, hết hạn mức) hệ thống tự quay về bản đồ miễn phí.
 5. Theo dõi lượt dùng ở account.goong.io → Tổng quan. Gói Free hiện có 120.000 lượt tải bản đồ/tháng và 1.000 lượt gọi API/ngày (mỗi lần khách tìm địa chỉ tốn 1–2 lượt).
 
+## Freeship theo từng quán (Admin)
+Admin → Cửa hàng → bấm Sửa quán → mục **Miễn phí ship cho đơn từ (đ)**: nhập mức (100000, 200000…) hoặc bấm nhanh **Từ 100K / 150K / 200K / 300K / Tắt freeship**. Mỗi quán đặt một mức riêng.
+- Tick **Miễn phí TOÀN BỘ phí giao**: đơn đạt mức thì khách không phải trả ship (kể cả km vượt). Bỏ tick: chỉ miễn phần phí cơ bản, khách vẫn trả km vượt.
+- Khách thấy nhãn "Freeship từ …K" ở quán, và ở giỏ hàng có dòng gợi ý "Mua thêm … để được miễn phí giao hàng". Chủ quán không tự đổi được mức này.
+- Tiền ship được miễn do **quán/nền tảng chịu**: shipper vẫn nhận phí ship bình thường theo quy định của bạn. Hãy tính trước để không bị lỗ.
+
 ## Giới hạn cần biết
 - **Quên mật khẩu:** người dùng nhắn Admin (Zalo/hotline), Admin vào **Người dùng → Đặt lại MK** (xem mục "Đặt lại mật khẩu" bên dưới). Chưa có tự đặt lại vì không dùng email thật.
 - **Giá đơn hàng** do trình duyệt khách tính; luật bảo mật chặn sửa đơn người khác và chặn giá trị vô lý (âm, giảm quá tạm tính, phí ship quá cao) nhưng chưa đối chiếu giá từng món với thực đơn. Với quy mô địa phương là đủ; muốn chặt hơn cần thêm Cloud Functions.
