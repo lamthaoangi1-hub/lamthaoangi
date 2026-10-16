@@ -185,7 +185,7 @@
   $('#sheet-backdrop').addEventListener('click', closeSheet);
 
   const bellBtn = () => `<button class="bell" data-go="notifications" aria-label="Thông báo">${fx.bellF}${unreadCount() ? '<i></i>' : ''}</button>`;
-  const locBtn = () => `<button class="loc" data-act="area">${fx.pinF}<span>${S.area}</span>${ic('chevDown')}</button>`;
+  const locBtn = () => `<button class="loc" data-act="area">${fx.pinF}<span>${esc(S.area)}</span>${ic('chevDown')}</button>`;
   const logo = (size = '') => `<span class="logo-wrap"><span class="logo ${size}"><span class="l1">Lâm Thao</span><span class="l2">Ăn Gì?</span></span><span class="logo-fork" style="${size === 'sm' ? 'width:28px;height:42px;right:-24px' : ''}">${fx.fork}</span></span>`;
 
   const shopTags = s => `<div class="tags">${s.open === false ? '<span class="tag sale">Đóng cửa</span>' : ''}${s.featured ? '<span class="tag feat">⭐ Nổi bật</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}</div>`;
@@ -421,8 +421,8 @@
       el.innerHTML = `
         <div class="hero" style="padding-bottom:110px"><div style="padding-top:34px"><div class="page-title" style="font-size:28px">Cá nhân</div><p class="page-sub">Quản lý tài khoản của bạn</p></div></div>
         <div class="profile-card" style="margin-top:-96px">
-          <div class="pc-top" data-menu="account"><div class="avatar"><img src="avatar.jpg" alt="${S.user.name}"><span class="cam">${ic('camera')}</span></div>
-            <div class="pc-info"><h2>${S.user.name}</h2><div class="phone">${fmtPhone(S.user.phone)}</div><span class="member">${fx.crown.replace('<svg','<svg width="24" height="24"')}${LIVE ? 'Thành viên' : 'Thành viên bạc'} ${ic('chevRight')}</span></div></div>
+          <div class="pc-top" data-menu="account"><div class="avatar"><img src="avatar.jpg" alt="${esc(S.user.name)}"><span class="cam">${ic('camera')}</span></div>
+            <div class="pc-info"><h2>${esc(S.user.name)}</h2><div class="phone">${fmtPhone(S.user.phone)}</div><span class="member">${fx.crown.replace('<svg','<svg width="24" height="24"')}${LIVE ? 'Thành viên' : 'Thành viên bạc'} ${ic('chevRight')}</span></div></div>
           <div class="stats"><button class="stat pts" data-menu="points"><span class="ic">${fx.coin}</span><span style="text-align:left"><small>Điểm tích lũy</small><b>${LIVE ? S.points : 820} điểm</b></span>${ic('chevRight', 'ch')}</button>
             <button class="stat cp" data-menu="coupons"><span class="ic">${fx.giftSm}</span><span style="text-align:left"><small>Ưu đãi của bạn</small><b>${LIVE ? PROMOS.length : 3} mã giảm giá</b></span>${ic('chevRight', 'ch')}</button></div>
         </div>
@@ -812,7 +812,7 @@
   /* ----- bản đồ chọn điểm: kéo bản đồ để đưa ghim đỏ vào đúng chỗ ----- */
   /* ----- Bản đồ: ưu tiên Goong (khóa trong goong-config.js); chưa có khóa hoặc Goong lỗi thì dùng Leaflet + OpenStreetMap/Esri ----- */
   let GOONG = { map:'', api:'' }, GOONG_ERR = '';
-  import('./goong-config.js?v=20261014l').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
+  import('./goong-config.js?v=20261016a').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
   const LF = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.', GJ = 'https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.';
   const loadAsset = (tag, attrs) => new Promise((ok, no) => { const e = document.createElement(tag); Object.assign(e, attrs); e.onload = ok; e.onerror = () => no(new Error(tag)); document.head.appendChild(e); });
   const loadLeaflet = () => window.L ? Promise.resolve() : Promise.all([loadAsset('link', { rel:'stylesheet', href:LF + 'css' }), loadAsset('script', { src:LF + 'js' })]);
@@ -1043,6 +1043,7 @@
     if (!act) return;
     const a = act.dataset.act;
     if (a === 'forgot' && LIVE) { e.preventDefault(); return openSheet(`<h3>Quên mật khẩu?</h3><div class="sub">Hãy liên hệ Admin để được đặt lại mật khẩu. Vui lòng cung cấp số điện thoại đã đăng ký.</div>${contactOpts()}`); }
+    if (a === 'forgot' && LIVE) { e.preventDefault(); const zl = zaloLink() || 'https://zalo.me/0978472704', hot = telHot(); return openSheet(`<h3>Quên mật khẩu?</h3><div class="sub">Để bảo mật, mật khẩu được Admin đặt lại trực tiếp. Hãy nhắn Zalo (kèm số điện thoại đã đăng ký) để được cấp mật khẩu mới, sau đó đăng nhập và dùng ngay.</div><a class="sheet-btn" style="display:block;text-align:center" href="${esc(zl)}" target="_blank" rel="noopener">Nhắn Zalo cho Admin</a>${hot ? `<a class="sheet-btn" style="display:block;text-align:center;margin-top:8px;background:var(--chip);color:var(--ink)" href="tel:${esc(hot)}">Gọi ${esc(CONTACT.hotline)}</a>` : ''}`); }
     if (a === 'forgot') { e.preventDefault(); return openSheet(`<h3>Quên mật khẩu?</h3><div class="sub">Nhập số điện thoại để nhận mã đặt lại mật khẩu.</div><div class="sheet-input">${fx.phoneF.replace('<svg','<svg width="24" height="24"')}<input type="tel" placeholder="Số điện thoại" inputmode="numeric"></div><button class="sheet-btn" data-sheetmsg="Đã gửi mã xác nhận (demo)">Gửi mã xác nhận</button>`); }
     if (a === 'terms' || a === 'privacy') { e.preventDefault(); return policySheet(a); }
     if (a === 'area') return openSheet(`<h3>Chọn khu vực giao hàng</h3>${AREAS.map(x => `<button class="opt ${x === S.area ? 'sel' : ''}" data-setarea="${x}">${ic('mapPin')}${x}${x === S.area ? `<span class="tick">${ic('check')}</span>` : ''}</button>`).join('')}`);
@@ -1084,7 +1085,7 @@
       return openSheet(`<h3>Đăng xuất?</h3><div class="sub">Bạn có chắc muốn thoát khỏi tài khoản hiện tại?</div>
         <button class="sheet-btn" style="background:var(--red)" data-dologout>Đăng xuất</button><button class="sheet-btn" style="background:var(--chip);color:var(--ink)" onclick="document.getElementById('sheet-backdrop').click()">Hủy</button>`);
     }
-    if (k === 'account') return openSheet(`<h3>Thông tin tài khoản</h3><div class="row-kv" style="margin-top:12px"><span>Họ và tên</span><b>${S.user.name}</b></div><div class="row-kv"><span>Số điện thoại</span><b>${fmtPhone(S.user.phone)}</b></div><div class="row-kv"><span>Hạng thành viên</span><b>${LIVE ? 'Thành viên' : 'Thành viên bạc'}</b></div>`);
+    if (k === 'account') return openSheet(`<h3>Thông tin tài khoản</h3><div class="row-kv" style="margin-top:12px"><span>Họ và tên</span><b>${esc(S.user.name)}</b></div><div class="row-kv"><span>Số điện thoại</span><b>${fmtPhone(S.user.phone)}</b></div><div class="row-kv"><span>Hạng thành viên</span><b>${LIVE ? 'Thành viên' : 'Thành viên bạc'}</b></div>`);
     if (k === 'address') return openSheet(LIVE
       ? `<h3>Địa chỉ giao hàng</h3>${S.user.address ? `<div class="row-kv" style="margin-top:12px"><span><b>Địa chỉ gần nhất</b><br><small style="color:var(--ink-2)">${esc(S.user.address)}, ${esc(S.area)}</small></span></div>` : '<p class="sub" style="margin-top:10px">Chưa có địa chỉ nào được lưu.</p>'}<p class="sub" style="margin-top:10px">Địa chỉ được lưu tự động sau mỗi lần đặt đơn, và bạn có thể sửa ngay khi đặt món.</p>`
       : `<h3>Địa chỉ đã lưu</h3><button class="opt">${ic('mapPin')}<span><b>Nhà</b><br><small style="color:var(--ink-2)">${S.area}</small></span></button><button class="sheet-btn" data-sheetmsg="Thêm địa chỉ mới (demo)">+ Thêm địa chỉ mới</button>`);
@@ -1160,7 +1161,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261014l').then(m => {
+    import('./fb.js?v=20261016a').then(m => {
       FB = m;
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -1194,7 +1195,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261014l')
+  import('./firebase-config.js?v=20261016a')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });

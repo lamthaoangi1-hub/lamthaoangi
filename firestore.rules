@@ -33,8 +33,8 @@ service cloud.firestore {
     }
 
     match /promos/{id} { allow read: if true; allow write: if isAdmin(); }
-    // settings/notify chứa Zalo ID nhận báo đơn: chỉ người đã đăng nhập mới đọc được
-    match /settings/{id} { allow read: if id != 'notify' || signedIn(); allow write: if isAdmin(); }
+    // settings/notify chứa Zalo ID nhận báo đơn: CHỈ Admin đọc (Apps Script đọc bằng quyền riêng của chủ script)
+    match /settings/{id} { allow read: if id != 'notify' || isAdmin(); allow write: if isAdmin(); }
 
     // Đơn hàng
     match /orders/{id} {
@@ -48,6 +48,8 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 40
+        && request.resource.data.code is string && request.resource.data.code.size() <= 20
+        && request.resource.data.address is string && request.resource.data.address.size() <= 300
         && request.resource.data.total is number && request.resource.data.total >= 0
         // chặn giá trị vô lý (âm / giảm quá tạm tính / phí ship quá cao) và chặn khách tự gắn shipper
         && request.resource.data.subtotal is number && request.resource.data.subtotal >= 0

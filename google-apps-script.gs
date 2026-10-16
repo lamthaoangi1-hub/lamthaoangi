@@ -60,6 +60,20 @@ function getDoc(path, token) {
   if (r.getResponseCode() !== 200) return null;
   return docToObj(JSON.parse(r.getContentText()));
 }
+// Đọc bằng quyền của chủ script (cần scope cloud-platform đã có trong appsscript.json). Lỗi thì rơi về token của người gọi.
+function getDocAdmin(path, fallbackToken) {
+  try {
+    const r = UrlFetchApp.fetch(FS + path, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    if (r.getResponseCode() === 200) return docToObj(JSON.parse(r.getContentText()));
+    if (r.getResponseCode() === 404) return null;
+  } catch (e) {}
+  return getDoc(path, fallbackToken);
+}
+// Chạy tay 1 lần trước khi siết luật settings/notify: phải in ra OK
+function checkNotifyAccess() {
+  const r = UrlFetchApp.fetch(FS + 'settings/notify', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  Logger.log(r.getResponseCode() === 200 || r.getResponseCode() === 404 ? 'OK – script đọc được Firestore bằng quyền riêng (' + r.getResponseCode() + ')' : 'LỖI ' + r.getResponseCode() + ': ' + r.getContentText());
+}
 const money = n => Number(n || 0).toLocaleString('vi-VN') + 'đ';
 
 // ===================== ĐIỂM VÀO =====================
@@ -157,8 +171,9 @@ function notifyOrder(body) {
 
   const result = { email: false, admin: 0, shop: 0, shipper: 0 };
   const shop = order.type ? {} : (getDoc('shops/' + order.shopId, body.token) || {});   // đơn Giao hàng/Mua hộ không thuộc quán nào
-  const notify = getDoc('settings/notify', body.token) || {};   // do Admin lưu: { shops:{shopId:[id]}, shippers:[id] }
+  const notify = getDocAdmin('settings/notify', body.token) || {};   // do Admin lưu: { shops:{shopId:[id]}, shippers:[id] }
 
+  const warn = priceWarning(order, shop); if (warn) order._warn = warn;
   try { sendOrderEmail(order, shop); result.email = true; } catch (e) { console.error('Gmail: ' + e); }
 
   const list = v => (Array.isArray(v) ? v : String(v || '').split(',')).map(x => String(x).trim()).filter(Boolean);
@@ -176,9 +191,21 @@ function notifyOrder(body) {
   push(adminIds, 'admin', zaloText(order, shop, 'Vui lòng mở lamthaoangi.io.vn/quanly.html để theo dõi đơn.'));
   push(shopIds, 'shop', zaloText(order, shop, 'Vui lòng mở lamthaoangi.io.vn/quanly.html để xem đơn.'));
   push(shipperIds, 'shipper', '🛎 Có đơn mới! Mở lamthaoangi.io.vn/quanly.html để xem và nhận đơn.');
+  if (!result.email && !result.admin && !result.shop && !result.shipper) { try { CacheService.getScriptCache().remove('notified_' + body.orderId); } catch (e) {} return out({ ok: false, error: 'Chưa gửi được thông báo nào', result: result }); }
   return out({ ok: true, result: result });
 }
 
+// So giá từng món trong đơn với thực đơn hiện tại của quán. Lệch → cảnh báo to đầu tin/mail để Admin kiểm tra trước khi giao.
+function priceWarning(order, shop) {
+  if (order.type || !shop || !shop.menu) return '';
+  const menu = {}; (shop.menu || []).forEach(m => { menu[String(m.name).trim()] = Number(m.price) || 0; });
+  const bad = (order.items || []).filter(i => menu[String(i.name).trim()] === undefined || menu[String(i.name).trim()] !== Number(i.price));
+  const sub = (order.items || []).reduce((a, i) => a + Number(i.price) * Number(i.qty), 0);
+  if (bad.length || sub !== Number(order.subtotal)) return '⚠️ GIÁ KHÔNG KHỚP THỰC ĐƠN – hãy kiểm tra trước khi giao: ' + bad.map(i => i.name).join(', ');
+  const maxOff = Math.round(order.subtotal * (Number(shop.sale) || 0) / 100);
+  if (Number(order.discount) > maxOff + 100000) return '⚠️ GIẢM GIÁ BẤT THƯỜNG (' + money(order.discount) + ') – hãy kiểm tra mã giảm giá.';
+  return '';
+}
 function itemsLines(order) {
   if (order.type) return (order.items || []).map(i => '• ' + i.name).join('\n');   // Giao hàng / Mua hộ: không có giá từng món
   return (order.items || []).map(i => '• ' + i.qty + ' x ' + i.name + ' – ' + money(i.price * i.qty)).join('\n');
@@ -192,7 +219,8 @@ function svcLines(o) {
 }
 
 function zaloText(order, shop, footer) {
-  if (order.type) return '🛎 ĐƠN ' + (order.type === 'errand' ? 'MUA HỘ' : 'GIAO HÀNG') + ' MỚI #' + order.code + '\n'
+  const w = order._warn ? order._warn + '\n' : '';
+  if (order.type) return w + '🛎 ĐƠN ' + (order.type === 'errand' ? 'MUA HỘ' : 'GIAO HÀNG') + ' MỚI #' + order.code + '\n'
     + svcLines(order).join('\n') + '\n'
     + 'Quãng đường: ' + (order.distanceKm != null ? order.distanceKm + ' km' : '?') + ' | PHÍ: ' + money(order.total) + ' (tiền mặt)\n'
     + 'Khách đặt: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
@@ -200,7 +228,7 @@ function zaloText(order, shop, footer) {
     + (order.note ? 'Ghi chú: ' + order.note + '\n' : '')
     + (order.lat ? 'Bản đồ: https://maps.google.com/?q=' + order.lat + ',' + order.lng + '\n' : '')
     + (footer || 'Vui lòng mở lamthaoangi.io.vn/quanly.html để xem đơn.');
-  return '🛎 ĐƠN MỚI #' + order.code + '\n'
+  return w + '🛎 ĐƠN MỚI #' + order.code + '\n'
     + 'Quán: ' + (order.shopName || shop.name || '') + '\n'
     + itemsLines(order) + '\n'
     + 'Phí ship: ' + money(order.shipFee) + (order.discount ? ' | Giảm: -' + money(order.discount) : '') + '\n'
@@ -217,6 +245,7 @@ function sendOrderEmail(order, shop) {
     '<tr><td style="padding:4px 8px">' + i.qty + ' x ' + esc(i.name) + '</td><td style="padding:4px 8px;text-align:right">' + money(i.price * i.qty) + '</td></tr>').join('');
   const map = order.lat ? '<p><a href="https://maps.google.com/?q=' + order.lat + ',' + order.lng + '">📍 Xem vị trí khách trên bản đồ</a></p>' : '';
   const html = '<div style="font-family:Arial,sans-serif;max-width:520px">'
+    + (order._warn ? '<p style="background:#fee2e2;color:#b91c1c;padding:8px;border-radius:6px"><b>' + esc(order._warn) + '</b></p>' : '')
     + '<h2 style="color:#16a34a;margin:0 0 8px">🛎 Đơn mới #' + esc(order.code) + '</h2>'
     + '<p style="margin:0 0 8px"><b>' + (order.type ? 'Dịch vụ' : 'Quán') + ':</b> ' + esc(order.shopName || shop.name) + (shop.phone ? ' · ' + esc(shop.phone) : '') + '</p>'
     + '<table style="border-collapse:collapse;width:100%;border:1px solid #e5e7eb">' + rows

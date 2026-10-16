@@ -1,33 +1,18 @@
 # Lâm Thao Ăn Gì? – Website đặt đồ ăn
 
-> **Dữ liệu thật + trang Admin / Nhà bán hàng / Shipper:** xem **HUONG-DAN.md**. Chưa cấu hình Firebase thì website chạy chế độ demo như mô tả dưới đây.
+Website tĩnh (HTML + CSS + JavaScript thuần, không cần build) chạy trên GitHub Pages, dữ liệu thật bằng Firebase (Auth + Firestore), ảnh lưu Google Drive, báo đơn qua Gmail + Zalo Bot bằng Google Apps Script.
 
-Website tĩnh (HTML + CSS + JavaScript thuần), không cần cài đặt hay build.
-
-## Chức năng
-- **Trang chủ**: chọn khu vực, tìm kiếm, lọc/sắp xếp, dịch vụ, banner tự chuyển, danh mục, danh sách quán, thả tim yêu thích.
-- **Đơn hàng**: 3 tab (Đang xử lý / Đang giao / Hoàn thành), tìm đơn, xem chi tiết, liên hệ quán, theo dõi đơn, đặt lại.
-- **Yêu thích**: lưu gần đây, lọc theo danh mục, tìm kiếm, sắp xếp (lưu trong trình duyệt).
-- **Thông báo**: lọc theo loại, đánh dấu đã đọc, chấm đỏ trên thanh điều hướng.
-- **Cá nhân**: hồ sơ, điểm, mã giảm giá, menu; đăng xuất → màn hình chưa đăng nhập.
-- **Đăng nhập / Đăng ký**: kiểm tra dữ liệu nhập, đăng nhập bằng Google/Facebook/Apple (demo).
-
-Tài khoản demo: `0901234567` / `123456`
+## Cấu trúc
+- `index.html`, `app.js`, `style.css` – website khách hàng (đồ ăn, Giao hàng, Mua hộ).
+- `quanly.html` + `quanly.js`, `panel.js`, `admin.js`, `seller.js`, `shipper.js`, `panel.css` – cổng quản lý chung (Admin / Nhà bán hàng / Shipper).
+- `fb.js`, `firebase-config.js`, `upload-config.js`, `goong-config.js` – cấu hình và lớp dữ liệu.
+- `firestore.rules` – luật bảo mật (dán vào Firebase Console → Firestore → Rules → Publish).
+- `google-apps-script.gs` + `appsscript.json` – dán vào script.google.com.
+- `manifest.json`, `icon-*.png` – cài lên màn hình chính điện thoại (PWA).
+- Hướng dẫn chi tiết: **HUONG-DAN.md**. Danh sách việc cần làm trước khi mở bán: **KIEM-TRA-TRUOC-KHI-MO.md**.
 
 ## Đưa lên GitHub Pages
-1. Tạo repository mới, upload **toàn bộ** nội dung thư mục này (giữ nguyên `index.html`, `css/`, `js/`, `img/`).
-2. Vào **Settings → Pages → Build and deployment**: Source = *Deploy from a branch*, Branch = `main`, thư mục `/ (root)`.
-3. Đợi ~1 phút, website chạy tại `https://<tên-github>.github.io/<tên-repo>/`.
+Settings → Pages → Deploy from a branch → `main` / root. Tên miền trong `CNAME`.
 
-## Chỉnh nội dung
-- Quán, món, đơn hàng, thông báo: sửa ở phần `DATA` đầu file `js/app.js`.
-- Màu sắc, font: biến `:root` ở đầu `css/style.css`.
-- Ảnh: thay file trong thư mục `img/` (giữ nguyên tên file).
-
-Font dùng: Plus Jakarta Sans, Inter, Baloo 2 (Google Fonts, cần Internet).
-
-## Banner Đền Hùng và dịch vụ
-
-- Banner đầu trang chủ dùng ảnh cổng Đền Hùng, Phú Thọ, được lưu tại `den-hung.jpg` để không phụ thuộc máy chủ ảnh bên ngoài.
-- Nguồn ảnh: [kiencgvt/den-hung-online — Cong-den-hung.jpg](https://github.com/kiencgvt/den-hung-online/blob/ba599f086870f97ee2ee7cbc3c242b21cda7d634/public/image/Cong-den-hung.jpg).
-- Bốn mục dịch vụ: **Đồ ăn**, **Xe ôm**, **Giao hàng**, **Mua hộ**. Kích thước gọn trên điện thoại; giữ nguyên thanh điều hướng chân trang.
+## Cập nhật
+Sửa file xong, đổi số phiên bản `?v=...` trong các file (tìm/thay toàn bộ) để trình duyệt tải bản mới.
