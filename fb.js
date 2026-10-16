@@ -4,8 +4,8 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWith
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, limit, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { firebaseConfig } from './firebase-config.js?v=20261016a';
-import { UPLOAD_URL } from './upload-config.js?v=20261016a';
+import { firebaseConfig } from './firebase-config.js?v=20261016b';
+import { UPLOAD_URL } from './upload-config.js?v=20261016b';
 
 export const configured = !!firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(firebaseConfig.apiKey);
 let auth, db;
@@ -72,7 +72,7 @@ export const watchShopOrders = (shopId, cb) => watch(query(collection(db, 'order
 export const watchOrdersByStatus = (st, cb) => watch(query(collection(db, 'orders'), where('status', '==', st)), cb);
 export const watchOpenOrders = cb => watch(query(collection(db, 'orders'), where('status', 'in', ['pending', 'confirmed', 'preparing', 'ready'])), cb);
 export const watchShipperOrders = (uid, cb) => watch(query(collection(db, 'orders'), where('shipperUid', '==', uid)), cb);
-export const watchAllOrders = cb => watch(query(collection(db, 'orders'), limit(300)), cb);
+export const watchAllOrders = cb => watch(collection(db, 'orders'), cb);
 
 /* ---- ghi ---- */
 export const placeOrder = o => addDoc(collection(db, 'orders'), { ...o, createdAt:serverTimestamp(), updatedAt:serverTimestamp() });

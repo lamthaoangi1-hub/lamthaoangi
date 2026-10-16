@@ -1,5 +1,6 @@
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261016a';
-import { parseWorkbook } from './import-sheet.js?v=20261016a';
+import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261016b';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261016b';
+import { parseWorkbook } from './import-sheet.js?v=20261016b';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
@@ -12,12 +13,23 @@ const loadXLSX = () => window.XLSX ? Promise.resolve(window.XLSX) : new Promise(
 });
 
 export const panel = { key:'admin', title:'Quản trị', roles:['admin'], render(root, me) {
-  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null;
+  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all';
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
 
+  const revenueView = () => {
+    const filtered = revShop === 'all' ? orders : orders.filter(o => o.shopId === revShop);
+    const r = report(filtered, period);
+    const rows = shops.map(s => ({ id:s.id, name:s.name, ...report(orders.filter(o => o.shopId === s.id), period) })).filter(x => x.count).sort((a,b) => b.revenue-a.revenue);
+    const archived = report(orders.filter(o => o.shopId && !shops.some(s => s.id === o.shopId)), period);
+    return `<div class="section-heading"><h2>Báo cáo doanh thu hệ thống</h2><p>Theo dõi từng quán và toàn bộ đơn hàng đã hoàn thành</p></div>${periodControl(period)}
+      <div class="card"><label class="f">Xem báo cáo<select id="rev-shop"><option value="all">Toàn bộ cửa hàng</option>${shops.map(s => `<option value="${esc(s.id)}" ${revShop===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label></div>
+      ${metrics(r, revShop === 'all' ? 'Tổng doanh thu các quán' : 'Doanh thu cửa hàng')}${note}
+      ${revShop === 'all' ? `<div class="card"><h3>Bảng xếp hạng doanh thu theo quán</h3><div class="table-scroll"><table><thead><tr><th>Cửa hàng</th><th>Đơn hoàn thành</th><th>Doanh thu</th><th></th></tr></thead><tbody>${rows.map(s=>`<tr><td><strong>${esc(s.name)}</strong></td><td>${s.count}</td><td><strong>${money(s.revenue)}</strong></td><td><button class="btn sm o" data-revshop="${esc(s.id)}">Chi tiết</button></td></tr>`).join('')}${archived.count ? `<tr><td>Quán đã xóa / không tồn tại</td><td>${archived.count}</td><td>${money(archived.revenue)}</td><td></td></tr>` : ''}${!rows.length&&!archived.count ? '<tr><td colspan="4">Chưa có doanh thu trong kỳ</td></tr>' : ''}</tbody></table></div></div>` : ''}
+      ${dailyView(r)}`;
+  };
   const ordersView = () => {
     const l = [...orders].sort(newestFirst).filter(o => ofil === 'all' || o.status === ofil);
-    return `<div class="row" style="margin-bottom:10px"><select id="ofil" style="width:auto"><option value="all">Tất cả trạng thái</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${ofil === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select><span class="muted">${l.length} đơn (tối đa 300 đơn gần nhất)</span></div>
+    return `<div class="row" style="margin-bottom:10px"><select id="ofil" style="width:auto"><option value="all">Tất cả trạng thái</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${ofil === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select><span class="muted">${l.length} đơn (hiển thị 100 đơn gần nhất)</span></div>
       ${l.length ? l.slice(0, 100).map(o => `<div class="card"><div class="row sb"><b>#${esc(o.code)} · ${esc(o.shopName)}</b>${badge(o.status)}</div>
       <div class="muted">${fmtTime(o.createdAt)} · ${esc(o.customerName)} ${esc(o.customerPhone)} · ${esc(o.address)}</div>
       <ul class="items">${(o.items || []).map(i => `<li>${i.qty} x ${esc(i.name)}</li>`).join('')}</ul>
@@ -121,8 +133,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   function draw() {
     const keep = $('#uq')?.value;
     const pend = orders.filter(o => o.status === 'pending').length;
-    const T = [['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shops', 'Cửa hàng'], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
-    root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ orders:ordersView, shops:shopsView, users:usersView, promos:promosView, settings:settingsView }[tab]()}</main>`;
+    const T = [['revenue', '📊 Doanh thu'], ['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shops', 'Cửa hàng'], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
+    root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ revenue:revenueView, orders:ordersView, shops:shopsView, users:usersView, promos:promosView, settings:settingsView }[tab]()}</main>`;
     if (keep && $('#uq')) $('#uq').value = keep;
   }
   /* Ghi danh sách Zalo ID (chủ quán theo từng quán + shipper) để Apps Script biết gửi báo đơn cho ai */
@@ -138,7 +150,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   const loadUsers = async () => { try { users = await fb.listUsers(); } catch (e) { err = fb.errMsg(e); } draw(); };
 
   track(fb.watchShops((l, e) => { shops = l.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi')); if (e) err = fb.errMsg(e); if (!edit || !$('#f-name')) draw(); }));
-  track(fb.watchAllOrders((l, e) => { orders = l; if (e) err = fb.errMsg(e); if (tab === 'orders') draw(); }));
+  track(fb.watchAllOrders((l, e) => { orders = l; if (e) err = fb.errMsg(e); if (tab === 'orders' || tab === 'revenue') draw(); }));
   track(fb.watchPromos(l => { promos = l; if (tab === 'promos') draw(); }));
   track(fb.watchSettings(s => { settings = s; if (tab === 'settings') draw(); }));
   loadUsers(); bindMenuEditor(root); bindImgUpload(root);
@@ -159,6 +171,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
         if (!imp.length) { imp = null; toast('Không thấy dữ liệu quán trong file (cần tab “Quán”)'); }
         t.value = ''; draw();
       }
+      if (t.id === 'rev-shop') { revShop = t.value; draw(); return; }
       if (t.dataset.ost) await fb.patchOrder(t.dataset.ost, { status:t.value });
       if (t.dataset.urole) { await fb.patchUser(t.dataset.urole, { role:t.value }); users.find(u => u.uid === t.dataset.urole).role = t.value; if (ufil !== 'all') ufil = t.value; await syncNotify(); toast('Đã đổi vai trò' + (t.value === 'seller' ? ' – hãy chọn cửa hàng cho họ' : '')); draw(); }
       if (t.dataset.ushop) { await fb.patchUser(t.dataset.ushop, { shopId:t.value }); users.find(u => u.uid === t.dataset.ushop).shopId = t.value; await syncNotify(); toast('Đã gán cửa hàng'); }
@@ -168,6 +181,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   });
   root.addEventListener('click', async e => {
     const g = s => e.target.closest(s);
+    if (g('[data-period]')) { period = g('[data-period]').dataset.period; draw(); return; }
+    if (g('[data-revshop]')) { revShop = g('[data-revshop]').dataset.revshop; draw(); return; }
     if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; rp = null; draw(); return; }
     try {
       if (g('[data-newshop]')) { edit = { menu:[] }; draw(); }
@@ -211,7 +226,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
         const u = users.find(x => x.uid === g('[data-rp]').dataset.rp); if (!u) return;
         rp = { uid:u.uid, name:u.name, phone:u.phone, role:u.role, pass:'', busy:false, done:false }; draw();
       }
-      else if (g('[data-rpclose]')) { rp = null; draw(); }
+      else if (g('[data-rpclose]')) { rp = null, period = 'month', revShop = 'all'; draw(); }
       else if (g('[data-rprand]')) { rp.pass = randPass(); draw(); }
       else if (g('[data-rpcopy]')) { try { await navigator.clipboard.writeText(rpMsg()); toast('Đã sao chép, hãy dán gửi cho người dùng'); } catch { prompt('Sao chép nội dung dưới đây:', rpMsg()); } }
       else if (g('[data-rpgo]')) {
