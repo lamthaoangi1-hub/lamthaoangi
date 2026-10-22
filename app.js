@@ -188,11 +188,11 @@
   const locBtn = () => `<button class="loc" data-act="area">${fx.pinF}<span>${esc(S.area)}</span>${ic('chevDown')}</button>`;
   const logo = (size = '') => `<span class="logo-wrap"><span class="logo ${size}"><span class="l1">Lâm Thao</span><span class="l2">Ăn Gì?</span></span><span class="logo-fork" style="${size === 'sm' ? 'width:28px;height:42px;right:-24px' : ''}">${fx.fork}</span></span>`;
 
-  const shopTags = s => `<div class="tags">${s.open === false ? `<span class="tag sale">${closedNote(s)}</span>` : ''}${s.featured ? '<span class="tag feat">⭐ Nổi bật</span>' : ''}${s.hot ? '<span class="tag hot">Bán chạy</span>' : ''}${s.isNew ? '<span class="tag new">Quán mới</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}</div>`;
+  const shopTags = s => `<div class="tags">${s.open === false ? `<span class="tag sale">${closedNote(s)}</span>` : ''}${s.featured ? '<span class="tag feat">⭐ Nổi bật</span>' : ''}${s.hot ? '<span class="tag hot">🔥Bán chạy</span>' : ''}${s.isNew ? '<span class="tag new">Quán mới</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}</div>`;
   const shopMeta = s => `<div class="meta"><span class="rate">${fx.star}${s.rate ? s.rate.toFixed(1) + (s.rc ? ' (' + s.rc + ')' : '') : 'Mới'}</span><span class="sep"></span><span class="eta">${ic('truck')}${s.eta}</span></div>`;
 
   /* ---------------- HOME ---------------- */
-  const HOME_CATS = ['Tất cả','Nổi bật','Bán chạy','Quán mới','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'];
+  const HOME_CATS = ['Tất cả','Nổi bật','🔥Bán chạy','Quán mới','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'];
   const SERVICES = [
     { k:'food', t:'Đồ ăn', svg:'svcScooter', active:true },
     { k:'ride', t:'Xe ôm', svg:'svcMotorbike', tint:true },
@@ -225,8 +225,8 @@
 
   function filteredShops() {
     const hc = S.home.cat;
-    let list = SHOPS.filter(s => hc === 'Tất cả' || (hc === 'Nổi bật' ? s.featured : hc === 'Bán chạy' ? s.hot : hc === 'Quán mới' ? s.isNew : (s.group.includes(hc) || norm(s.cat).includes(norm(hc)))));
-    if (hc === 'Bán chạy') list = [...list].sort((a, b) => (b.sold - a.sold) || (b.hotFlag - a.hotFlag));
+    let list = SHOPS.filter(s => hc === 'Tất cả' || (hc === 'Nổi bật' ? s.featured : hc === '🔥Bán chạy' ? s.hot : hc === 'Quán mới' ? s.isNew : (s.group.includes(hc) || norm(s.cat).includes(norm(hc)))));
+    if (hc === '🔥Bán chạy') list = [...list].sort((a, b) => (b.sold - a.sold) || (b.hotFlag - a.hotFlag));
     if (hc === 'Quán mới') list = [...list].sort((a, b) => b.created - a.created);
     const q = norm(S.home.q.trim());
     if (q) list = list.filter(s => norm(s.name + ' ' + s.cat + ' ' + s.menu.map(m => m[0]).join(' ')).includes(q));
