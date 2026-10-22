@@ -1,19 +1,16 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261016b';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261016b';
-import { parseWorkbook } from './import-sheet.js?v=20261016b';
+import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261022a';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261022a';
+import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261022a';
+import { readSheets, downloadShopTemplate } from './bulk.js?v=20261022a';
+import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261022a';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
   { name:'Cơm Tấm Minh Tâm', cat:'Cơm • Món Việt', group:['Cơm', 'Món Việt'], desc:'Cơm tấm sườn nướng.', img:'comtam.jpg', eta:'20 - 30 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Cơm tấm sườn nướng', price:50000, available:true }] },
 ];
 
-const loadXLSX = () => window.XLSX ? Promise.resolve(window.XLSX) : new Promise((ok, no) => {
-  const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-  s.onload = () => ok(window.XLSX); s.onerror = () => no(new Error('Không tải được thư viện đọc Excel, kiểm tra mạng')); document.head.appendChild(s);
-});
-
 export const panel = { key:'admin', title:'Quản trị', roles:['admin'], render(root, me) {
-  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all';
+  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all', paste = null, sel = new Set(), bh = { open:'06:00', close:'21:00' };
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
 
   const revenueView = () => {
@@ -39,11 +36,19 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
 
   const byOrder = (a, b) => (a.order ?? 9999) - (b.order ?? 9999) || String(a.name || '').localeCompare(String(b.name || ''), 'vi');
   const sellersOf = id => users.filter(u => u.shopId === id && u.role === 'seller').map(u => u.phone).join(', ');
-  const importView = () => `<div class="card"><h3>Nhập quán từ Excel cũ</h3><p class="muted">Tick những quán muốn đưa sang web mới. Quán đã có trên web mới được bỏ tick sẵn để tránh trùng.</p>
+  const importView = () => `<div class="card"><h3>Nhập nhiều quán cùng lúc</h3><p class="muted">Tick những quán muốn đưa vào web. Quán trùng tên với quán đã có được bỏ tick sẵn để tránh trùng.</p>
     <table><tr><th></th><th>Quán</th><th>Món</th><th>Ghi chú</th></tr>${imp.map((x, i) => `<tr><td><input type="checkbox" data-impck="${i}" ${x.on ? 'checked' : ''}></td><td><b>${esc(x.data.name)}</b></td><td>${x.data.menu.length}</td><td class="muted">${esc(x.notes.join('; '))}</td></tr>`).join('')}</table>
     <div class="row" style="margin-top:12px"><button class="btn" data-impgo ${impBusy ? 'disabled' : ''}>${impBusy ? 'Đang nhập…' : `Nhập ${imp.filter(x => x.on).length} quán đã chọn`}</button><button class="btn o" data-impcancel ${impBusy ? 'disabled' : ''}>Hủy</button></div></div>`;
-  const shopsView = () => edit ? shopForm() : mk ? mkForm() : imp ? importView() : `<div class="row sb" style="margin-bottom:10px"><b>${shops.length} cửa hàng</b><span class="row"><input type="file" id="imp-file" accept=".xlsx,.xls" hidden><button class="btn sm o" data-impfile>⬆ Nhập từ Excel cũ</button><button class="btn sm o" data-seed>+ Thêm 2 quán mẫu</button><button class="btn sm" data-newshop>+ Thêm cửa hàng</button></span></div>
-    ${shops.length ? `<p class="muted" style="margin:0 0 8px">Dùng ▲ ▼ để đổi vị trí quán trên trang chủ. Quán bật <b>⭐ Nổi bật</b> hoặc có <b>Giảm giá</b> sẽ hiện trên banner đầu trang.</p><div class="card" style="overflow-x:auto"><table><tr><th>Thứ tự</th><th>Quán</th><th>Món</th><th>⭐ Nổi bật</th><th>Giảm %</th><th>Trạng thái</th><th></th></tr>${[...shops].sort(byOrder).map((s, i, arr) => `<tr><td style="white-space:nowrap"><button class="btn sm o" data-mv="up" data-id="${s.id}" ${i === 0 ? 'disabled' : ''}>▲</button> <button class="btn sm o" data-mv="down" data-id="${s.id}" ${i === arr.length - 1 ? 'disabled' : ''}>▼</button></td><td><b>${esc(s.name)}</b><br><span class="muted">${esc(s.cat || '')}</span><br><span class="muted">${sellersOf(s.id) ? '🔑 TK bán hàng: ' + esc(sellersOf(s.id)) : '⚠ Chưa có tài khoản bán hàng'}</span></td><td>${(s.menu || []).length}</td><td><label class="sw" style="margin:0"><input type="checkbox" data-feat="${s.id}" ${s.featured ? 'checked' : ''}></label></td><td><input type="number" data-sale="${s.id}" min="0" max="90" value="${s.sale || 0}" style="width:64px"></td><td>${s.open === false ? '<span class="badge bad">Đóng cửa</span>' : '<span class="badge ok">Mở cửa</span>'}</td><td style="text-align:right"><button class="btn sm" data-mkseller="${s.id}">Cấp TK</button> <button class="btn sm o" data-editshop="${s.id}">Sửa</button> <button class="btn sm r" data-delshop="${s.id}">Xóa</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Chưa có cửa hàng. Bấm “Thêm cửa hàng”.</div>'}`;
+  const stBadge = s => s.open === false ? '<span class="badge bad">Đóng cửa</span>' : isOpenNow(s) ? '<span class="badge ok">Mở cửa</span>' : '<span class="badge warn">Ngoài giờ · đóng</span>';
+  const hrsLine = s => s.autoHours && hoursText(s) ? `<br><span class="muted">⏰ ${hoursText(s)}</span>` : '';
+  const pasteView = () => `<div class="card"><h3>Dán danh sách quán</h3><p class="muted">Mỗi dòng 1 quán, các cột cách nhau bằng dấu <b>|</b> (hoặc copy từ Excel rồi dán):<br><code>Tên quán | Loại | SĐT | Địa chỉ | Giờ mở | Giờ đóng</code><br>Chỉ <b>Tên quán</b> là bắt buộc. Có đủ giờ mở và giờ đóng thì quán tự đóng cửa ngoài giờ. Món ăn thêm sau ở nút “Sửa” (có dán danh sách món / nhập Excel), hoặc dùng “Nhập quán từ Excel” để nhập quán kèm thực đơn.</p>
+    <textarea id="paste-txt" rows="9" placeholder="Phở Bò Lâm Thao | Phở, Món Việt | 0912345678 | Thị trấn Lâm Thao | 06:00 | 21:00&#10;Trà Sữa Chill | Trà sữa | 0987654321">${esc(paste.text)}</textarea>
+    <div class="row" style="margin-top:10px"><button class="btn" data-pastego>Xem trước</button><button class="btn o" data-pasteclose>Hủy</button></div></div>`;
+  const bulkBar = () => sel.size ? `<div class="card" style="background:#f6faf7"><b>Đã chọn ${sel.size} quán</b> – đặt giờ hoặc mở/đóng cùng lúc
+    <div class="grid" style="margin-top:8px"><label class="f">Giờ mở cửa<input type="time" id="bh-open" value="${esc(bh.open)}"></label><label class="f">Giờ đóng cửa<input type="time" id="bh-close" value="${esc(bh.close)}"></label></div>
+    <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:8px"><button class="btn sm" data-bhapply>⏰ Áp dụng giờ &amp; bật tự đóng cửa</button><button class="btn sm o" data-bhoff>Tắt tự đóng cửa</button><button class="btn sm o" data-bhopen>Mở cửa</button><button class="btn sm r" data-bhclose>Đóng cửa</button><button class="btn sm gray" data-bhclear>Bỏ chọn</button></div></div>` : '';
+  const shopsView = () => edit ? shopForm() : mk ? mkForm() : paste ? pasteView() : imp ? importView() : `<div class="row sb" style="margin-bottom:10px"><b>${shops.length} cửa hàng</b><span class="row" style="flex-wrap:wrap;gap:6px"><input type="file" id="imp-file" accept=".xlsx,.xls,.csv" hidden><button class="btn sm o" data-pasteshop>📋 Dán danh sách quán</button><button class="btn sm o" data-impfile>⬆ Nhập quán từ Excel</button><button class="btn sm gray" data-tplshop>⬇ File Excel mẫu</button><button class="btn sm o" data-seed>+ Thêm 2 quán mẫu</button><button class="btn sm" data-newshop>+ Thêm cửa hàng</button></span></div>
+    ${shops.length ? `<p class="muted" style="margin:0 0 8px">Dùng ▲ ▼ để đổi vị trí quán trên trang chủ. Quán bật <b>⭐ Nổi bật</b> hoặc có <b>Giảm giá</b> sẽ hiện trên banner đầu trang.</p>${bulkBar()}<div class="card" style="overflow-x:auto"><table><tr><th><input type="checkbox" data-selall title="Chọn tất cả" ${sel.size && sel.size === shops.length ? 'checked' : ''}></th><th>Thứ tự</th><th>Quán</th><th>Món</th><th>⭐ Nổi bật</th><th>Giảm %</th><th>Trạng thái</th><th></th></tr>${[...shops].sort(byOrder).map((s, i, arr) => `<tr><td><input type="checkbox" data-sel="${s.id}" ${sel.has(s.id) ? 'checked' : ''}></td><td style="white-space:nowrap"><button class="btn sm o" data-mv="up" data-id="${s.id}" ${i === 0 ? 'disabled' : ''}>▲</button> <button class="btn sm o" data-mv="down" data-id="${s.id}" ${i === arr.length - 1 ? 'disabled' : ''}>▼</button></td><td><b>${esc(s.name)}</b><br><span class="muted">${esc(s.cat || '')}</span><br><span class="muted">${sellersOf(s.id) ? '🔑 TK bán hàng: ' + esc(sellersOf(s.id)) : '⚠ Chưa có tài khoản bán hàng'}</span></td><td>${(s.menu || []).length}</td><td><label class="sw" style="margin:0"><input type="checkbox" data-feat="${s.id}" ${s.featured ? 'checked' : ''}></label></td><td><input type="number" data-sale="${s.id}" min="0" max="90" value="${s.sale || 0}" style="width:64px"></td><td>${stBadge(s)}${hrsLine(s)}</td><td style="text-align:right"><button class="btn sm" data-mkseller="${s.id}">Cấp TK</button> <button class="btn sm o" data-editshop="${s.id}">Sửa</button> <button class="btn sm r" data-delshop="${s.id}">Xóa</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Chưa có cửa hàng. Bấm “Thêm cửa hàng”.</div>'}`;
 
   /* Form cấp tài khoản nhà bán hàng: admin tự nhập tài khoản + mật khẩu rồi gửi cho chủ quán */
   const sellerUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'quanly.html';
@@ -86,7 +91,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       <label class="f">Ảnh / logo quán</label>${imgUpHtml(s.img || '', 'f-img')}
       <label class="f">Mô tả<textarea id="f-desc">${n('desc')}</textarea></label>
       ${s.id ? `<p class="muted" style="margin-top:10px">Vị trí bản đồ: ${s.lat != null ? `đã lưu · <a href="${mapLink(s.lat, s.lng)}" target="_blank" rel="noopener">xem</a> · <button type="button" class="btn sm r" data-resetloc>Đặt lại vị trí</button>` : 'chưa có (chủ quán tự chia sẻ ở trang Nhà bán hàng)'}</p>` : ''}
-      <label class="sw"><input type="checkbox" id="f-open" ${s.open === false ? '' : 'checked'}>Đang mở cửa</label>
+      ${hoursFormHtml(s, 'f')}
+      <label class="sw"><input type="checkbox" id="f-open" ${s.open === false ? '' : 'checked'}>Đang mở cửa (công tắc tổng – tắt là đóng cả ngày)</label>
       <label class="sw"><input type="checkbox" id="f-feat" ${s.featured ? 'checked' : ''}>⭐ Nổi bật (hiện trên banner trang chủ)</label>
       <h3 style="margin-top:16px">Thực đơn</h3>${menuEditorHtml(s.menu)}
       <div class="row" style="margin-top:16px"><button class="btn" data-saveshop>Lưu</button><button class="btn gray" data-cancel>Hủy</button></div></div>`;
@@ -132,6 +138,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
 
   function draw() {
     const keep = $('#uq')?.value;
+    if (sel.size) sel = new Set([...sel].filter(id => shops.some(s => s.id === id)));
     const pend = orders.filter(o => o.status === 'pending').length;
     const T = [['revenue', '📊 Doanh thu'], ['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shops', 'Cửa hàng'], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
     root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ revenue:revenueView, orders:ordersView, shops:shopsView, users:usersView, promos:promosView, settings:settingsView }[tab]()}</main>`;
@@ -154,8 +161,11 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   track(fb.watchPromos(l => { promos = l; if (tab === 'promos') draw(); }));
   track(fb.watchSettings(s => { settings = s; if (tab === 'settings') draw(); }));
   loadUsers(); bindMenuEditor(root); bindImgUpload(root);
+  /* Quán tự đóng/mở theo giờ: làm mới nhãn trạng thái mỗi phút khi đang xem danh sách cửa hàng */
+  const clock = setInterval(() => { if (tab === 'shops' && !edit && !mk && !imp && !paste && !document.activeElement?.closest?.('input,textarea,select')) draw(); }, 60000);
+  track(() => clearInterval(clock));
 
-  root.addEventListener('input', e => { if (e.target.id === 'uq') draw(), $('#uq').focus(); });
+  root.addEventListener('input', e => { if (e.target.id === 'uq') draw(), $('#uq').focus(); if (e.target.id === 'paste-txt' && paste) paste.text = e.target.value; });
   root.addEventListener('change', async e => {
     const t = e.target;
     try {
@@ -163,12 +173,15 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       if (t.dataset.feat) { await fb.patchShop(t.dataset.feat, { featured:t.checked }); toast(t.checked ? 'Đã bật Nổi bật' : 'Đã tắt Nổi bật'); }
       if (t.dataset.sale !== undefined) { await fb.patchShop(t.dataset.sale, { sale:Math.min(90, Math.max(0, +t.value || 0)) }); toast('Đã cập nhật giảm giá'); }
       if (t.dataset.impck !== undefined) { imp[+t.dataset.impck].on = t.checked; draw(); }
+      if (t.id === 'bh-open') bh.open = t.value;
+      if (t.id === 'bh-close') bh.close = t.value;
+      if (t.dataset.sel !== undefined) { t.checked ? sel.add(t.dataset.sel) : sel.delete(t.dataset.sel); draw(); }
+      if (t.dataset.selall !== undefined) { sel = t.checked ? new Set(shops.map(x => x.id)) : new Set(); draw(); }
       if (t.id === 'imp-file' && t.files[0]) {
         toast('Đang đọc file…');
-        const X = await loadXLSX(), wb = X.read(await t.files[0].arrayBuffer(), { type: 'array' }), sheets = {};
-        wb.SheetNames.forEach(n => { sheets[n] = X.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: null }); });
+        const sheets = await readSheets(t.files[0]);
         imp = parseWorkbook(sheets, shops.map(s => s.name)).shops;
-        if (!imp.length) { imp = null; toast('Không thấy dữ liệu quán trong file (cần tab “Quán”)'); }
+        if (!imp.length) { imp = null; toast('Không thấy dữ liệu quán trong file (cần tab “Quán” có cột “Tên quán”). Bấm “File Excel mẫu” để xem mẫu.'); }
         t.value = ''; draw();
       }
       if (t.id === 'rev-shop') { revShop = t.value; draw(); return; }
@@ -183,7 +196,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     const g = s => e.target.closest(s);
     if (g('[data-period]')) { period = g('[data-period]').dataset.period; draw(); return; }
     if (g('[data-revshop]')) { revShop = g('[data-revshop]').dataset.revshop; draw(); return; }
-    if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; rp = null; draw(); return; }
+    if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; rp = null; paste = null; draw(); return; }
     try {
       if (g('[data-newshop]')) { edit = { menu:[] }; draw(); }
       else if (g('[data-editshop]')) { edit = JSON.parse(JSON.stringify(shops.find(s => s.id === g('[data-editshop]').dataset.editshop))); draw(); }
@@ -239,6 +252,26 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       }
       else if (g('[data-freeset]')) { $('#f-free').value = g('[data-freeset]').dataset.freeset; toast(+g('[data-freeset]').dataset.freeset ? 'Đã chọn mức freeship, nhớ bấm Lưu' : 'Đã tắt freeship, nhớ bấm Lưu'); }
       else if (g('[data-impfile]')) { $('#imp-file').click(); }
+      else if (g('[data-tplshop]')) { await downloadShopTemplate(); }
+      else if (g('[data-pasteshop]')) { paste = { text:'' }; draw(); }
+      else if (g('[data-pasteclose]')) { paste = null; draw(); }
+      else if (g('[data-pastego]')) {
+        paste.text = $('#paste-txt').value;
+        const r = parseShopsText(paste.text, shops.map(x => x.name));
+        if (!r.shops.length) return toast('Chưa có dòng nào hợp lệ. Mỗi dòng bắt đầu bằng tên quán.');
+        imp = r.shops; paste = null; draw();
+        if (r.bad.length) toast(r.bad[0] + (r.bad.length > 1 ? ` (+${r.bad.length - 1} dòng khác)` : ''));
+      }
+      else if (g('[data-bhclear]')) { sel = new Set(); draw(); }
+      else if (g('[data-bhapply]')) {
+        const o = $('#bh-open').value, c = $('#bh-close').value; bh = { open:o, close:c };
+        if (toMin(o) == null || toMin(c) == null) return toast('Nhập đủ giờ mở và giờ đóng');
+        const f = hoursFields(o, c, true); await Promise.all([...sel].map(id => fb.patchShop(id, f)));
+        toast(`Đã đặt giờ ${f.openAt} – ${f.closeAt} và bật tự đóng cửa cho ${sel.size} quán`);
+      }
+      else if (g('[data-bhoff]')) { await Promise.all([...sel].map(id => fb.patchShop(id, { autoHours:false }))); toast(`Đã tắt tự đóng cửa cho ${sel.size} quán`); }
+      else if (g('[data-bhopen]')) { await Promise.all([...sel].map(id => fb.patchShop(id, { open:true }))); toast(`Đã mở cửa ${sel.size} quán`); }
+      else if (g('[data-bhclose]')) { if (confirm(`Đóng cửa ${sel.size} quán đã chọn (đóng cả ngày, không nhận đơn)?`)) { await Promise.all([...sel].map(id => fb.patchShop(id, { open:false }))); toast(`Đã đóng cửa ${sel.size} quán`); } }
       else if (g('[data-impcancel]')) { imp = null; draw(); }
       else if (g('[data-impgo]')) {
         const pick = imp.filter(x => x.on); if (!pick.length) return toast('Chưa chọn quán nào');
@@ -251,7 +284,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       else if (g('[data-saveshop]')) {
         const v = id => $('#' + id).value.trim();
         if (!v('f-name')) return toast('Nhập tên quán');
-        const d = { name:v('f-name'), cat:v('f-cat'), group:v('f-group').split(',').map(x => x.trim()).filter(Boolean), phone:v('f-phone'), address:v('f-address'), eta:v('f-eta'), shipFee:Math.max(0, +v('f-ship') || 0), freeShipMin:Math.max(0, +v('f-free') || 0), freeShipAll:$('#f-freeall').checked, sale:Math.min(90, Math.max(0, +v('f-sale') || 0)), rate:Math.min(5, Math.max(0, +v('f-rate') || 0)), rc:v('f-rc'), img:v('f-img'), desc:v('f-desc'), open:$('#f-open').checked, featured:$('#f-feat').checked, menu:readMenu(root) };
+        const hr = readHours('f', root); if (hr.error) return toast(hr.error);
+        const d = { name:v('f-name'), cat:v('f-cat'), group:v('f-group').split(',').map(x => x.trim()).filter(Boolean), phone:v('f-phone'), address:v('f-address'), eta:v('f-eta'), shipFee:Math.max(0, +v('f-ship') || 0), freeShipMin:Math.max(0, +v('f-free') || 0), freeShipAll:$('#f-freeall').checked, sale:Math.min(90, Math.max(0, +v('f-sale') || 0)), rate:Math.min(5, Math.max(0, +v('f-rate') || 0)), rc:v('f-rc'), img:v('f-img'), desc:v('f-desc'), open:$('#f-open').checked, featured:$('#f-feat').checked, menu:readMenu(root), ...hr.fields };
         if (edit.id) await fb.patchShop(edit.id, d); else await fb.createShop(d);
         edit = null; toast('Đã lưu cửa hàng'); draw();
       }

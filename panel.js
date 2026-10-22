@@ -1,6 +1,7 @@
 /* Khung dùng chung cho 3 trang quản lý: đăng nhập, kiểm tra quyền, tiện ích hiển thị */
-import * as fb from './fb.js?v=20261016b';
+import * as fb from './fb.js?v=20261022a';
 export { fb };
+import { parseMenuText, parseMenuSheets, readSheets, downloadMenuTemplate } from './bulk.js?v=20261022a';
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -131,11 +132,44 @@ export function startPortal(panels) {
 
 /* ---- Trình sửa thực đơn dùng chung (Admin + Nhà bán hàng) ---- */
 export const menuRowHtml = (m = {}) => `<div class="mitem" data-mrow><div class="mrow"><input type="text" placeholder="Tên món" value="${esc(m.name || '')}" data-k="name"><input type="number" min="0" step="1000" placeholder="Giá (đ)" value="${m.price ?? ''}" data-k="price"><label class="sw" style="margin:0"><input type="checkbox" data-k="available" ${m.available === false ? '' : 'checked'}>Còn</label><button type="button" class="btn sm r" data-mdel title="Xóa món">×</button></div><div class="mrow2"><input type="text" placeholder="Nhóm món (VD: Đồ ăn nhanh)" value="${esc(m.cat || '')}" data-k="cat">${imgUpHtml(m.img || '')}</div></div>`;
-export const menuEditorHtml = menu => `<div class="mrow hd"><span>Tên món</span><span>Giá</span><span>Còn bán</span><span></span></div><div id="menu-rows">${(menu || []).map(menuRowHtml).join('')}</div><button type="button" class="btn sm o" style="margin-top:10px" data-madd>+ Thêm món</button>`;
+export const menuEditorHtml = menu => `<div class="mrow hd"><span>Tên món</span><span>Giá</span><span>Còn bán</span><span></span></div><div id="menu-rows">${(menu || []).map(menuRowHtml).join('')}</div>
+  <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px"><button type="button" class="btn sm o" data-madd>+ Thêm món</button><button type="button" class="btn sm o" data-mpaste>📋 Dán danh sách món</button><button type="button" class="btn sm o" data-mxl>⬆ Nhập từ Excel</button><button type="button" class="btn sm gray" data-mtpl>⬇ File Excel mẫu</button><input type="file" accept=".xlsx,.xls,.csv" data-mxfile hidden></div>
+  <div class="card" data-mpastebox hidden style="margin-top:10px;background:#f6faf7"><p class="muted" style="margin:0 0 6px">Mỗi dòng 1 món, ví dụ:<br><code>Phở bò tái | 55000 | Món chính</code> &nbsp; <code>Trà đá - 10k</code> &nbsp; <code>Cơm sườn 45.000</code><br>Copy nhiều dòng từ Excel (cột Món, Giá, Nhóm) rồi dán vào đây cũng được. Món trùng tên sẽ được cập nhật giá.</p>
+  <textarea data-mpastetxt rows="7" placeholder="Phở bò tái | 55000 | Món chính&#10;Trà đá - 10k"></textarea><div class="row" style="margin-top:8px"><button type="button" class="btn sm" data-mpastego>Thêm vào thực đơn</button><button type="button" class="btn sm gray" data-mpasteclose>Đóng</button></div></div>`;
+/* Thêm/cập nhật nhiều món vào bảng thực đơn đang sửa (chưa lưu cho tới khi bấm nút Lưu) */
+function mergeMenu(root, items, bad = []) {
+  if (!items.length) return toast(bad.length ? `Không đọc được món nào (dòng thiếu giá: ${bad.slice(0, 3).join('; ')}…)` : 'Không thấy món nào để thêm');
+  items = items.slice(0, 300);
+  const box = $('#menu-rows', root), byName = {};
+  $$('[data-mrow]', box).forEach(r => { byName[normName($('[data-k=name]', r).value)] = r; });
+  let add = 0, upd = 0;
+  items.forEach(m => {
+    const r = byName[normName(m.name)];
+    if (r) {
+      $('[data-k=price]', r).value = m.price; $('[data-k=available]', r).checked = m.available;
+      if (m.cat) $('[data-k=cat]', r).value = m.cat; upd++;
+    } else { box.insertAdjacentHTML('beforeend', menuRowHtml(m)); byName[normName(m.name)] = box.lastElementChild; add++; }
+  });
+  toast(`Đã thêm ${add} món, cập nhật ${upd} món${bad.length ? `, bỏ qua ${bad.length} dòng thiếu giá` : ''}. Nhớ bấm nút Lưu bên dưới.`);
+}
+const normName = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ');
 export function bindMenuEditor(root) {
-  root.addEventListener('click', e => {
+  root.addEventListener('click', async e => {
     if (e.target.closest('[data-madd]')) $('#menu-rows', root).insertAdjacentHTML('beforeend', menuRowHtml());
     const d = e.target.closest('[data-mdel]'); if (d) d.closest('[data-mrow]').remove();
+    if (e.target.closest('[data-mpaste]')) { const b = $('[data-mpastebox]', root); b.hidden = !b.hidden; if (!b.hidden) $('[data-mpastetxt]', b).focus(); }
+    if (e.target.closest('[data-mpasteclose]')) $('[data-mpastebox]', root).hidden = true;
+    if (e.target.closest('[data-mpastego]')) {
+      const t = $('[data-mpastetxt]', root), r = parseMenuText(t.value);
+      mergeMenu(root, r.items, r.bad); if (r.items.length) { t.value = ''; $('[data-mpastebox]', root).hidden = true; }
+    }
+    if (e.target.closest('[data-mxl]')) $('[data-mxfile]', root).click();
+    if (e.target.closest('[data-mtpl]')) { try { await downloadMenuTemplate(); } catch (er) { toast(er.message); } }
+  });
+  root.addEventListener('change', async e => {
+    const f = e.target; if (!f.matches || !f.matches('[data-mxfile]')) return;
+    const file = f.files[0]; f.value = ''; if (!file) return;
+    try { toast('Đang đọc file…'); const r = parseMenuSheets(await readSheets(file)); mergeMenu(root, r.items, r.bad); } catch (er) { toast(er.message || 'Không đọc được file'); }
   });
 }
 export const readMenu = root => $$('[data-mrow]', root).map(r => ({

@@ -7,6 +7,18 @@ service cloud.firestore {
     function isAdmin() { return signedIn() && me().role == 'admin'; }
     function isSeller() { return signedIn() && me().role == 'seller'; }
     function isShipper() { return signedIn() && me().role == 'shipper'; }
+    // Quán đang mở cửa? open=false là công tắc tổng; autoHours bật thì chỉ nhận đơn trong khung giờ openMin..closeMin (phút từ 0h, giờ Việt Nam UTC+7). Hỗ trợ qua đêm; mở = đóng nghĩa là cả ngày.
+    function shopOpenNow(sh) {
+      return sh.get('open', true) != false
+        && (sh.get('autoHours', false) != true
+            || sh.openMin == sh.closeMin
+            || (sh.openMin < sh.closeMin
+                && (request.time.toMillis() + 25200000) % 86400000 >= sh.openMin * 60000
+                && (request.time.toMillis() + 25200000) % 86400000 < sh.closeMin * 60000)
+            || (sh.openMin > sh.closeMin
+                && ((request.time.toMillis() + 25200000) % 86400000 >= sh.openMin * 60000
+                    || (request.time.toMillis() + 25200000) % 86400000 < sh.closeMin * 60000)));
+    }
     function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
 
     // Hồ sơ người dùng: khách tự tạo hồ sơ với vai trò customer; chỉ admin đổi vai trò
@@ -27,7 +39,7 @@ service cloud.firestore {
       // Vị trí GPS (lat, lng): chủ quán chỉ được lưu 1 lần; chỉ Admin mới đặt lại được
       // Phí giao hàng (shipFee, freeShipMin) CHỈ Admin được sửa
       allow update: if isAdmin() || (isSeller() && me().shopId == shopId
-        && changedOnly(['menu', 'open', 'desc', 'eta', 'sale', 'img', 'phone', 'address', 'lat', 'lng', 'locAcc', 'locAt'])
+        && changedOnly(['menu', 'open', 'desc', 'eta', 'sale', 'img', 'phone', 'address', 'lat', 'lng', 'locAcc', 'locAt', 'autoHours', 'openAt', 'closeAt', 'openMin', 'closeMin'])
         && (resource.data.get('lat', null) == null
             || (request.resource.data.lat == resource.data.lat && request.resource.data.lng == resource.data.lng)));
     }
@@ -61,7 +73,9 @@ service cloud.firestore {
         // đơn đồ ăn: quán phải tồn tại + tạm tính > 0. Đơn Giao hàng / Mua hộ (type): không thuộc quán nào, không có tiền hàng, chỉ có phí ship
         && (
           (request.resource.data.get('type', 'food') == 'food' && request.resource.data.subtotal > 0
-            && exists(/databases/$(database)/documents/shops/$(request.resource.data.shopId)))
+            && exists(/databases/$(database)/documents/shops/$(request.resource.data.shopId))
+            // quán đang đóng cửa (tắt thủ công hoặc ngoài giờ tự động) thì không nhận đơn
+            && shopOpenNow(get(/databases/$(database)/documents/shops/$(request.resource.data.shopId)).data))
           || (request.resource.data.get('type', 'food') in ['delivery', 'errand'] && request.resource.data.subtotal == 0
             && request.resource.data.discount == 0 && request.resource.data.shopId == 'svc-' + request.resource.data.type)
         )

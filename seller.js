@@ -1,5 +1,6 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261016b';
-import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261016b';
+import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261022a';
+import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261022a';
+import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261022a';
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
@@ -31,7 +32,9 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
       <p class="muted" style="margin:4px 0 10px">${has ? `Đã lưu vị trí quán${shop.locAcc ? ` (sai số khoảng ${shop.locAcc} m)` : ''}. Shipper sẽ thấy nút chỉ đường tới quán. <a href="${mapLink(shop.lat, shop.lng)}" target="_blank" rel="noopener">Xem trên bản đồ</a>. Muốn đổi vị trí, hãy nhờ Admin đặt lại.` : 'Hãy đứng tại quán, bật GPS rồi bấm nút bên dưới. Chỉ bấm được 1 lần: sau khi lưu nút sẽ bị khóa.'}</p>
       <button class="btn" data-shareloc ${has ? 'disabled' : ''}>${has ? '✓ Đã chia sẻ vị trí quán' : '📍 Chia sẻ vị trí quán'}</button></div>`;
     return locCard + `<div class="card"><h3>${esc(shop.name)}</h3>
-      <label class="sw"><input type="checkbox" id="s-open" ${shop.open === false ? '' : 'checked'}>Đang mở cửa (nhận đơn)</label>
+      <p class="muted" style="margin:4px 0 8px">Trạng thái hiện tại: ${shop.open === false ? '<b>Đang đóng (tắt thủ công)</b>' : isOpenNow(shop) ? '<b>Đang mở cửa</b>' : '<b>Ngoài giờ mở cửa – quán đang tự đóng</b>'}${hoursText(shop) ? ` · giờ mở cửa ${hoursText(shop)}` : ''}</p>
+      ${hoursFormHtml(shop, 's')}
+      <label class="sw"><input type="checkbox" id="s-open" ${shop.open === false ? '' : 'checked'}>Đang mở cửa (công tắc tổng – tắt là đóng cả ngày, không nhận đơn)</label>
       <label class="f">Mô tả<textarea id="s-desc">${n('desc')}</textarea></label>
       <div class="grid"><label class="f">Địa chỉ<input type="text" id="s-address" value="${n('address')}"></label><label class="f">SĐT quán<input type="tel" id="s-phone" value="${n('phone')}"></label>
       <label class="f">Thời gian giao (VD: 15 - 25 phút)<input type="text" id="s-eta" value="${n('eta', '15 - 30 phút')}"></label><label class="f">Giảm giá (%)<input type="number" id="s-sale" min="0" max="90" value="${shop.sale ?? 0}"></label></div>
@@ -71,7 +74,8 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
       if (e.target.closest('[data-savemenu]')) { await fb.patchShop(me.shopId, { menu:readMenu(root) }); toast('Đã lưu thực đơn'); return; }
       if (e.target.closest('[data-saveshop]')) {
         const v = id => $('#' + id).value.trim();
-        await fb.patchShop(me.shopId, { open:$('#s-open').checked, desc:v('s-desc'), address:v('s-address'), phone:v('s-phone'), eta:v('s-eta'), sale:Math.min(90, Math.max(0, +v('s-sale') || 0)), img:v('s-img') });
+        const hr = readHours('s', root); if (hr.error) return toast(hr.error);
+        await fb.patchShop(me.shopId, { ...hr.fields, open:$('#s-open').checked, desc:v('s-desc'), address:v('s-address'), phone:v('s-phone'), eta:v('s-eta'), sale:Math.min(90, Math.max(0, +v('s-sale') || 0)), img:v('s-img') });
         toast('Đã lưu cửa hàng');
       }
     } catch (er) { toast(fb.errMsg(er)); }

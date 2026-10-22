@@ -156,3 +156,18 @@ Góc phải dưới màn hình khách luôn có nút Zalo, bấm vào mở chat 
 
 ## Cấu trúc file mới
 `firebase-config.js` (cấu hình) · `fb.js` (kết nối dữ liệu) · `firestore.rules` (luật bảo mật) · `admin.*`, `seller.*`, `shipper.*`, `panel.*` (3 trang quản lý) · `app.js` (website khách, đã nối dữ liệu thật).
+
+---
+
+## Nhập hàng loạt & tự đóng cửa theo giờ (cập nhật 22/10/2026)
+
+**Nhập hàng loạt (Admin → Cửa hàng)**
+- `📋 Dán danh sách quán`: mỗi dòng 1 quán `Tên quán | Loại | SĐT | Địa chỉ | Giờ mở | Giờ đóng` (chỉ tên là bắt buộc; copy từ Excel dán vào cũng được).
+- `⬆ Nhập quán từ Excel`: file có tab **Quán** (cột Tên quán, Loại, SĐT, Địa chỉ, Thời gian giao, Phí ship, Freeship từ, Giảm giá, Giờ mở cửa, Giờ đóng cửa, Mô tả) và tab **Thực đơn** (cột Quán, Món, Giá, Nhóm, Còn bán). Bấm `⬇ File Excel mẫu` để tải mẫu. File Excel cũ (tab Quán / "<tên>.Q") vẫn nhập được.
+- Thực đơn từng quán (Admin → Sửa, hoặc Nhà bán hàng → Thực đơn): `📋 Dán danh sách món` (`Phở bò | 55000 | Món chính`, `Trà đá - 10k`, `Cơm sườn 45.000`), `⬆ Nhập từ Excel`, `⬇ File Excel mẫu`. Món trùng tên được cập nhật giá. Nhớ bấm **Lưu** sau khi nhập.
+
+**Tự đóng cửa theo giờ**
+- Form quán (Admin và Nhà bán hàng) có khối `⏰ Tự động mở/đóng cửa theo giờ`: ngoài khung giờ quán hiện "Đóng cửa · mở lại hh:mm" và khách không đặt được. Giờ Việt Nam, hỗ trợ qua đêm (17:00 → 02:00).
+- "Đang mở cửa" là công tắc tổng: tắt = đóng cả ngày.
+- Admin → Cửa hàng: tick nhiều quán → đặt giờ / bật-tắt tự đóng / mở-đóng cửa cùng lúc.
+- **Bắt buộc**: dán lại `firestore.rules` → Publish (luật mới chặn đặt đơn khi quán đóng và cho chủ quán sửa giờ). Sau khi publish, thử trong Rules Playground hoặc đặt thử 1 đơn.

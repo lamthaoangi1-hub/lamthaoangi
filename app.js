@@ -188,7 +188,7 @@
   const locBtn = () => `<button class="loc" data-act="area">${fx.pinF}<span>${esc(S.area)}</span>${ic('chevDown')}</button>`;
   const logo = (size = '') => `<span class="logo-wrap"><span class="logo ${size}"><span class="l1">Lâm Thao</span><span class="l2">Ăn Gì?</span></span><span class="logo-fork" style="${size === 'sm' ? 'width:28px;height:42px;right:-24px' : ''}">${fx.fork}</span></span>`;
 
-  const shopTags = s => `<div class="tags">${s.open === false ? '<span class="tag sale">Đóng cửa</span>' : ''}${s.featured ? '<span class="tag feat">⭐ Nổi bật</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}</div>`;
+  const shopTags = s => `<div class="tags">${s.open === false ? `<span class="tag sale">${closedNote(s)}</span>` : ''}${s.featured ? '<span class="tag feat">⭐ Nổi bật</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}</div>`;
   const shopMeta = s => `<div class="meta"><span class="rate">${fx.star}${s.rate ? s.rate.toFixed(1) + (s.rc ? ' (' + s.rc + ')' : '') : 'Mới'}</span><span class="sep"></span><span class="eta">${ic('truck')}${s.eta}</span></div>`;
 
   /* ---------------- HOME ---------------- */
@@ -553,7 +553,7 @@
     page.innerHTML = `<div class="sp-top"><button class="sp-back" data-shopback>${ic('chevLeft')}Tất cả quán</button>
         <button class="heart ${isFav(s.id) ? 'on' : ''}" data-heart="${s.id}" data-sheet="1" aria-label="Yêu thích">${ic('heart')}</button></div>
       <div class="sp-card"><div class="sp-head"><img class="sp-logo" src="${s.img}" alt="${s.name}">
-        <div><h2>${s.name}${s.open === false ? '<span class="sp-closed">Đóng cửa</span>' : ''}</h2><div class="sp-cat">${s.cat}</div>
+        <div><h2>${s.name}${s.open === false ? `<span class="sp-closed">${closedNote(s)}</span>` : ''}</h2><div class="sp-cat">${s.cat}</div>${hoursNote(s)}
         ${s.address ? `<div class="sp-addr">${ic('mapPin')}<span>${s.address}</span></div>` : ''}</div></div>
         <div class="sp-info">${s.rate ? `<div class="sp-rate">${fx.star}Đánh giá quán (${s.rate.toFixed(1)}${s.rc ? ' · ' + s.rc + ' lượt' : ''})</div>` : ''}
           ${shopMeta(s)}${shopTags(s)}${s.desc ? `<p class="sp-desc">${s.desc}</p>` : ''}</div></div>
@@ -620,7 +620,7 @@
   function updateCartUI() {
     const bar = $('#cart-bar'), { s, lines } = cartData(); if (!bar || !s) return;
     const n = lines.reduce((a, l) => a + l.qty, 0);
-    if (s.open === false) { $('#cb-l').textContent = 'Quán đang đóng cửa'; $('#cb-t').textContent = ''; bar.classList.add('empty'); bar.disabled = true; return; }
+    if (s.open === false) { $('#cb-l').textContent = closedNote(s).replace('Đóng cửa', 'Quán đang đóng cửa'); $('#cb-t').textContent = ''; bar.classList.add('empty'); bar.disabled = true; return; }
     $('#cb-l').textContent = `Giỏ hàng (${n} món)`; $('#cb-t').textContent = money(calc(s, lines, '').sub);
     bar.classList.toggle('empty', !n); bar.disabled = false;
   }
@@ -812,7 +812,7 @@
   /* ----- bản đồ chọn điểm: kéo bản đồ để đưa ghim đỏ vào đúng chỗ ----- */
   /* ----- Bản đồ: ưu tiên Goong (khóa trong goong-config.js); chưa có khóa hoặc Goong lỗi thì dùng Leaflet + OpenStreetMap/Esri ----- */
   let GOONG = { map:'', api:'' }, GOONG_ERR = '';
-  import('./goong-config.js?v=20261016b').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
+  import('./goong-config.js?v=20261022a').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
   const LF = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.', GJ = 'https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.';
   const loadAsset = (tag, attrs) => new Promise((ok, no) => { const e = document.createElement(tag); Object.assign(e, attrs); e.onload = ok; e.onerror = () => no(new Error(tag)); document.head.appendChild(e); });
   const loadLeaflet = () => window.L ? Promise.resolve() : Promise.all([loadAsset('link', { rel:'stylesheet', href:LF + 'css' }), loadAsset('script', { src:LF + 'js' })]);
@@ -1122,13 +1122,22 @@
   };
   let RAW = [], ordersUnsub = null;
 
+  /* Giờ mở/đóng tự động (giờ Việt Nam). Giữ đồng bộ với hours.js và firestore.rules */
+  const shopOpenNow = d => {
+    if (d.open === false) return false;
+    if (!d.autoHours || !Number.isInteger(d.openMin) || !Number.isInteger(d.closeMin)) return true;
+    const n = Math.floor(((Date.now() + 7 * 3600000) % 86400000) / 60000), o = d.openMin, c = d.closeMin;
+    return o === c ? true : o < c ? (n >= o && n < c) : (n >= o || n < c);
+  };
+  const closedNote = s => { const d = s._d || {}; return d.open !== false && d.autoHours && d.openAt ? 'Đóng cửa · mở lại ' + d.openAt : 'Đóng cửa'; };
+  const hoursNote = s => { const d = s._d || {}; return d.autoHours && d.openAt && d.closeAt ? `<div class="sp-hours">⏰ Giờ mở cửa: ${d.openAt} – ${d.closeAt}</div>` : ''; };
   function mapShop(d) {
     const free = +d.freeShipMin || 0, cat = d.cat || '';
     return {
       id:d.id, _d:d, name:esc(d.name), cat:esc(cat), homeCat:esc(cat), img:esc(d.img || 'hero.svg'), rate:+d.rate || 0, rc:esc(d.rc || ''),
       eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, freeShipAll:!!d.freeShipAll, sale:+d.sale || 0, order:(d.order == null || isNaN(+d.order)) ? 9999 : +d.order, featured:!!d.featured,
       group:((d.group && d.group.length) ? d.group : [cat.split('•')[0].trim()]).map(esc), desc:esc(d.desc || ''),
-      menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false, esc(m.cat || ''), esc(m.img || '')]), lat:d.lat ?? null, lng:d.lng ?? null, open:d.open !== false, phone:esc(d.phone || ''), address:esc(d.address || ''),
+      menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false, esc(m.cat || ''), esc(m.img || '')]), lat:d.lat ?? null, lng:d.lng ?? null, get open() { return shopOpenNow(d); }, phone:esc(d.phone || ''), address:esc(d.address || ''),
     };
   }
   function mapOrder(o) {
@@ -1161,18 +1170,24 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261016b').then(m => {
+    import('./fb.js?v=20261022a').then(m => {
       FB = m;
-      FB.watchShops((l, err) => {
-        if (err) return toast('Không tải được danh sách quán');
-        shopsLoaded = true;
-        SHOPS = l.map(mapShop).sort((a, b) => (b.open !== false) - (a.open !== false) || a.order - b.order || a.name.localeCompare(b.name, 'vi'));
+      let RAWSHOPS = [], openSig = '';
+      const applyShops = () => {
+        SHOPS = RAWSHOPS.map(mapShop).sort((a, b) => (b.open !== false) - (a.open !== false) || a.order - b.order || a.name.localeCompare(b.name, 'vi'));
+        openSig = SHOPS.map(x => x.open ? 1 : 0).join('');
         if (S.tab === 'home' && $('#banner')) $('#banner').innerHTML = bannerInner();
         if (shopPageOpen) { if (SHOPS.some(x => x.id === SP.id)) renderShopPage(); }
         if (S.tab === 'home' && $('#home-list')) $('#home-list').innerHTML = shopListHtml();
         else if (S.tab === 'favorites' && $('#fav-body')) { $('#fav-body').innerHTML = favBody(); bindFavSort(); }
         else if (S.tab === 'orders') rebuildOrders();
+      };
+      FB.watchShops((l, err) => {
+        if (err) return toast('Không tải được danh sách quán');
+        shopsLoaded = true; RAWSHOPS = l; applyShops();
       });
+      /* Quán tự đóng/mở theo giờ: mỗi 30 giây kiểm tra, có quán đổi trạng thái thì vẽ lại danh sách */
+      setInterval(() => { if (SHOPS.length && SHOPS.map(x => x.open ? 1 : 0).join('') !== openSig) applyShops(); }, 30000);
       FB.watchPromos(l => { PROMOS = l.filter(p => p.active !== false); rebuildNotices(); if (S.tab === 'profile') renderProfile(); });
       FB.watchSettings(c => { ['base', 'baseKm', 'perKm', 'road'].forEach(k => { const v = Number(c['ship' + k[0].toUpperCase() + k.slice(1)]); if (v > 0) SHIPCFG[k] = v; });
         [['w2', 'shipW2'], ['w3', 'shipW3'], ['errand', 'errandFee']].forEach(([k, f]) => { if (c[f] != null && c[f] !== '' && Number(c[f]) >= 0) SVCCFG[k] = Number(c[f]); }); CONTACT = { ...CONTACT, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v)) }; });
@@ -1195,7 +1210,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261016b')
+  import('./firebase-config.js?v=20261022a')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });
