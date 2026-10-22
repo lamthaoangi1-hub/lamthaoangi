@@ -171,3 +171,9 @@ Góc phải dưới màn hình khách luôn có nút Zalo, bấm vào mở chat 
 - "Đang mở cửa" là công tắc tổng: tắt = đóng cả ngày.
 - Admin → Cửa hàng: tick nhiều quán → đặt giờ / bật-tắt tự đóng / mở-đóng cửa cùng lúc.
 - **Bắt buộc**: dán lại `firestore.rules` → Publish (luật mới chặn đặt đơn khi quán đóng và cho chủ quán sửa giờ). Sau khi publish, thử trong Rules Playground hoặc đặt thử 1 đơn.
+
+## Mục Nổi bật / Bán chạy / Quán mới trên trang chủ
+- Trang chủ có thêm 3 nút lọc: **Nổi bật**, **Bán chạy**, **Quán mới**; quán thuộc nhóm nào sẽ có nhãn tương ứng trên card.
+- **Nổi bật**: Admin → Cửa hàng → cột ⭐ Nổi bật.
+- **Bán chạy**: tự động khi quán có từ 10 đơn đã giao trở lên (Admin cập nhật số đơn mỗi khi mở trang quản lý), hoặc Admin tick cột "Bán chạy" để ghim thủ công.
+- **Quán mới**: tự động trong 30 ngày kể từ lúc tạo quán, hoặc Admin tick cột "Quán mới".

@@ -1,8 +1,8 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261022a';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261022a';
-import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261022a';
-import { readSheets, downloadShopTemplate } from './bulk.js?v=20261022a';
-import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261022a';
+import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261022b';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261022b';
+import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261022b';
+import { readSheets, downloadShopTemplate } from './bulk.js?v=20261022b';
+import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261022b';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
@@ -48,7 +48,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     <div class="grid" style="margin-top:8px"><label class="f">Giờ mở cửa<input type="time" id="bh-open" value="${esc(bh.open)}"></label><label class="f">Giờ đóng cửa<input type="time" id="bh-close" value="${esc(bh.close)}"></label></div>
     <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:8px"><button class="btn sm" data-bhapply>⏰ Áp dụng giờ &amp; bật tự đóng cửa</button><button class="btn sm o" data-bhoff>Tắt tự đóng cửa</button><button class="btn sm o" data-bhopen>Mở cửa</button><button class="btn sm r" data-bhclose>Đóng cửa</button><button class="btn sm gray" data-bhclear>Bỏ chọn</button></div></div>` : '';
   const shopsView = () => edit ? shopForm() : mk ? mkForm() : paste ? pasteView() : imp ? importView() : `<div class="row sb" style="margin-bottom:10px"><b>${shops.length} cửa hàng</b><span class="row" style="flex-wrap:wrap;gap:6px"><input type="file" id="imp-file" accept=".xlsx,.xls,.csv" hidden><button class="btn sm o" data-pasteshop>📋 Dán danh sách quán</button><button class="btn sm o" data-impfile>⬆ Nhập quán từ Excel</button><button class="btn sm gray" data-tplshop>⬇ File Excel mẫu</button><button class="btn sm o" data-seed>+ Thêm 2 quán mẫu</button><button class="btn sm" data-newshop>+ Thêm cửa hàng</button></span></div>
-    ${shops.length ? `<p class="muted" style="margin:0 0 8px">Dùng ▲ ▼ để đổi vị trí quán trên trang chủ. Quán bật <b>⭐ Nổi bật</b> hoặc có <b>Giảm giá</b> sẽ hiện trên banner đầu trang.</p>${bulkBar()}<div class="card" style="overflow-x:auto"><table><tr><th><input type="checkbox" data-selall title="Chọn tất cả" ${sel.size && sel.size === shops.length ? 'checked' : ''}></th><th>Thứ tự</th><th>Quán</th><th>Món</th><th>⭐ Nổi bật</th><th>Giảm %</th><th>Trạng thái</th><th></th></tr>${[...shops].sort(byOrder).map((s, i, arr) => `<tr><td><input type="checkbox" data-sel="${s.id}" ${sel.has(s.id) ? 'checked' : ''}></td><td style="white-space:nowrap"><button class="btn sm o" data-mv="up" data-id="${s.id}" ${i === 0 ? 'disabled' : ''}>▲</button> <button class="btn sm o" data-mv="down" data-id="${s.id}" ${i === arr.length - 1 ? 'disabled' : ''}>▼</button></td><td><b>${esc(s.name)}</b><br><span class="muted">${esc(s.cat || '')}</span><br><span class="muted">${sellersOf(s.id) ? '🔑 TK bán hàng: ' + esc(sellersOf(s.id)) : '⚠ Chưa có tài khoản bán hàng'}</span></td><td>${(s.menu || []).length}</td><td><label class="sw" style="margin:0"><input type="checkbox" data-feat="${s.id}" ${s.featured ? 'checked' : ''}></label></td><td><input type="number" data-sale="${s.id}" min="0" max="90" value="${s.sale || 0}" style="width:64px"></td><td>${stBadge(s)}${hrsLine(s)}</td><td style="text-align:right"><button class="btn sm" data-mkseller="${s.id}">Cấp TK</button> <button class="btn sm o" data-editshop="${s.id}">Sửa</button> <button class="btn sm r" data-delshop="${s.id}">Xóa</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Chưa có cửa hàng. Bấm “Thêm cửa hàng”.</div>'}`;
+    ${shops.length ? `<p class="muted" style="margin:0 0 8px">Dùng ▲ ▼ để đổi vị trí quán trên trang chủ. Quán bật <b>⭐ Nổi bật</b> hoặc có <b>Giảm giá</b> sẽ hiện trên banner đầu trang.</p>${bulkBar()}<div class="card" style="overflow-x:auto"><table><tr><th><input type="checkbox" data-selall title="Chọn tất cả" ${sel.size && sel.size === shops.length ? 'checked' : ''}></th><th>Thứ tự</th><th>Quán</th><th>Món</th><th>⭐ Nổi bật</th><th>Bán chạy</th><th>Quán mới</th><th>Giảm %</th><th>Trạng thái</th><th></th></tr>${[...shops].sort(byOrder).map((s, i, arr) => `<tr><td><input type="checkbox" data-sel="${s.id}" ${sel.has(s.id) ? 'checked' : ''}></td><td style="white-space:nowrap"><button class="btn sm o" data-mv="up" data-id="${s.id}" ${i === 0 ? 'disabled' : ''}>▲</button> <button class="btn sm o" data-mv="down" data-id="${s.id}" ${i === arr.length - 1 ? 'disabled' : ''}>▼</button></td><td><b>${esc(s.name)}</b><br><span class="muted">${esc(s.cat || '')}</span><br><span class="muted">${sellersOf(s.id) ? '🔑 TK bán hàng: ' + esc(sellersOf(s.id)) : '⚠ Chưa có tài khoản bán hàng'}</span></td><td>${(s.menu || []).length}</td><td><label class="sw" style="margin:0"><input type="checkbox" data-feat="${s.id}" ${s.featured ? 'checked' : ''}></label></td><td><label class="sw" style="margin:0"><input type="checkbox" data-hot="${s.id}" ${s.hot ? 'checked' : ''}></label><br><span class="muted">${s.sold || 0} đơn</span></td><td><label class="sw" style="margin:0"><input type="checkbox" data-isnew="${s.id}" ${s.isNew ? 'checked' : ''}></label>${(toDate(s.createdAt)?.getTime() || 0) > Date.now() - 30 * 864e5 ? '<br><span class="muted">tự động</span>' : ''}</td><td><input type="number" data-sale="${s.id}" min="0" max="90" value="${s.sale || 0}" style="width:64px"></td><td>${stBadge(s)}${hrsLine(s)}</td><td style="text-align:right"><button class="btn sm" data-mkseller="${s.id}">Cấp TK</button> <button class="btn sm o" data-editshop="${s.id}">Sửa</button> <button class="btn sm r" data-delshop="${s.id}">Xóa</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Chưa có cửa hàng. Bấm “Thêm cửa hàng”.</div>'}`;
 
   /* Form cấp tài khoản nhà bán hàng: admin tự nhập tài khoản + mật khẩu rồi gửi cho chủ quán */
   const sellerUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'quanly.html';
@@ -156,10 +156,17 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   };
   const loadUsers = async () => { try { users = await fb.listUsers(); } catch (e) { err = fb.errMsg(e); } draw(); };
 
-  track(fb.watchShops((l, e) => { shops = l.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi')); if (e) err = fb.errMsg(e); if (!edit || !$('#f-name')) draw(); }));
-  track(fb.watchAllOrders((l, e) => { orders = l; if (e) err = fb.errMsg(e); if (tab === 'orders' || tab === 'revenue') draw(); }));
+  track(fb.watchShops((l, e) => { shops = l.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi')); if (e) err = fb.errMsg(e); if (orders.length) syncSold(); if (!edit || !$('#f-name')) draw(); }));
+  track(fb.watchAllOrders((l, e) => { orders = l; syncSold(); if (e) err = fb.errMsg(e); if (tab === 'orders' || tab === 'revenue') draw(); }));
   track(fb.watchPromos(l => { promos = l; if (tab === 'promos') draw(); }));
   track(fb.watchSettings(s => { settings = s; if (tab === 'settings') draw(); }));
+  /* Đếm số đơn đã giao của từng quán và lưu vào quán (trường sold) để khách thấy mục “Bán chạy”. Chạy khi Admin mở trang quản lý. */
+  let soldT; const syncSold = () => { clearTimeout(soldT); soldT = setTimeout(() => {
+    if (!shops.length) return; const cnt = {};
+    orders.forEach(o => { if (o.status === 'done' && !o.type && o.shopId) cnt[o.shopId] = (cnt[o.shopId] || 0) + 1; });
+    shops.forEach(s => { const n = cnt[s.id] || 0; if ((s.sold || 0) !== n) fb.patchShop(s.id, { sold:n }).catch(() => {}); });
+  }, 4000); };
+  track(() => clearTimeout(soldT));
   loadUsers(); bindMenuEditor(root); bindImgUpload(root);
   /* Quán tự đóng/mở theo giờ: làm mới nhãn trạng thái mỗi phút khi đang xem danh sách cửa hàng */
   const clock = setInterval(() => { if (tab === 'shops' && !edit && !mk && !imp && !paste && !document.activeElement?.closest?.('input,textarea,select')) draw(); }, 60000);
@@ -171,6 +178,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     try {
       if (t.id === 'ofil') { ofil = t.value; draw(); }
       if (t.dataset.feat) { await fb.patchShop(t.dataset.feat, { featured:t.checked }); toast(t.checked ? 'Đã bật Nổi bật' : 'Đã tắt Nổi bật'); }
+      if (t.dataset.hot) { await fb.patchShop(t.dataset.hot, { hot:t.checked }); toast(t.checked ? 'Đã ghim vào mục Bán chạy' : 'Đã bỏ ghim Bán chạy'); }
+      if (t.dataset.isnew) { await fb.patchShop(t.dataset.isnew, { isNew:t.checked }); toast(t.checked ? 'Đã đánh dấu Quán mới' : 'Đã bỏ đánh dấu Quán mới'); }
       if (t.dataset.sale !== undefined) { await fb.patchShop(t.dataset.sale, { sale:Math.min(90, Math.max(0, +t.value || 0)) }); toast('Đã cập nhật giảm giá'); }
       if (t.dataset.impck !== undefined) { imp[+t.dataset.impck].on = t.checked; draw(); }
       if (t.id === 'bh-open') bh.open = t.value;
