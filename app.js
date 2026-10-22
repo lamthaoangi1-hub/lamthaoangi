@@ -188,11 +188,11 @@
   const locBtn = () => `<button class="loc" data-act="area">${fx.pinF}<span>${esc(S.area)}</span>${ic('chevDown')}</button>`;
   const logo = (size = '') => `<span class="logo-wrap"><span class="logo ${size}"><span class="l1">Lâm Thao</span><span class="l2">Ăn Gì?</span></span><span class="logo-fork" style="${size === 'sm' ? 'width:28px;height:42px;right:-24px' : ''}">${fx.fork}</span></span>`;
 
-  const shopTags = s => `<div class="tags">${s.open === false ? `<span class="tag sale">${closedNote(s)}</span>` : ''}${s.featured ? '<span class="tag feat">⭐ Nổi bật</span>' : ''}${s.hot ? '<span class="tag hot">🔥Bán chạy</span>' : ''}${s.isNew ? '<span class="tag new">Quán mới</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}</div>`;
+  const shopTags = s => `<div class="tags">${s.open === false ? `<span class="tag sale">${closedNote(s)}</span>` : ''}${s.featured ? '<span class="tag feat">⭐ Nổi bật</span>' : ''}${s.hot ? '<span class="tag hot">🔥 Bán chạy</span>' : ''}${s.isNew ? '<span class="tag new">Quán mới</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}</div>`;
   const shopMeta = s => `<div class="meta"><span class="rate">${fx.star}${s.rate ? s.rate.toFixed(1) + (s.rc ? ' (' + s.rc + ')' : '') : 'Mới'}</span><span class="sep"></span><span class="eta">${ic('truck')}${s.eta}</span></div>`;
 
   /* ---------------- HOME ---------------- */
-  const HOME_CATS = ['Tất cả','Nổi bật','🔥Bán chạy','Quán mới','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'];
+  const HOME_CATS = ['Tất cả','Nổi bật','Bán chạy','Quán mới','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'];
   const SERVICES = [
     { k:'food', t:'Đồ ăn', svg:'svcScooter', active:true },
     { k:'ride', t:'Xe ôm', svg:'svcMotorbike', tint:true },
@@ -225,8 +225,8 @@
 
   function filteredShops() {
     const hc = S.home.cat;
-    let list = SHOPS.filter(s => hc === 'Tất cả' || (hc === 'Nổi bật' ? s.featured : hc === '🔥Bán chạy' ? s.hot : hc === 'Quán mới' ? s.isNew : (s.group.includes(hc) || norm(s.cat).includes(norm(hc)))));
-    if (hc === '🔥Bán chạy') list = [...list].sort((a, b) => (b.sold - a.sold) || (b.hotFlag - a.hotFlag));
+    let list = SHOPS.filter(s => hc === 'Tất cả' || (hc === 'Nổi bật' ? s.featured : hc === 'Bán chạy' ? s.hot : hc === 'Quán mới' ? s.isNew : (s.group.includes(hc) || norm(s.cat).includes(norm(hc)))));
+    if (hc === 'Bán chạy') list = [...list].sort((a, b) => (b.sold - a.sold) || (b.hotFlag - a.hotFlag));
     if (hc === 'Quán mới') list = [...list].sort((a, b) => b.created - a.created);
     const q = norm(S.home.q.trim());
     if (q) list = list.filter(s => norm(s.name + ' ' + s.cat + ' ' + s.menu.map(m => m[0]).join(' ')).includes(q));
@@ -261,7 +261,7 @@
       <div class="services">${SERVICES.map(s => `<button class="service ${s.active ? 'active' : ''} ${s.tint ? 'tint' : ''}" data-svc="${s.k}"><span class="ic">${fx[s.svg]}</span>${s.t}</button>`).join('')}</div>
       <div class="banner-wrap"><div class="banner" id="banner">${bannerInner()}</div></div>
       <div class="section-head" id="shops-anchor"><h2>Quán ngon gần bạn</h2><button class="see-all" data-act="see-all">Xem tất cả ${ic('chevRight')}</button></div>
-      <div class="chips" id="home-chips">${HOME_CATS.map(c => `<button class="chip ${c === S.home.cat ? 'on' : ''}" data-cat="${c}">${c}</button>`).join('')}</div>
+      <div class="chips" id="home-chips">${HOME_CATS.map(c => `<button class="chip ${c === S.home.cat ? 'on' : ''}" data-cat="${c}">${c === 'Bán chạy' ? '🔥 ' : ''}${c}</button>`).join('')}</div>
       <div class="shop-list" id="home-list">${shopListHtml()}</div>`;
     el.scrollTop = scroll;
     const q = $('#home-q');
@@ -815,7 +815,7 @@
   /* ----- bản đồ chọn điểm: kéo bản đồ để đưa ghim đỏ vào đúng chỗ ----- */
   /* ----- Bản đồ: ưu tiên Goong (khóa trong goong-config.js); chưa có khóa hoặc Goong lỗi thì dùng Leaflet + OpenStreetMap/Esri ----- */
   let GOONG = { map:'', api:'' }, GOONG_ERR = '';
-  import('./goong-config.js?v=20261022b').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
+  import('./goong-config.js?v=20261022c').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
   const LF = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.', GJ = 'https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.';
   const loadAsset = (tag, attrs) => new Promise((ok, no) => { const e = document.createElement(tag); Object.assign(e, attrs); e.onload = ok; e.onerror = () => no(new Error(tag)); document.head.appendChild(e); });
   const loadLeaflet = () => window.L ? Promise.resolve() : Promise.all([loadAsset('link', { rel:'stylesheet', href:LF + 'css' }), loadAsset('script', { src:LF + 'js' })]);
@@ -1174,7 +1174,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261022b').then(m => {
+    import('./fb.js?v=20261022c').then(m => {
       FB = m;
       let RAWSHOPS = [], openSig = '';
       const applyShops = () => {
@@ -1214,7 +1214,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261022b')
+  import('./firebase-config.js?v=20261022c')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });

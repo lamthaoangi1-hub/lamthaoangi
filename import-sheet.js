@@ -2,7 +2,7 @@
    Cấu trúc đọc được: tab "Quán", tab "<Tên quán>.Q" (thực đơn từng quán), tab "Thực đơn" (nếu có),
    tab "Đánh giá" (tính điểm sao), tab "Cài đặt" (phí ship / mức freeship). */
 
-import { hoursFields, toMin } from './hours.js?v=20261022b';
+import { hoursFields, toMin } from './hours.js?v=20261022c';
 
 const clean = v => (v == null ? '' : String(v)).trim();
 export const norm = s => clean(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ');

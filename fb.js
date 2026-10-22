@@ -4,8 +4,8 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWith
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, limit, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { firebaseConfig } from './firebase-config.js?v=20261022b';
-import { UPLOAD_URL } from './upload-config.js?v=20261022b';
+import { firebaseConfig } from './firebase-config.js?v=20261022c';
+import { UPLOAD_URL } from './upload-config.js?v=20261022c';
 
 export const configured = !!firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(firebaseConfig.apiKey);
 let auth, db;
