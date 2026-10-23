@@ -654,6 +654,7 @@
   function checkoutSheet() {
     const { s, lines } = cartData(); if (!s || !lines.length) return toast('Giỏ hàng đang trống');
     if (!S.user) { closeSheet(); toast('Vui lòng đăng nhập để đặt món'); S.authTab = 'login'; return go('auth'); }
+    const sheetEl = $('#sheet'), keepScroll = !sheetEl.hidden && sheetEl.querySelector('.co') ? sheetEl.scrollTop : 0;   // vẽ lại khi đổi cách thanh toán / áp mã / chia sẻ vị trí: giữ nguyên vị trí cuộn
     const c = calc(s, lines, CART.promo);
     const addr = CART.address ?? S.user.address ?? '';
     const qtyN = lines.reduce((n, l) => n + l.qty, 0);
@@ -695,6 +696,7 @@
 
       <div class="co-foot"><button class="sheet-btn" data-placeorder ${CART.loc ? '' : 'disabled'}>${CART.loc ? 'Đặt đơn · ' + money(c.total) : 'Chia sẻ vị trí để đặt đơn'}</button></div>
     </div>`);
+    if (keepScroll) sheetEl.scrollTop = keepScroll;
   }
   const readCheckout = () => { CART.address = $('#co-addr')?.value ?? CART.address; CART.note = $('#co-note')?.value ?? CART.note; CART.promo = ($('#co-promo')?.value ?? CART.promo).trim(); };
   async function placeOrderNow(btn) {
