@@ -146,11 +146,28 @@ Admin → Cửa hàng → bấm Sửa quán → mục **Miễn phí ship cho đ�
 ## Nút Zalo nổi
 Góc phải dưới màn hình khách luôn có nút Zalo, bấm vào mở chat Zalo số **0978472704**. Muốn đổi số/link: Admin → Liên hệ → ô Zalo (nếu có nhập thì dùng số đó), hoặc sửa `href` của thẻ `zalo-fab` trong `index.html`.
 
+## Thanh toán chuyển khoản (mã QR VietQR)
+**Cài đặt (Admin, làm 1 lần):**
+1. Đăng nhập `quanly.html` bằng tài khoản Admin → tab **Liên hệ** → khung **Nhận tiền chuyển khoản**.
+2. Chọn ngân hàng (mã BIN tự điền), nhập **số tài khoản** và **tên chủ tài khoản** (không dấu), bấm **Lưu thông tin ngân hàng**.
+3. Quét thử mã QR 10.000đ hiện bên dưới bằng app ngân hàng để chắc chắn đúng tài khoản.
+4. Tick **Cho phép khách thanh toán chuyển khoản** rồi Lưu. Khách sẽ thấy thêm lựa chọn "Chuyển khoản" khi đặt món, Giao hàng và Mua hộ. Bỏ tick để tắt ngay.
+
+**Cách hoạt động:**
+- Khách chọn "Chuyển khoản" → đặt đơn → hiện mã QR đã điền sẵn số tiền, nội dung chuyển khoản là **mã đơn** (VD `LT123456`). Khách bấm "Tôi đã chuyển khoản" để báo cho Admin.
+- Gmail/Zalo báo đơn mới ghi rõ "CHUYỂN KHOẢN – chờ xác nhận" kèm nội dung CK.
+- Admin mở app ngân hàng, thấy tiền về đúng số tiền và nội dung → tab **Đơn hàng** → bấm **Xác nhận đã nhận tiền**. Shipper thấy ngay "Khách đã chuyển khoản – không thu tiền". Đơn chưa xác nhận sẽ hiện cảnh báo vàng cho shipper.
+- Khách không chuyển khoản mà trả tiền mặt: Admin bấm **Đổi sang tiền mặt** trên đơn đó.
+- Giao hàng / Mua hộ: chuyển khoản chỉ áp dụng cho **phí dịch vụ**. Tiền thu hộ và tiền hàng mua hộ vẫn trả tiền mặt cho shipper. Đơn Giao hàng do **người nhận trả phí** chỉ nhận tiền mặt.
+- Khách hủy đơn đã chuyển khoản: hệ thống nhắc khách liên hệ Admin để **hoàn tiền thủ công**.
+
+**Cập nhật bắt buộc khi nâng cấp:** dán lại `firestore.rules` (Firebase → Firestore → Rules → Publish) và dán lại `google-apps-script.gs` rồi Deploy → Manage deployments → Edit → New version. Nếu chỉ cập nhật website mà chưa dán luật mới, đơn chuyển khoản sẽ bị từ chối khi đặt.
+
 ## Giới hạn cần biết
 - **Quên mật khẩu:** người dùng nhắn Admin (Zalo/hotline), Admin vào **Người dùng → Đặt lại MK** (xem mục "Đặt lại mật khẩu" bên dưới). Chưa có tự đặt lại vì không dùng email thật.
 - **Giá đơn hàng** do trình duyệt khách tính; luật bảo mật chặn sửa đơn người khác và chặn giá trị vô lý (âm, giảm quá tạm tính, phí ship quá cao) nhưng chưa đối chiếu giá từng món với thực đơn. Với quy mô địa phương là đủ; muốn chặt hơn cần thêm Cloud Functions.
 - **Thông báo đẩy** trên điện thoại chưa có: đơn mới được báo qua Gmail/Zalo (xem mục trên). Shipper/quán cần **mở sẵn trang `quanly.html`** và chạm vào màn hình 1 lần để có tiếng "ting"; trang tự giữ màn hình sáng khi đang mở.
-- **Thanh toán** hiện chỉ tiền mặt khi nhận hàng.
+- **Thanh toán:** tiền mặt khi nhận hàng, hoặc chuyển khoản qua mã QR (xem mục "Thanh toán chuyển khoản" bên dưới). Chuyển khoản **chưa tự động đối soát**: Admin phải tự kiểm tra tiền đã về tài khoản rồi bấm xác nhận.
 - Gói miễn phí Firebase (Spark) giới hạn 50.000 lượt đọc/ngày – đủ cho vài chục đến vài trăm đơn mỗi ngày.
 - Dịch vụ Xe ôm, Giao hàng, Mua hộ vẫn hiển thị "sắp ra mắt".
 

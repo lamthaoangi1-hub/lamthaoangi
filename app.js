@@ -120,10 +120,10 @@
   const AREAS = ['Lâm Thao, Phú Thọ','Thị trấn Lâm Thao','Thị trấn Hùng Sơn','Xã Cao Xá','Xã Tiên Kiên','Xã Xuân Lũng','Xã Thạch Sơn'];
   const DEMO = { name:'Nguyễn Thị Mai', phone:'0901234567', pass:'123456' };
   /* Chế độ LIVE = đã điền firebase-config.js → dùng dữ liệu thật; chưa điền → chạy DEMO với dữ liệu mẫu ở trên */
-  let LIVE = false, FB = null, PROMOS = [], CONTACT = { hotline:'0900 000 000', email:'lamthaoangi1@gmail.com', zalo:'' };
+  let LIVE = false, FB = null, BANK = null, PROMOS = [], CONTACT = { hotline:'0900 000 000', email:'lamthaoangi1@gmail.com', zalo:'' };
   const GHOST = {};
   let shopsLoaded = false;
-  const CART = { shop:null, q:{}, promo:'', note:'', address:null, loc:null };
+  const CART = { shop:null, q:{}, promo:'', note:'', address:null, loc:null, pay:'cash' };
   const SP = { id:null, cat:'Tất cả' };
   let shopPageOpen = false;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -298,7 +298,7 @@
         <div class="row"><img class="img" src="${s.img}" alt="${s.name}" loading="lazy">
           <div class="body"><span class="status ${st.cls}">${st.icon}${o.label || st.label}</span>
             <h3>${s.name}</h3><div class="code">Mã đơn: #${o.code}</div>
-            <div class="items">${o.items.join('<br>')}</div><div class="price">${money(o.total)}</div>
+            <div class="items">${o.items.join('<br>')}</div>${payTag(o.raw || {})}<div class="price">${money(o.total)}</div>
             <div class="foot"><span>${ic('shop')}${s.group[0]} • Lâm Thao</span><span>${ic('clock')}${o.when}</span>${o.st === 'ship' ? `<span>${ic('truck')}Dự kiến 15 - 25 phút</span>` : ''}</div></div></div>
         <div class="actions"><button class="btn-soft" data-detail="${o.code}">${ic('list')}Xem chi tiết</button>${second}</div></article>`;
     }).join('');
@@ -323,8 +323,9 @@
       <div style="margin-top:12px">${o.items.map(i => `<div class="row-kv"><span>${i}</span></div>`).join('')}
       <div class="row-kv"><span>Phí giao hàng</span><b>${money(o.shipFee ?? 15000)}</b></div>
       <div class="row-kv"><span>Tổng thanh toán</span><b style="color:var(--green-d)">${money(o.total)}</b></div>
-      <div class="row-kv"><span>Thanh toán</span><b>Tiền mặt</b></div>
+      <div class="row-kv"><span>Thanh toán</span><b>${o.raw ? payLabel(o.raw) : 'Tiền mặt'}</b></div>
       <div class="row-kv"><span>Địa chỉ</span><b>${o.address || S.area}</b></div></div>
+      ${o.raw && o.raw.payment === 'bank' && o.raw.payStatus !== 'paid' && !['done', 'cancelled'].includes(o.raw.status) ? `<button class="sheet-btn" data-paybank="${esc(o.raw.id)}">Xem mã QR chuyển khoản</button>` : ''}
       <button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`);
   }
   function trackSheet(o) {
@@ -433,7 +434,7 @@
         <div class="menu">
           ${menuItem('account', fx.userF, '', 'Thông tin tài khoản', 'Xem và chỉnh sửa thông tin cá nhân')}
           ${menuItem('address', fx.pinF, '', 'Địa chỉ đã lưu', 'Quản lý các địa chỉ giao hàng')}
-          ${menuItem('payment', fx.walletF, '', 'Phương thức thanh toán', 'Thẻ ngân hàng, Ví điện tử, Tiền mặt')}
+          ${menuItem('payment', fx.walletF, '', 'Phương thức thanh toán', LIVE ? 'Tiền mặt, Chuyển khoản' : 'Thẻ ngân hàng, Ví điện tử, Tiền mặt')}
           ${menuItem('coupons', fx.ticketF, '', 'Mã giảm giá', 'Xem và sử dụng các ưu đãi của bạn')}
         </div>
         <div class="group-title">Hỗ trợ &amp; Cài đặt</div>
@@ -627,6 +628,29 @@
     $('#cb-l').textContent = `Giỏ hàng (${n} món)`; $('#cb-t').textContent = money(calc(s, lines, '').sub);
     bar.classList.toggle('empty', !n); bar.disabled = false;
   }
+  /* ---------------- THANH TOÁN CHUYỂN KHOẢN (VietQR) ---------------- */
+  /* Admin nhập tài khoản ngân hàng ở Admin → Liên hệ (settings/app: bankEnabled, bankBin, bankAccount, bankHolder, bankName).
+     Khách chọn "Chuyển khoản" khi đặt → quét mã QR (nội dung CK = mã đơn) → Admin đối chiếu và bấm "Xác nhận đã nhận tiền". */
+  const bankQr = r => `https://img.vietqr.io/image/${encodeURIComponent(BANK.bin)}-${encodeURIComponent(BANK.acc)}-compact2.png?amount=${Math.round(r.total || 0)}&addInfo=${encodeURIComponent(r.code)}&accountName=${encodeURIComponent(BANK.holder)}`;
+  const payPicker = (scope, cur) => `<div class="co-lbl">Phương thức thanh toán</div><div class="pay-opts">${[['cash', '💵', 'Tiền mặt', 'Trả khi nhận hàng'], ['bank', '🏦', 'Chuyển khoản', 'Quét mã QR']].map(([k, i, t, d]) =>
+    `<button type="button" class="pay-opt ${cur === k ? 'on' : ''}" data-paypick="${scope}:${k}"><span>${i}</span><b>${t}</b><small>${d}</small></button>`).join('')}</div>`;
+  const payTag = r => r.payment !== 'bank' ? '' : r.payStatus === 'paid' ? `<span class="paytag ok">✓ Đã chuyển khoản</span>`
+    : ['done', 'cancelled'].includes(r.status) ? '' : `<button type="button" class="paytag" data-paybank="${esc(r.id)}">🏦 ${r.customerPaid ? 'Đã báo chuyển khoản · chờ xác nhận' : 'Chờ chuyển khoản · bấm để xem mã QR'}</button>`;
+  const payLabel = r => r.payment === 'bank' ? (r.payStatus === 'paid' ? 'Chuyển khoản (đã nhận tiền)' : 'Chuyển khoản (chờ xác nhận)') : 'Tiền mặt';
+  function bankSheet(r) {
+    if (!r) return;
+    const rowCp = (k, v, raw) => `<div class="row-kv"><span>${k}</span><span><b>${v}</b> ${raw ? `<button type="button" class="cp-mini" data-copyv="${esc(raw)}">Sao chép</button>` : ''}</span></div>`;
+    if (!BANK) return openSheet(`<h3>Chuyển khoản đơn #${esc(r.code)}</h3><p class="sub" style="margin-top:10px">Hiện chưa có thông tin tài khoản nhận tiền. Vui lòng liên hệ Admin để được hướng dẫn.</p>${contactOpts()}`);
+    const paid = r.payStatus === 'paid';
+    openSheet(`<h3>Chuyển khoản đơn #${esc(r.code)}</h3>
+      ${paid ? `<div class="pay-ok">✓ Đã nhận được tiền của bạn. Cảm ơn bạn!</div>` : `<div class="sub">Mở app ngân hàng, quét mã QR hoặc nhập thông tin bên dưới.</div>
+      <div class="bank-qr"><img src="${bankQr(r)}" alt="Mã QR chuyển khoản" onerror="this.style.display='none'"></div>`}
+      <div style="margin-top:6px">${rowCp('Ngân hàng', esc(BANK.name || BANK.bin))}${rowCp('Số tài khoản', esc(BANK.acc), BANK.acc)}${rowCp('Chủ tài khoản', esc(BANK.holder))}${rowCp('Số tiền', money(r.total || 0), String(Math.round(r.total || 0)))}${rowCp('Nội dung CK', esc(r.code), r.code)}</div>
+      ${paid ? '' : `<p class="sub" style="margin-top:8px">⚠️ Nhập <b>đúng số tiền</b> và <b>nội dung ${esc(r.code)}</b> để được xác nhận nhanh. Admin sẽ xác nhận khi nhận được tiền.</p>
+      ${r.customerPaid ? `<div class="pay-ok" style="background:#fff7e6;color:#b45f06">Bạn đã báo chuyển khoản. Đang chờ Admin xác nhận.</div>` : `<button class="sheet-btn" data-ipaid="${esc(r.id)}">Tôi đã chuyển khoản</button>`}`}
+      <button class="sheet-btn" style="background:var(--chip);color:var(--ink)" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`);
+  }
+  const rawOrder = id => (ORDERS.find(o => o.id === id) || {}).raw;
   function checkoutSheet() {
     const { s, lines } = cartData(); if (!s || !lines.length) return toast('Giỏ hàng đang trống');
     if (!S.user) { closeSheet(); toast('Vui lòng đăng nhập để đặt món'); S.authTab = 'login'; return go('auth'); }
@@ -665,7 +689,8 @@
         ${c.toFree > 0 && c.shipMode !== 'need-loc' ? `<div class="co-hint" style="margin:-2px 0 4px;color:var(--green-d);font-weight:600">🎁 Mua thêm ${money(c.toFree)} để được ${c.freeAllShop ? 'miễn phí giao hàng' : 'miễn phí ship cơ bản'}</div>` : ''}${c.freeAll ? `<div class="co-hint" style="margin:-2px 0 4px;color:var(--green-d);font-weight:600">🎉 Đơn đạt mức freeship, miễn phí giao hàng</div>` : ''}
         ${c.shipMode === 'km' && !c.freeAll ? `<div class="co-hint" style="margin:-2px 0 4px">${c.freeBase ? 'Miễn phí ' + money(SHIPCFG.base) + ' cơ bản · ' : money(SHIPCFG.base) + ' cho ' + String(SHIPCFG.baseKm).replace('.', ',') + ' km đầu · '}${c.extraKm ? c.extraKm + ' km tiếp theo × ' + money(SHIPCFG.perKm) : 'không phát sinh thêm km'}</div>` : ''}
         <div class="co-total"><span>Tổng thanh toán${c.shipMode === 'need-loc' ? ' <small style="font-weight:500;color:var(--ink-3)">(chưa gồm phí ship)</small>' : ''}</span><b>${money(c.total)}</b></div>
-        <div class="co-pay">💵 Thanh toán tiền mặt khi nhận hàng</div>
+        ${BANK ? payPicker('co', CART.pay) : ''}
+        <div class="co-pay">${BANK && CART.pay === 'bank' ? '🏦 Sau khi bấm đặt đơn, bạn sẽ nhận mã QR để chuyển khoản. Nội dung chuyển khoản là mã đơn.' : '💵 Thanh toán tiền mặt khi nhận hàng'}</div>
       </section>
 
       <div class="co-foot"><button class="sheet-btn" data-placeorder ${CART.loc ? '' : 'disabled'}>${CART.loc ? 'Đặt đơn · ' + money(c.total) : 'Chia sẻ vị trí để đặt đơn'}</button></div>
@@ -682,17 +707,20 @@
     const c = calc(s, lines, CART.promo);
     if (c.shipMode === 'need-loc') return toast('Vui lòng chia sẻ vị trí để tính phí giao hàng');
     btn.disabled = true;
+    const pay = BANK && CART.pay === 'bank' ? 'bank' : 'cash';
     try {
-      const ref = await FB.placeOrder({
+      const data = {
         code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone,
         address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '', shopLat:s.lat ?? null, shopLng:s.lng ?? null, lat:CART.loc.lat, lng:CART.loc.lng, locAcc:CART.loc.acc,
         items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff, promoCode:c.promo ? c.promo.code : '',
-        shipFee:c.ship, distanceKm:c.km, total:c.total, payment:'cash', status:'pending',
-      });
+        shipFee:c.ship, distanceKm:c.km, total:c.total, payment:pay, ...(pay === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending',
+      };
+      const ref = await FB.placeOrder(data);
       FB.notifyNewOrder(ref.id);   // Gmail admin + Zalo quán/admin (chạy nền)
       FB.updateMyProfile(S.user.uid, { address:addr }).catch(() => {}); S.user.address = addr;
-      CART.q = {}; CART.promo = ''; CART.note = ''; CART.address = null; CART.loc = null;
-      closeSheet(); S.orders.tab = 'proc'; go('orders'); toast('Đặt đơn thành công! Đang chờ tài xế nhận đơn.');
+      CART.q = {}; CART.promo = ''; CART.note = ''; CART.address = null; CART.loc = null; CART.pay = 'cash';
+      closeSheet(); S.orders.tab = 'proc'; go('orders');
+      if (pay === 'bank') bankSheet({ ...data, id:ref.id }); else toast('Đặt đơn thành công! Đang chờ tài xế nhận đơn.');
     } catch (e) { btn.disabled = false; toast(FB.errMsg(e)); }
   }
   function shareLoc(btn) {
@@ -758,7 +786,7 @@
   /* Khách ghim điểm trên bản đồ (Leaflet + OpenStreetMap, miễn phí) → phí tính ngay theo km bằng đúng công thức phí ship của Admin. */
   const SVCCFG = { w2:5000, w3:15000, errand:10000 };
   const GOODS = ['Tài liệu', 'Quần áo', 'Đồ ăn', 'Khác'], WEIGHTS = ['Dưới 5 kg', '5 – 10 kg', 'Trên 10 kg'], BUDGETS = [100000, 200000, 500000], MAXKM = 50;
-  const svcFresh = type => ({ type, pick:null, drop:null, goods:0, weight:0, payer:'sender', budget:1, paddr:'', daddr:'', rname:'', rphone:'', cod:'', note:'', list:'', store:'' });
+  const svcFresh = type => ({ type, pick:null, drop:null, goods:0, weight:0, payer:'sender', pay:'cash', budget:1, paddr:'', daddr:'', rname:'', rphone:'', cod:'', note:'', list:'', store:'' });
   let SV = svcFresh('delivery'), MAP = null, MP_KEY = 'pick';
   const kmStr = km => String(km).replace('.', ',');
 
@@ -769,6 +797,9 @@
     const extra = type === 'errand' ? SVCCFG.errand : [0, SVCCFG.w2, SVCCFG.w3][weight] || 0;
     return { km, extraKm, dist, extra, fee:dist + extra, far:km > MAXKM };
   }
+  /* Chuyển khoản chỉ áp dụng cho phí dịch vụ; Giao hàng mà người nhận trả phí thì phải tiền mặt (người nhận không đặt đơn trên app) */
+  const svcBankOk = () => !!BANK && !(SV.type === 'delivery' && SV.payer === 'receiver');
+  const svcPay = () => svcBankOk() && SV.pay === 'bank' ? 'bank' : 'cash';
   const svcQuote = () => (SV.pick && SV.drop) ? svcQuoteBetween(SV.pick, SV.drop, SV.type, SV.weight) : null;
   const svcVal = id => { const e = $('#sv-' + id); return e ? e.value : null; };
   function svcRead() { ['paddr', 'daddr', 'rname', 'rphone', 'cod', 'note', 'list', 'store'].forEach(k => { const v = svcVal(k); if (v !== null) SV[k] = v; }); }
@@ -797,8 +828,9 @@
         <div class="co-hint" style="margin:-2px 0 4px">${money(SHIPCFG.base)} cho ${kmStr(SHIPCFG.baseKm)} km đầu · ${q.extraKm ? q.extraKm + ' km tiếp theo × ' + money(SHIPCFG.perKm) : 'không phát sinh thêm km'}</div>
         ${q.extra ? `<div class="co-row"><span>${D ? 'Phụ phí khối lượng' : 'Phí mua hộ'}</span><b>${money(q.extra)}</b></div>` : ''}
         <div class="co-total"><span>${D ? 'Phí giao hàng' : 'Phí mua hộ + giao'}</span><b>${money(q.fee)}</b></div>
-        ${D ? `${cod ? `<div class="co-row"><span>Shipper thu hộ từ người nhận</span><b>${money(cod)}</b></div>` : ''}<div class="co-pay">💵 ${SV.payer === 'receiver' ? 'Người nhận trả phí ' + (cod ? '+ tiền thu hộ ' : '') + 'bằng tiền mặt khi nhận hàng' : 'Người gửi trả phí bằng tiền mặt cho shipper'}</div>`
-        : `<div class="co-pay">💵 Tiền hàng trả theo <b>hóa đơn thực tế</b> khi nhận. Shipper ứng trước tối đa ${money(BUDGETS[SV.budget])} và chụp hóa đơn gửi bạn.</div>`}`;
+        ${svcBankOk() ? payPicker('sv', svcPay()) : ''}
+        ${D ? `${cod ? `<div class="co-row"><span>Shipper thu hộ từ người nhận</span><b>${money(cod)}</b></div>` : ''}<div class="co-pay">${svcPay() === 'bank' ? '🏦 Bạn chuyển khoản <b>phí giao hàng</b> qua mã QR sau khi đặt.' + (cod ? ' Tiền thu hộ vẫn do shipper thu bằng tiền mặt từ người nhận.' : '') : '💵 ' + (SV.payer === 'receiver' ? 'Người nhận trả phí ' + (cod ? '+ tiền thu hộ ' : '') + 'bằng tiền mặt khi nhận hàng' : 'Người gửi trả phí bằng tiền mặt cho shipper')}</div>`
+        : `<div class="co-pay">${svcPay() === 'bank' ? '🏦 Bạn chuyển khoản <b>phí mua hộ + giao</b> qua mã QR sau khi đặt. ' : '💵 '}Tiền hàng trả theo <b>hóa đơn thực tế</b> bằng tiền mặt khi nhận. Shipper ứng trước tối đa ${money(BUDGETS[SV.budget])} và chụp hóa đơn gửi bạn.</div>`}`;
     openSheet(`<div class="co">
       <div class="co-head"><h3>${D ? 'Giao hàng' : 'Mua hộ'}</h3><div class="co-shop">${D ? 'Gửi đồ trong ngày, tận tay người nhận' : 'Bạn ở nhà, shipper đi mua giúp'}</div></div>
       ${body}<section class="co-card co-sum">${sum}</section>
@@ -815,7 +847,7 @@
   /* ----- bản đồ chọn điểm: kéo bản đồ để đưa ghim đỏ vào đúng chỗ ----- */
   /* ----- Bản đồ: ưu tiên Goong (khóa trong goong-config.js); chưa có khóa hoặc Goong lỗi thì dùng Leaflet + OpenStreetMap/Esri ----- */
   let GOONG = { map:'', api:'' }, GOONG_ERR = '';
-  import('./goong-config.js?v=20261022c').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
+  import('./goong-config.js?v=20261023a').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
   const LF = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.', GJ = 'https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.';
   const loadAsset = (tag, attrs) => new Promise((ok, no) => { const e = document.createElement(tag); Object.assign(e, attrs); e.onload = ok; e.onerror = () => no(new Error(tag)); document.head.appendChild(e); });
   const loadLeaflet = () => window.L ? Promise.resolve() : Promise.all([loadAsset('link', { rel:'stylesheet', href:LF + 'css' }), loadAsset('script', { src:LF + 'js' })]);
@@ -949,7 +981,7 @@
     if (!SV.drop || t('daddr').length < 5) return toast('Nhập địa chỉ nhận hàng và ghim vị trí');
     const base = { code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone, type:SV.type, shopId:'svc-' + SV.type,
       address:t('daddr'), note:t('note'), lat:SV.drop.lat, lng:SV.drop.lng, locAcc:null, shopLat:SV.pick.lat, shopLng:SV.pick.lng,
-      subtotal:0, discount:0, promoCode:'', shipFee:q.fee, distanceKm:q.km, total:q.fee, payment:'cash', status:'pending' };
+      subtotal:0, discount:0, promoCode:'', shipFee:q.fee, distanceKm:q.km, total:q.fee, payment:svcPay(), ...(svcPay() === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending' };
     const o = D ? { ...base, shopName:'Giao hàng', shopPhone:S.user.phone || '', shopAddress:t('paddr'), receiverName:t('rname'), receiverPhone:digits(SV.rphone), goods:GOODS[SV.goods], weight:WEIGHTS[SV.weight], codAmount:+digits(SV.cod) || 0, feePayer:SV.payer,
         items:[{ name:`${GOODS[SV.goods]} · ${WEIGHTS[SV.weight]}`, price:0, qty:1 }] }
       : { ...base, shopName:'Mua hộ', shopPhone:'', shopAddress:t('store'), advanceMax:BUDGETS[SV.budget],
@@ -958,7 +990,8 @@
     try {
       const ref = await FB.placeOrder(o);
       FB.notifyNewOrder(ref.id);
-      SV = svcFresh(SV.type); closeSheet(); S.orders.tab = 'proc'; go('orders'); toast('Đặt thành công! Đang chờ shipper nhận đơn.');
+      SV = svcFresh(SV.type); closeSheet(); S.orders.tab = 'proc'; go('orders');
+      if (o.payment === 'bank') bankSheet({ ...o, id:ref.id }); else toast('Đặt thành công! Đang chờ shipper nhận đơn.');
     } catch (e) { btn.disabled = false; toast(FB.errMsg(e)); }
   }
   function svcClick(t) {
@@ -1015,11 +1048,23 @@
     const ntab = t.closest('[data-ntab]'); if (ntab) { S.noti.tab = ntab.dataset.ntab; renderNotifications(); return; }
     const det = t.closest('[data-detail]'); if (det) return orderDetail(orderByCode(det.dataset.detail));
     const trk = t.closest('[data-track]'); if (trk) return trackSheet(orderByCode(trk.dataset.track));
+    const pp = t.closest('[data-paypick]');
+    if (pp) { const [scope, v] = pp.dataset.paypick.split(':'); if (scope === 'co') { readCheckout(); CART.pay = v; checkoutSheet(); } else { svcRead(); SV.pay = v; svcSheet(); } return; }
+    const pb = t.closest('[data-paybank]'); if (pb) return bankSheet(rawOrder(pb.dataset.paybank));
+    const cpv = t.closest('[data-copyv]');
+    if (cpv) { navigator.clipboard?.writeText(cpv.dataset.copyv).then(() => toast('Đã sao chép'), () => toast('Không sao chép được, hãy nhập tay')); return; }
+    const ip = t.closest('[data-ipaid]');
+    if (ip) {
+      ip.disabled = true;
+      FB.patchOrder(ip.dataset.ipaid, { customerPaid:true, customerPaidAt:FB.ts() }).then(() => { toast('Đã báo chuyển khoản. Chờ Admin xác nhận.'); closeSheet(); }).catch(e => { ip.disabled = false; toast(FB.errMsg(e)); });
+      return;
+    }
     const cx = t.closest('[data-cancelorder]');
     if (cx) {
       const o = orderByCode(cx.dataset.cancelorder);
       if (!o || !LIVE) return toast('Không hủy được đơn này');
-      if (!confirm('Hủy đơn #' + o.code + '?')) return;
+      const wasPaid = o.raw && o.raw.payment === 'bank' && (o.raw.payStatus === 'paid' || o.raw.customerPaid);
+      if (!confirm('Hủy đơn #' + o.code + '?' + (wasPaid ? '\nBạn đã chuyển khoản cho đơn này. Sau khi hủy, hãy liên hệ Admin để được hoàn tiền.' : ''))) return;
       cx.disabled = true;
       FB.patchOrder(o.id, { status:'cancelled' }).then(() => toast('Đã hủy đơn')).catch(e => { cx.disabled = false; toast(FB.errMsg(e) + ' (có thể shipper vừa nhận đơn)'); });
       return;
@@ -1067,7 +1112,7 @@
     terms: ['Điều khoản sử dụng', [
       'Lâm Thao Ăn Gì? là nền tảng kết nối khách hàng với các quán ăn và tài xế giao hàng tại Lâm Thao, Phú Thọ.',
       'Giá món do từng quán niêm yết. Phí giao hàng tính theo khoảng cách từ quán đến vị trí bạn chia sẻ và được hiển thị rõ trước khi bạn bấm đặt đơn.',
-      'Thanh toán bằng tiền mặt cho tài xế khi nhận hàng.',
+      'Thanh toán bằng tiền mặt cho tài xế khi nhận hàng, hoặc chuyển khoản qua mã QR khi hệ thống có bật. Đơn chuyển khoản được xác nhận khi Admin nhận được tiền; nhập đúng số tiền và nội dung (mã đơn) để được xác nhận nhanh.',
       'Bạn có thể tự hủy đơn khi chưa có tài xế nhận. Sau đó, vui lòng liên hệ hỗ trợ để được xử lý.',
       'Bạn cung cấp đúng họ tên, số điện thoại, địa chỉ và tự bảo mật mật khẩu của mình. Đơn đặt với thông tin sai hoặc không có người nhận có thể bị từ chối phục vụ lần sau.']],
     privacy: ['Chính sách bảo mật', [
@@ -1093,7 +1138,7 @@
       ? `<h3>Địa chỉ giao hàng</h3>${S.user.address ? `<div class="row-kv" style="margin-top:12px"><span><b>Địa chỉ gần nhất</b><br><small style="color:var(--ink-2)">${esc(S.user.address)}, ${esc(S.area)}</small></span></div>` : '<p class="sub" style="margin-top:10px">Chưa có địa chỉ nào được lưu.</p>'}<p class="sub" style="margin-top:10px">Địa chỉ được lưu tự động sau mỗi lần đặt đơn, và bạn có thể sửa ngay khi đặt món.</p>`
       : `<h3>Địa chỉ đã lưu</h3><button class="opt">${ic('mapPin')}<span><b>Nhà</b><br><small style="color:var(--ink-2)">${S.area}</small></span></button><button class="sheet-btn" data-sheetmsg="Thêm địa chỉ mới (demo)">+ Thêm địa chỉ mới</button>`);
     if (k === 'payment') return openSheet(LIVE
-      ? `<h3>Phương thức thanh toán</h3><button class="opt sel">${ic('check')}Tiền mặt khi nhận hàng</button><p class="sub" style="margin-top:10px">Hiện chỉ nhận thanh toán tiền mặt cho tài xế khi giao hàng.</p>`
+      ? `<h3>Phương thức thanh toán</h3><button class="opt sel">${ic('check')}Tiền mặt khi nhận hàng</button>${BANK ? `<button class="opt sel">${ic('check')}Chuyển khoản (quét mã QR)</button><p class="sub" style="margin-top:10px">Bạn chọn cách thanh toán ngay trong bước xác nhận đơn hàng. Với chuyển khoản, mã QR hiện ra sau khi đặt đơn.</p>` : `<p class="sub" style="margin-top:10px">Hiện chỉ nhận thanh toán tiền mặt cho tài xế khi giao hàng.</p>`}`
       : `<h3>Phương thức thanh toán</h3>${['Tiền mặt','Thẻ ngân hàng','Ví điện tử'].map((x, i) => `<button class="opt ${i === 0 ? 'sel' : ''}">${ic('check')}${x}</button>`).join('')}`);
     if (k === 'coupons') return openSheet(`<h3>Mã giảm giá của bạn</h3>${(LIVE ? PROMOS.map(p => [esc(p.code), esc(p.desc)]) : [['GIAM30K','Giảm 30K cho đơn từ 100K'],['CUOITUAN','Giảm 20K cho đơn từ 80K'],['FREESHIP','Miễn phí giao hàng đơn từ 60K']]).map(([c, d]) => `<div class="row-kv"><span><b>${c}</b><br><small style="color:var(--ink-2)">${d}</small></span><button style="color:var(--green-d);font-weight:700" data-copy="${c}">Sao chép</button></div>`).join('')}`);
     if (k === 'points') return openSheet(`<h3>Điểm tích lũy</h3><div style="font-family:var(--font-h);font-weight:700;font-size:28px;color:var(--green-d);margin-top:10px">${LIVE ? S.points : 820} điểm</div><div class="sub">${LIVE ? 'Tích 1 điểm cho mỗi 1.000đ của đơn đã hoàn thành' : 'Còn 180 điểm để lên hạng Vàng'}</div>`);
@@ -1174,7 +1219,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261022c').then(m => {
+    import('./fb.js?v=20261023a').then(m => {
       FB = m;
       let RAWSHOPS = [], openSig = '';
       const applyShops = () => {
@@ -1194,7 +1239,10 @@
       setInterval(() => { if (SHOPS.length && SHOPS.map(x => x.open ? 1 : 0).join('') !== openSig) applyShops(); }, 30000);
       FB.watchPromos(l => { PROMOS = l.filter(p => p.active !== false); rebuildNotices(); if (S.tab === 'profile') renderProfile(); });
       FB.watchSettings(c => { ['base', 'baseKm', 'perKm', 'road'].forEach(k => { const v = Number(c['ship' + k[0].toUpperCase() + k.slice(1)]); if (v > 0) SHIPCFG[k] = v; });
-        [['w2', 'shipW2'], ['w3', 'shipW3'], ['errand', 'errandFee']].forEach(([k, f]) => { if (c[f] != null && c[f] !== '' && Number(c[f]) >= 0) SVCCFG[k] = Number(c[f]); }); CONTACT = { ...CONTACT, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v)) }; });
+        [['w2', 'shipW2'], ['w3', 'shipW3'], ['errand', 'errandFee']].forEach(([k, f]) => { if (c[f] != null && c[f] !== '' && Number(c[f]) >= 0) SVCCFG[k] = Number(c[f]); }); CONTACT = { ...CONTACT, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v)) };
+        const bin = String(c.bankBin || '').replace(/\D/g, ''), acc = String(c.bankAccount || '').replace(/\s/g, '');
+        BANK = c.bankEnabled === true && bin && acc ? { bin, acc, holder:String(c.bankHolder || ''), name:String(c.bankName || '') } : null;   // chưa bật / chưa nhập đủ thì khách chỉ thấy tiền mặt
+        if (!BANK) { CART.pay = 'cash'; SV.pay = 'cash'; } });
       FB.onAuth((u, p) => {
         if (ordersUnsub) { ordersUnsub(); ordersUnsub = null; }
         RAW = [];
@@ -1214,7 +1262,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261022c')
+  import('./firebase-config.js?v=20261023a')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });

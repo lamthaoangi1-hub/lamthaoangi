@@ -1,6 +1,6 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261022c';
-import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261022c';
-import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261022c';
+import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261023a';
+import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261023a';
+import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261023a';
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
@@ -10,7 +10,7 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
     const items = (o.items || []).map(i => `<li>${i.qty} x ${esc(i.name)} <span class="muted">${money(i.price * i.qty)}</span></li>`).join('');
     return `<div class="card"><div class="row sb"><b>#${esc(o.code)}</b>${badge(o.status)}</div><div class="muted">${fmtTime(o.createdAt)} · ${esc(o.customerName)} · <a href="tel:${esc(o.customerPhone)}">${esc(o.customerPhone)}</a></div>
       <ul class="items">${items}</ul>${o.note ? `<p class="muted">Ghi chú: ${esc(o.note)}</p>` : ''}
-      <div class="row sb"><span>Tổng: <b class="total">${money(o.total)}</b> <span class="muted">· tiền mặt${o.shipperName ? ' · Shipper: ' + esc(o.shipperName) : ''}</span></span>
+      <div class="row sb"><span>Tổng: <b class="total">${money(o.total)}</b> <span class="muted">· ${payText(o)}${o.shipperName ? ' · Shipper: ' + esc(o.shipperName) : ''}</span></span>
       <span class="muted">Quán chỉ xem đơn – shipper nhận và giao</span></div></div>`;
   }
   function ordersTab() {

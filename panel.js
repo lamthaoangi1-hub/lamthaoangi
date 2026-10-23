@@ -1,7 +1,7 @@
 /* Khung dùng chung cho 3 trang quản lý: đăng nhập, kiểm tra quyền, tiện ích hiển thị */
-import * as fb from './fb.js?v=20261022c';
+import * as fb from './fb.js?v=20261023a';
 export { fb };
-import { parseMenuText, parseMenuSheets, readSheets, downloadMenuTemplate } from './bulk.js?v=20261022c';
+import { parseMenuText, parseMenuSheets, readSheets, downloadMenuTemplate } from './bulk.js?v=20261023a';
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -14,6 +14,9 @@ export const STATUS = {
   ready:['Chờ shipper', 'warn'], delivering:['Đang giao', 'info'], done:['Hoàn thành', 'ok'], cancelled:['Đã hủy', 'bad'],
 };
 export const badge = st => `<span class="badge ${STATUS[st]?.[1] || ''}">${STATUS[st]?.[0] || esc(st)}</span>`;
+/* Thanh toán: payment = 'cash' | 'bank'; với bank thì payStatus 'unpaid' | 'paid' (Admin xác nhận), customerPaid = khách bấm "Tôi đã chuyển khoản" */
+export const payText = o => o.payment === 'bank' ? (o.payStatus === 'paid' ? 'chuyển khoản · đã nhận tiền' : o.customerPaid ? 'chuyển khoản · khách báo đã chuyển, chờ xác nhận' : 'chuyển khoản · chưa nhận tiền') : 'tiền mặt';
+export const payBadge = o => o.payment !== 'bank' ? '' : o.payStatus === 'paid' ? '<span class="badge ok">Đã nhận tiền CK</span>' : `<span class="badge warn">${o.customerPaid ? 'Khách báo đã CK' : 'Chờ chuyển khoản'}</span>`;
 export const newestFirst = (a, b) => (toDate(b.createdAt)?.getTime() || Date.now()) - (toDate(a.createdAt)?.getTime() || Date.now());
 
 let tt;

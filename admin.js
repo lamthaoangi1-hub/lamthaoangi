@@ -1,8 +1,8 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261022c';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261022c';
-import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261022c';
-import { readSheets, downloadShopTemplate } from './bulk.js?v=20261022c';
-import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261022c';
+import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261023a';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261023a';
+import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
+import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
+import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
@@ -27,9 +27,10 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   const ordersView = () => {
     const l = [...orders].sort(newestFirst).filter(o => ofil === 'all' || o.status === ofil);
     return `<div class="row" style="margin-bottom:10px"><select id="ofil" style="width:auto"><option value="all">Tất cả trạng thái</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${ofil === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select><span class="muted">${l.length} đơn (hiển thị 100 đơn gần nhất)</span></div>
-      ${l.length ? l.slice(0, 100).map(o => `<div class="card"><div class="row sb"><b>#${esc(o.code)} · ${esc(o.shopName)}</b>${badge(o.status)}</div>
+      ${l.length ? l.slice(0, 100).map(o => `<div class="card"><div class="row sb"><b>#${esc(o.code)} · ${esc(o.shopName)}</b><span>${payBadge(o)} ${badge(o.status)}</span></div>
       <div class="muted">${fmtTime(o.createdAt)} · ${esc(o.customerName)} ${esc(o.customerPhone)} · ${esc(o.address)}</div>
       <ul class="items">${(o.items || []).map(i => `<li>${i.qty} x ${esc(i.name)}</li>`).join('')}</ul>
+      ${o.payment === 'bank' ? `<div class="payrow">${o.payStatus === 'paid' ? `<button class="btn sm o" data-paid="${o.id}:0">Bỏ xác nhận</button>` : `<button class="btn sm" data-paid="${o.id}:1">Xác nhận đã nhận ${money(o.total)}</button><button class="btn sm o" data-tocash="${o.id}">Đổi sang tiền mặt</button>`}<span class="muted">Nội dung CK: <b>${esc(o.code)}</b>${o.customerPaid && o.payStatus !== 'paid' ? ' · khách báo đã chuyển' : ''}</span></div>` : ''}
       <div class="row sb"><span><b class="total">${money(o.total)}</b> <span class="muted">${o.shipperName ? '· Shipper: ' + esc(o.shipperName) + ' ' + esc(o.shipperPhone || '') : ''}</span></span>
       <select data-ost="${o.id}" style="width:auto">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${o.status === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></div></div>`).join('') : '<div class="empty">Chưa có đơn</div>'}`;
   };
@@ -134,7 +135,22 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     <h3 style="margin:16px 0 4px">Giao hàng &amp; Mua hộ</h3><p class="muted">Cộng thêm vào phí theo quãng đường ở trên.</p><div class="grid"><label class="f">Phụ phí hàng 5–10 kg (đ)<input type="number" id="sh-w2" min="0" step="1000" value="${settings.shipW2 ?? 5000}"></label><label class="f">Phụ phí hàng trên 10 kg (đ)<input type="number" id="sh-w3" min="0" step="1000" value="${settings.shipW3 ?? 15000}"></label><label class="f">Phí mua hộ (đ)<input type="number" id="sh-errand" min="0" step="1000" value="${settings.errandFee ?? 10000}"></label></div>
     <button class="btn" style="margin-top:12px" data-saveship>Lưu phí giao hàng</button></div>`;
   const contactView = () => `<div class="card"><h3>Thông tin liên hệ hiển thị trên website</h3><div class="grid"><label class="f">Hotline<input type="tel" id="c-hot" value="${esc(settings.hotline || '')}"></label><label class="f">Email<input type="text" id="c-mail" value="${esc(settings.email || '')}"></label><label class="f">Zalo nhận tin khách (số điện thoại hoặc link zalo.me)<input type="text" id="c-zalo" placeholder="VD: 0912345678" value="${esc(settings.zalo || '')}"></label></div><button class="btn" style="margin-top:12px" data-savesettings>Lưu</button></div>`;
-  const settingsView = () => contactView() + shipCfgView();
+  /* Mã BIN ngân hàng theo danh mục VietQR (NAPAS). Chọn ngân hàng thì mã BIN tự điền; ngân hàng khác thì gõ tay mã BIN vào ô bên cạnh. */
+  const BANKS = [['Vietcombank', '970436'], ['VietinBank', '970415'], ['BIDV', '970418'], ['Agribank', '970405'], ['MB Bank', '970422'], ['Techcombank', '970407'], ['ACB', '970416'], ['VPBank', '970432'], ['TPBank', '970423'], ['Sacombank', '970403'], ['VIB', '970441'], ['SHB', '970443'], ['HDBank', '970437'], ['OCB', '970448'], ['MSB', '970426'], ['SeABank', '970440'], ['LPBank', '970449'], ['Eximbank', '970431'], ['Nam A Bank', '970428'], ['Bac A Bank', '970409'], ['PVcomBank', '970412']];
+  const bankView = () => {
+    const bin = String(settings.bankBin || ''), acc = String(settings.bankAccount || '');
+    const known = BANKS.find(b => b[1] === bin);
+    const prev = bin && acc ? `https://img.vietqr.io/image/${encodeURIComponent(bin)}-${encodeURIComponent(acc)}-compact2.png?amount=10000&addInfo=${encodeURIComponent('TEST')}&accountName=${encodeURIComponent(settings.bankHolder || '')}` : '';
+    return `<div class="card" style="margin-top:12px"><h3>Nhận tiền chuyển khoản</h3><p class="muted">Bật thì khách thấy thêm lựa chọn “Chuyển khoản” khi đặt đơn và nhận mã QR (nội dung chuyển khoản = mã đơn). Khi tiền về tài khoản, vào tab <b>Đơn hàng</b> bấm <b>Xác nhận đã nhận tiền</b> cho đơn đó.</p>
+      <label class="sw" style="margin:8px 0"><input type="checkbox" id="bk-on" ${settings.bankEnabled === true ? 'checked' : ''}>Cho phép khách thanh toán chuyển khoản</label>
+      <div class="grid"><label class="f">Ngân hàng<select id="bk-bank"><option value="">— Chọn ngân hàng —</option>${BANKS.map(([n, b]) => `<option value="${b}" ${known && known[1] === b ? 'selected' : ''}>${n}</option>`).join('')}<option value="other" ${bin && !known ? 'selected' : ''}>Khác (tự nhập mã BIN)</option></select></label>
+      <label class="f">Mã BIN ngân hàng (6 số)<input type="text" id="bk-bin" inputmode="numeric" maxlength="6" value="${esc(bin)}"></label>
+      <label class="f">Số tài khoản<input type="text" id="bk-acc" inputmode="numeric" value="${esc(acc)}"></label>
+      <label class="f">Tên chủ tài khoản (không dấu, viết hoa)<input type="text" id="bk-holder" placeholder="NGUYEN VAN A" value="${esc(settings.bankHolder || '')}"></label></div>
+      <button class="btn" style="margin-top:12px" data-savebank>Lưu thông tin ngân hàng</button>
+      ${prev ? `<p class="muted" style="margin-top:12px">Mã QR thử (10.000đ). Hãy quét thử bằng app ngân hàng để chắc chắn đúng tài khoản trước khi bật:</p><img src="${prev}" alt="QR thử" style="width:100%;max-width:260px;border-radius:12px;border:1px solid var(--line)" onerror="this.outerHTML='<p class=muted>Không tạo được mã QR. Kiểm tra lại mã BIN và số tài khoản.</p>'">` : ''}</div>`;
+  };
+  const settingsView = () => contactView() + bankView() + shipCfgView();
 
   function draw() {
     const keep = $('#uq')?.value;
@@ -194,6 +210,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
         t.value = ''; draw();
       }
       if (t.id === 'rev-shop') { revShop = t.value; draw(); return; }
+      if (t.id === 'bk-bank') { if (t.value && t.value !== 'other') $('#bk-bin').value = t.value; return; }
       if (t.dataset.ost) await fb.patchOrder(t.dataset.ost, { status:t.value });
       if (t.dataset.urole) { await fb.patchUser(t.dataset.urole, { role:t.value }); users.find(u => u.uid === t.dataset.urole).role = t.value; if (ufil !== 'all') ufil = t.value; await syncNotify(); toast('Đã đổi vai trò' + (t.value === 'seller' ? ' – hãy chọn cửa hàng cho họ' : '')); draw(); }
       if (t.dataset.ushop) { await fb.patchUser(t.dataset.ushop, { shopId:t.value }); users.find(u => u.uid === t.dataset.ushop).shopId = t.value; await syncNotify(); toast('Đã gán cửa hàng'); }
@@ -309,6 +326,26 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
         const n = (id, d) => { const v = parseFloat($('#' + id).value); return isNaN(v) ? d : v; };
         const d = { shipBase:Math.max(0, n('sh-base', 15000)), shipBaseKm:Math.max(0, n('sh-basekm', 3.5)), shipPerKm:Math.max(0, n('sh-perkm', 3000)), shipRoad:Math.min(2, Math.max(1, n('sh-road', 1.3))), shipW2:Math.max(0, n('sh-w2', 5000)), shipW3:Math.max(0, n('sh-w3', 15000)), errandFee:Math.max(0, n('sh-errand', 10000)) };
         await fb.saveSettings(d); toast('Đã lưu phí giao hàng');
+      }
+      else if (g('[data-paid]')) {
+        const [id, v] = g('[data-paid]').dataset.paid.split(':'), o = orders.find(x => x.id === id), on = v === '1';
+        if (on && !confirm('Xác nhận ĐÃ NHẬN ' + money(o && o.total) + ' của đơn #' + (o && o.code) + '? Hãy kiểm tra tiền đã về tài khoản.')) return;
+        await fb.patchOrder(id, on ? { payStatus:'paid', paidAt:fb.ts() } : { payStatus:'unpaid', paidAt:null }); toast(on ? 'Đã xác nhận nhận tiền' : 'Đã bỏ xác nhận');
+      }
+      else if (g('[data-tocash]')) {
+        const o = orders.find(x => x.id === g('[data-tocash]').dataset.tocash);
+        if (confirm('Đổi đơn #' + (o && o.code) + ' sang thanh toán TIỀN MẶT khi nhận hàng? (dùng khi khách không chuyển khoản)')) { await fb.patchOrder(o.id, { payment:'cash', payStatus:null }); toast('Đã đổi sang tiền mặt'); }
+      }
+      else if (g('[data-savebank]')) {
+        const v = id => $('#' + id).value.trim(), on = $('#bk-on').checked;
+        const bin = v('bk-bin').replace(/\D/g, ''), acc = v('bk-acc').replace(/\s/g, ''), holder = v('bk-holder').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toUpperCase();
+        if (on) {
+          if (!/^\d{6}$/.test(bin)) return toast('Mã BIN ngân hàng gồm 6 chữ số. Hãy chọn ngân hàng trong danh sách.');
+          if (!/^[0-9A-Za-z]{4,25}$/.test(acc)) return toast('Số tài khoản không hợp lệ');
+          if (holder.length < 3) return toast('Nhập tên chủ tài khoản');
+        }
+        const sel = $('#bk-bank'), name = sel.value && sel.value !== 'other' ? sel.options[sel.selectedIndex].text : (settings.bankName && bin === settings.bankBin ? settings.bankName : '');
+        await fb.saveSettings({ bankEnabled:on, bankBin:bin, bankAccount:acc, bankHolder:holder, bankName:name }); toast(on ? 'Đã lưu và bật chuyển khoản' : 'Đã lưu (đang tắt chuyển khoản)');
       }
       else if (g('[data-savesettings]')) { await fb.saveSettings({ hotline:$('#c-hot').value.trim(), email:$('#c-mail').value.trim(), zalo:$('#c-zalo').value.trim() }); toast('Đã lưu'); }
     } catch (er) { toast(fb.errMsg(er)); }

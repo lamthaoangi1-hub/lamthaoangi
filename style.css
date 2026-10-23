@@ -509,6 +509,21 @@ html{touch-action:manipulation;-webkit-text-size-adjust:100%}
 .co-total span{font-family:var(--font-h);font-weight:700;font-size:16px}
 .co-total b{font-family:var(--font-h);font-weight:800;font-size:22px;color:var(--green-d)}
 .co-pay{margin-top:10px;font-size:13px;color:var(--ink-2);background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 12px}
+/* ---------- Thanh toán chuyển khoản ---------- */
+.pay-opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pay-opt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border-radius:14px;border:1.5px solid var(--line);background:#fff;text-align:left;min-height:64px;color:var(--ink)}
+.pay-opt span{font-size:18px;line-height:1}
+.pay-opt b{font-size:14px;font-weight:700}
+.pay-opt small{font-size:12px;color:var(--ink-2)}
+.pay-opt.on{border-color:var(--green-d);background:var(--green-l)}
+.pay-opt.on b{color:var(--green-d)}
+.bank-qr{display:flex;justify-content:center;margin:12px 0 4px}
+.bank-qr img{width:100%;max-width:280px;height:auto;border-radius:14px;border:1px solid var(--line);background:#fff}
+.cp-mini{margin-left:6px;padding:4px 10px;border-radius:10px;background:var(--green-l);color:var(--green-d);font-weight:700;font-size:12px}
+.pay-ok{margin:10px 0;padding:10px 12px;border-radius:12px;background:var(--green-l);color:var(--green-d);font-weight:600;font-size:14px}
+.paytag{display:inline-block;margin-top:6px;padding:5px 10px;border-radius:10px;background:#fff7e6;color:#b45f06;font-weight:700;font-size:12.5px;text-align:left}
+.paytag.ok{background:var(--green-l);color:var(--green-d)}
+
 .co-foot{position:sticky;bottom:-28px;margin:2px -20px -28px;padding:12px 20px 22px;background:linear-gradient(to top,#fff 80%,rgba(255,255,255,0));z-index:2}
 .co-foot .sheet-btn{margin-top:0}
 

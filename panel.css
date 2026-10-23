@@ -110,3 +110,9 @@ main{max-width:1180px;padding:24px 18px 70px}
 .table-scroll{max-width:100%;overflow-x:auto}table{min-width:470px}th{background:#f8fafc}td,th{padding:13px 11px}tbody tr:hover{background:#f8fbf9}
 .oc{box-shadow:0 8px 28px #12392912}.oc-go:hover{filter:brightness(.94)}button:focus-visible,a:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
 @media(max-width:600px){main{padding:15px 12px 70px}.card{padding:15px}.top{padding:12px}.tabs{top:55px;padding:10px 12px}.tabs button{padding:10px 13px}.stat{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stat .card{min-height:106px}.revenue-stats .card:first-child{grid-column:1/-1}.stat b{font-size:19px}.row.sb{align-items:flex-start}.periods button{flex:1;padding:9px 6px}.oc-money b{font-size:18px}}
+
+/* Thanh toán chuyển khoản */
+.oc-money .bank{background:var(--bl)}.oc-money .bank b{color:var(--b)}
+.oc-money .bankwait{background:var(--ol)}.oc-money .bankwait b{color:#b45f06}
+.oc-warn{margin:0 16px 10px;padding:9px 12px;border-radius:12px;background:var(--ol);color:#b45f06;font-size:13px;font-weight:600}
+.payrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}

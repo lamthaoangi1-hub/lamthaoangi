@@ -1,4 +1,4 @@
-import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261022c';
+import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payText, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261023a';
 
 export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
   let tab = 'open', open = [], mine = [], err = '';
@@ -32,13 +32,15 @@ export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'
   const callBtn = p => p ? `<a class="oc-act" href="tel:${esc(p)}">${I.phone}Gọi ${esc(p)}</a>` : '';
   const navBtn = (lat, lng, addr, label) => lat != null ? `<a class="oc-act" href="${dirLink(lat, lng)}" target="_blank" rel="noopener">${I.nav}${label}</a>` : (addr ? `<a class="oc-act" href="${map(addr)}" target="_blank" rel="noopener">${I.nav}Xem bản đồ</a>` : '');
   const svcNote = o => o.type === 'delivery' ? `${esc(o.goods || '')}${o.weight ? ' · ' + esc(o.weight) : ''} · Người ${o.feePayer === 'receiver' ? 'nhận' : 'gửi'} trả phí${o.codAmount ? ` · <b>Thu hộ ${money(o.codAmount)}</b> từ người nhận` : ''}`
-    : o.type === 'errand' ? `Mua hộ · Ứng trước tối đa <b>${money(o.advanceMax || 0)}</b> · Thu tiền hàng theo hóa đơn + phí` : '';
+    : o.type === 'errand' ? `Mua hộ · Ứng trước tối đa <b>${money(o.advanceMax || 0)}</b> · Thu tiền hàng theo hóa đơn${o.payment === 'bank' ? (o.payStatus === 'paid' ? ' (phí đã chuyển khoản)' : ' (phí chuyển khoản, chờ xác nhận)') : ' + phí'}` : '';
   function card(o, kind) {
     const items = (o.items || []).map(i => `<b>${i.qty}×</b> ${esc(i.name)}`).join('<span class="sep"></span>');
     const extra = [o.distanceKm != null ? `Quãng đường ${String(o.distanceKm).replace('.', ',')} km` : '', fmtTime(o.createdAt)].filter(Boolean).join(' · ');
+    const bank = o.payment === 'bank', paid = bank && o.payStatus === 'paid';
     return `<article class="oc">
       <header class="oc-head"><div><span class="oc-code">#${esc(o.code)}</span><div class="oc-time">${extra}</div></div>${badge(o.status)}</header>
-      <div class="oc-money"><div class="earn"><small>Phí ship bạn nhận</small><b>${money(o.shipFee)}</b></div><div><small>${o.type ? 'Phí dịch vụ (tiền mặt)' : 'Thu tiền mặt của khách'}</small><b>${money(o.total)}</b></div></div>
+      <div class="oc-money"><div class="earn"><small>Phí ship bạn nhận</small><b>${money(o.shipFee)}</b></div><div class="${bank ? (paid ? 'bank' : 'bankwait') : ''}"><small>${bank ? (paid ? 'Khách ĐÃ chuyển khoản – không thu tiền' : 'Chuyển khoản – chờ xác nhận nhận tiền') : o.type ? 'Phí dịch vụ (tiền mặt)' : 'Thu tiền mặt của khách'}</small><b>${paid ? '0đ' : money(o.total)}</b></div></div>
+      ${bank && !paid ? '<div class="oc-warn">⚠️ Đơn chuyển khoản CHƯA được xác nhận nhận tiền. Hãy hỏi Admin hoặc khách trước khi giao.</div>' : ''}
       <div class="oc-route">
         <div class="oc-stop from"><i class="oc-dot"></i><div>
           <div class="oc-lbl">${o.type === 'errand' ? 'Mua hàng tại' : 'Lấy hàng tại'}</div><div class="oc-name">${esc(o.shopName)}</div>
@@ -74,7 +76,7 @@ export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'
     const c = e.target.closest('[data-claim]'), d = e.target.closest('[data-done]');
     try {
       if (c) { c.disabled = true; await fb.patchOrder(c.dataset.claim, { status:'delivering', shipperUid:me.uid, shipperName:me.name || '', shipperPhone:me.phone || '' }); toast('Đã nhận đơn'); tab = 'mine'; draw(); }
-      if (d) { if (!confirm('Xác nhận đã giao và thu tiền xong?')) return; d.disabled = true; await fb.patchOrder(d.dataset.done, { status:'done' }); toast('Đã hoàn thành đơn'); }
+      if (d) { const od = mine.find(x => x.id === d.dataset.done) || {}; if (!confirm(od.payment === 'bank' ? (od.payStatus === 'paid' ? 'Xác nhận đã giao xong? (khách đã chuyển khoản, không thu tiền)' : 'Đơn chuyển khoản CHƯA được xác nhận nhận tiền. Vẫn xác nhận đã giao xong?') : 'Xác nhận đã giao và thu tiền xong?')) return; d.disabled = true; await fb.patchOrder(d.dataset.done, { status:'done' }); toast('Đã hoàn thành đơn'); }
     } catch (er) { toast(fb.errMsg(er) + ' (đơn có thể đã có shipper khác nhận)'); draw(); }
   });
 } };

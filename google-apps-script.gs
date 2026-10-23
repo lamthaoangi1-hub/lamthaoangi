@@ -75,6 +75,11 @@ function checkNotifyAccess() {
   Logger.log(r.getResponseCode() === 200 || r.getResponseCode() === 404 ? 'OK – script đọc được Firestore bằng quyền riêng (' + r.getResponseCode() + ')' : 'LỖI ' + r.getResponseCode() + ': ' + r.getContentText());
 }
 const money = n => Number(n || 0).toLocaleString('vi-VN') + 'đ';
+// Hình thức thanh toán của đơn: tiền mặt hoặc chuyển khoản (kèm nội dung CK = mã đơn để đối chiếu)
+function payLabel(o) {
+  if (o.payment !== 'bank') return 'tiền mặt';
+  return o.payStatus === 'paid' ? 'CHUYỂN KHOẢN – đã nhận tiền' : 'CHUYỂN KHOẢN – CHỜ XÁC NHẬN, nội dung CK: ' + o.code + (o.customerPaid ? ' (khách báo đã chuyển)' : '');
+}
 
 // ===================== ĐIỂM VÀO =====================
 function doPost(e) {
@@ -222,7 +227,7 @@ function zaloText(order, shop, footer) {
   const w = order._warn ? order._warn + '\n' : '';
   if (order.type) return w + '🛎 ĐƠN ' + (order.type === 'errand' ? 'MUA HỘ' : 'GIAO HÀNG') + ' MỚI #' + order.code + '\n'
     + svcLines(order).join('\n') + '\n'
-    + 'Quãng đường: ' + (order.distanceKm != null ? order.distanceKm + ' km' : '?') + ' | PHÍ: ' + money(order.total) + ' (tiền mặt)\n'
+    + 'Quãng đường: ' + (order.distanceKm != null ? order.distanceKm + ' km' : '?') + ' | PHÍ: ' + money(order.total) + ' (' + payLabel(order) + ')\n'
     + 'Khách đặt: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
     + 'Giao đến: ' + (order.address || '') + '\n'
     + (order.note ? 'Ghi chú: ' + order.note + '\n' : '')
@@ -232,7 +237,7 @@ function zaloText(order, shop, footer) {
     + 'Quán: ' + (order.shopName || shop.name || '') + '\n'
     + itemsLines(order) + '\n'
     + 'Phí ship: ' + money(order.shipFee) + (order.discount ? ' | Giảm: -' + money(order.discount) : '') + '\n'
-    + 'TỔNG: ' + money(order.total) + ' (tiền mặt)\n'
+    + 'TỔNG: ' + money(order.total) + ' (' + payLabel(order) + ')\n'
     + 'Khách: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
     + 'Giao đến: ' + (order.address || '') + '\n'
     + (order.note ? 'Ghi chú: ' + order.note + '\n' : '')
@@ -255,7 +260,7 @@ function sendOrderEmail(order, shop) {
     + '<p><b>Khách:</b> ' + esc(order.customerName) + ' · <a href="tel:' + esc(order.customerPhone) + '">' + esc(order.customerPhone) + '</a><br>'
     + '<b>Giao đến:</b> ' + esc(order.address) + '<br>'
     + (order.note ? '<b>Ghi chú:</b> ' + esc(order.note) + '<br>' : '')
-    + '<b>Thanh toán:</b> Tiền mặt khi nhận hàng</p>' + map
+    + '<b>Thanh toán:</b> ' + (order.payment === 'bank' ? '<span style="color:#b45f06"><b>Chuyển khoản</b> – ' + (order.payStatus === 'paid' ? 'đã nhận tiền' : 'chờ bạn đối chiếu và xác nhận trong trang quản lý (nội dung CK: <b>' + esc(order.code) + '</b>)') + '</span>' : 'Tiền mặt khi nhận hàng') + '</p>' + map
     + (SITE_URL ? '<p><a href="' + SITE_URL + '">Mở trang quản lý</a></p>' : '') + '</div>';
   MailApp.sendEmail({
     to: ADMIN_EMAIL,
