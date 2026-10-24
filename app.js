@@ -1091,7 +1091,7 @@
     const enp = t.closest('[data-enablepush]');
     if (enp) { enp.disabled = true; FB.enablePush(S.user.uid).then(() => { closeSheet(); toast('Đã bật thông báo đơn hàng 🔔'); }).catch(er => { closeSheet(); toast(er.message || 'Không bật được thông báo'); }); return; }
     const dsp = t.closest('[data-disablepush]');
-    if (dsp) { dsp.disabled = true; FB.disablePush(S.user.uid).then(() => { closeSheet(); toast('Đã tắt thông báo trên máy này'); }); return; }
+    if (dsp) { dsp.disabled = true; FB.disablePush(S.user.uid).then(() => { closeSheet(); toast('Đã tắt thông báo trên máy này'); setTimeout(pushSheet, 300); }); return; }
 
     const act = t.closest('[data-act]');
     if (!act) return;
@@ -1136,7 +1136,7 @@
   /* ---------------- Thông báo đẩy: hỏi quyền + cài đặt ---------------- */
   function pushSheet() {
     if (!LIVE || !FB || !S.user) return;
-    const st = FB.pushState();
+    const st = FB.pushState(S.user.uid);
     const body = st === 'unsupported'
       ? `<p class="sub" style="margin-top:10px;line-height:1.5">Trình duyệt này chưa hỗ trợ thông báo. Trên iPhone: mở bằng Safari → nút Chia sẻ → <b>Thêm vào MH chính</b>, rồi mở web từ biểu tượng vừa thêm và bật lại.</p>`
       : st === 'denied'
@@ -1148,10 +1148,10 @@
   }
   /* Tự hỏi 1 lần sau khi đăng nhập (nếu chưa từng cho phép/chặn); khách bấm "Để sau" thì 3 ngày sau mới hỏi lại */
   function pushAskLater() {
-    if (!FB || FB.pushState() !== 'default') return;
+    if (!FB || !S.user || FB.pushState(S.user.uid) !== 'default') return;
     try { if (Date.now() - Number(localStorage.getItem('pushAsk') || 0) < 3 * 864e5) return; } catch (e) {}
     setTimeout(() => {
-      if (!S.user || !FB || FB.pushState() !== 'default' || !$('#sheet').hidden || shopPageOpen) return;
+      if (!S.user || !FB || FB.pushState(S.user.uid) !== 'default' || !$('#sheet').hidden || shopPageOpen) return;
       try { localStorage.setItem('pushAsk', String(Date.now())); } catch (e) {}
       pushSheet();
     }, 4000);
