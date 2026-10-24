@@ -32,6 +32,15 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Thiết bị nhận thông báo đẩy của khách (token FCM): mỗi người chỉ ghi/đọc/xóa token của chính mình; Apps Script gửi tin bằng quyền riêng của chủ script
+    match /users/{uid}/devices/{tokenId} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['token', 'ua', 'updatedAt'])
+        && request.resource.data.token is string && request.resource.data.token == tokenId
+        && request.resource.data.token.size() < 600;
+    }
+
     // Cửa hàng: ai cũng xem được; admin sửa tất cả; nhà bán hàng chỉ sửa cửa hàng của mình
     match /shops/{shopId} {
       allow read: if true;

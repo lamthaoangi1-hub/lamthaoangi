@@ -440,6 +440,7 @@
         <div class="group-title">Hỗ trợ &amp; Cài đặt</div>
         <div class="menu">
           ${menuItem('help', ic('headset'), '', 'Trung tâm hỗ trợ', 'Giải đáp thắc mắc, liên hệ chúng tôi')}
+          ${LIVE ? menuItem('pushset', ic('bell'), '', 'Thông báo đơn hàng', 'Nhận tin khi đơn đổi trạng thái') : ''}
           ${LIVE ? menuItem('policy', ic('doc'), '', 'Chính sách & Điều khoản', 'Điều khoản sử dụng, bảo mật thông tin') : menuItem('settings', ic('gear'), '', 'Cài đặt', 'Ngôn ngữ, thông báo, quyền riêng tư')}
           ${menuItem('logout', ic('logout'), '', 'Đăng xuất', 'Thoát khỏi tài khoản hiện tại', 'danger')}
         </div><div class="pad-bottom"></div>`;
@@ -1087,6 +1088,10 @@
     if (eye) { const inp = eye.parentElement.querySelector('input'); const show = inp.type === 'password'; inp.type = show ? 'text' : 'password'; eye.innerHTML = ic(show ? 'eye' : 'eyeOff'); return; }
     const soc = t.closest('[data-social]'); if (soc && !LIVE) { toast('Đăng nhập bằng ' + soc.dataset.social + ' (demo)'); loginAs({ name:DEMO.name, phone:DEMO.phone }); return; }
     const menu = t.closest('[data-menu]'); if (menu) return menuAction(menu.dataset.menu);
+    const enp = t.closest('[data-enablepush]');
+    if (enp) { enp.disabled = true; FB.enablePush(S.user.uid).then(() => { closeSheet(); toast('Đã bật thông báo đơn hàng 🔔'); }).catch(er => { closeSheet(); toast(er.message || 'Không bật được thông báo'); }); return; }
+    const dsp = t.closest('[data-disablepush]');
+    if (dsp) { dsp.disabled = true; FB.disablePush(S.user.uid).then(() => { closeSheet(); toast('Đã tắt thông báo trên máy này'); }); return; }
 
     const act = t.closest('[data-act]');
     if (!act) return;
@@ -1128,7 +1133,32 @@
     openSheet(keys.map(k => `<h3 style="margin-top:${k === keys[0] ? 0 : 18}px">${POLICY[k][0]}</h3><ol style="margin:10px 0 0;padding-left:20px;color:var(--ink-2);line-height:1.55;font-size:14px">${POLICY[k][1].map(x => `<li style="margin-bottom:6px">${x}</li>`).join('')}</ol>`).join('') + `<button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`);
   }
 
+  /* ---------------- Thông báo đẩy: hỏi quyền + cài đặt ---------------- */
+  function pushSheet() {
+    if (!LIVE || !FB || !S.user) return;
+    const st = FB.pushState();
+    const body = st === 'unsupported'
+      ? `<p class="sub" style="margin-top:10px;line-height:1.5">Trình duyệt này chưa hỗ trợ thông báo. Trên iPhone: mở bằng Safari → nút Chia sẻ → <b>Thêm vào MH chính</b>, rồi mở web từ biểu tượng vừa thêm và bật lại.</p>`
+      : st === 'denied'
+      ? `<p class="sub" style="margin-top:10px;line-height:1.5">Bạn đang chặn thông báo của trang web này. Hãy vào cài đặt trình duyệt (biểu tượng ổ khóa cạnh địa chỉ web) → <b>Thông báo</b> → <b>Cho phép</b>, rồi tải lại trang.</p>`
+      : st === 'granted'
+      ? `<div class="row-kv" style="margin-top:12px"><span>Thông báo trên thiết bị này</span><b style="color:var(--green-d)">Đang bật</b></div><button class="sheet-btn" style="background:var(--chip);color:var(--ink)" data-disablepush>Tắt thông báo trên máy này</button>`
+      : `<p class="sub" style="margin-top:10px;line-height:1.5">Nhận thông báo ngay trên điện thoại khi quán nhận đơn, món làm xong, tài xế đang giao và giao thành công.</p><button class="sheet-btn" data-enablepush>Bật thông báo</button>`;
+    openSheet(`<h3>Thông báo đơn hàng</h3>${body}<button class="sheet-btn" style="background:var(--chip);color:var(--ink)" onclick="document.getElementById('sheet-backdrop').click()">${st === 'default' ? 'Để sau' : 'Đóng'}</button>`);
+  }
+  /* Tự hỏi 1 lần sau khi đăng nhập (nếu chưa từng cho phép/chặn); khách bấm "Để sau" thì 3 ngày sau mới hỏi lại */
+  function pushAskLater() {
+    if (!FB || FB.pushState() !== 'default') return;
+    try { if (Date.now() - Number(localStorage.getItem('pushAsk') || 0) < 3 * 864e5) return; } catch (e) {}
+    setTimeout(() => {
+      if (!S.user || !FB || FB.pushState() !== 'default' || !$('#sheet').hidden || shopPageOpen) return;
+      try { localStorage.setItem('pushAsk', String(Date.now())); } catch (e) {}
+      pushSheet();
+    }, 4000);
+  }
+
   function menuAction(k) {
+    if (k === 'pushset') return pushSheet();
     if (k.startsWith('open-')) { location.href = 'quanly.html'; return; }
     if (k === 'logout') {
       return openSheet(`<h3>Đăng xuất?</h3><div class="sub">Bạn có chắc muốn thoát khỏi tài khoản hiện tại?</div>
@@ -1220,7 +1250,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261023a').then(m => {
+    import('./fb.js?v=20261024a').then(m => {
       FB = m;
       let RAWSHOPS = [], openSig = '';
       const applyShops = () => {
@@ -1244,12 +1274,14 @@
         const bin = String(c.bankBin || '').replace(/\D/g, ''), acc = String(c.bankAccount || '').replace(/\s/g, '');
         BANK = c.bankEnabled === true && bin && acc ? { bin, acc, holder:String(c.bankHolder || ''), name:String(c.bankName || '') } : null;   // chưa bật / chưa nhập đủ thì khách chỉ thấy tiền mặt
         if (!BANK) { CART.pay = 'cash'; SV.pay = 'cash'; } });
+      FB.onForegroundPush(p => toast((p.title ? p.title + ' – ' : '') + (p.body || '')));
       FB.onAuth((u, p) => {
         if (ordersUnsub) { ordersUnsub(); ordersUnsub = null; }
         RAW = [];
         if (u && p) {
           S.user = { uid:u.uid, name:p.name, phone:p.phone, role:p.role, address:p.address || '' };
           ordersUnsub = FB.watchMyOrders(u.uid, l => { RAW = l; rebuildOrders(); });
+          FB.syncPush(u.uid); pushAskLater();
         } else S.user = null;
         rebuildOrders();
         if (S.tab === 'profile') renderProfile();

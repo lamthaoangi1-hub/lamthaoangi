@@ -6,10 +6,11 @@ import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateD
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js?v=20261023a';
 import { UPLOAD_URL } from './upload-config.js?v=20261023a';
+import { VAPID_KEY } from './push-config.js?v=20261024a';
 
 export const configured = !!firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(firebaseConfig.apiKey);
-let auth, db;
-if (configured) { const app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app); }
+let auth, db, fbApp;
+if (configured) { fbApp = initializeApp(firebaseConfig); auth = getAuth(fbApp); db = getFirestore(fbApp); }
 
 /* Đăng nhập bằng số điện thoại + mật khẩu (SĐT được quy đổi thành email nội bộ, không tốn SMS) */
 const toEmail = p => `${String(p).trim()}@lamthaoangi.app`;
@@ -46,7 +47,7 @@ export async function register(name, phone, pass) {
   const c = await createUserWithEmailAndPassword(auth, toEmail(phone), pass);
   await setDoc(doc(db, 'users', c.user.uid), { name, phone, role:'customer', address:'', createdAt:serverTimestamp() });
 }
-export const logout = () => signOut(auth);
+export const logout = async () => { try { if (auth.currentUser) await disablePush(auth.currentUser.uid); } catch (e) {} return signOut(auth); };   // gỡ máy này khỏi danh sách nhận thông báo của tài khoản trước khi thoát
 
 /* Admin tạo sẵn tài khoản Nhà bán hàng: dùng 1 app Firebase phụ để đăng ký (admin không bị đăng xuất), rồi admin gán vai trò + cửa hàng */
 export async function createSellerAccount({ name, phone, pass, shopId, zaloId = '' }) {
@@ -90,7 +91,63 @@ export async function notifyNewOrder(orderId) {
     await new Promise(r => setTimeout(r, 3000));
   }
 }
-export const patchOrder = (id, patch) => updateDoc(doc(db, 'orders', id), { ...patch, updatedAt:serverTimestamp() });
+export async function patchOrder(id, patch) {
+  await updateDoc(doc(db, 'orders', id), { ...patch, updatedAt:serverTimestamp() });
+  if (patch && patch.status) notifyStatus(id);   // đổi trạng thái → báo về máy khách (chạy nền, không chặn thao tác)
+}
+/* Nhờ Apps Script gửi thông báo đẩy "đơn đã đổi trạng thái" tới các máy của khách. Lỗi cũng không ảnh hưởng việc cập nhật đơn. */
+async function notifyStatus(orderId) {
+  if (!UPLOAD_URL) return;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const token = await idToken();
+      const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'notifyStatus', token, orderId }) });
+      const j = await res.json().catch(() => null);
+      console.log('[Báo trạng thái đơn]', j);
+      if (j && j.ok) return;
+    } catch (e) { console.warn('Không gửi được thông báo trạng thái', e); }
+    await new Promise(r => setTimeout(r, 2500));
+  }
+}
+
+/* ---------------- THÔNG BÁO ĐẨY (FCM) cho khách ----------------
+   Mỗi máy/trình duyệt khách cho phép thông báo sẽ có 1 token, lưu ở users/{uid}/devices/{token}. */
+const MSG_URL = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js';
+const pushOK = () => configured && !!VAPID_KEY && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+/* 'unsupported' | 'denied' | 'default' (chưa hỏi) | 'granted' */
+export const pushState = () => !pushOK() ? 'unsupported' : Notification.permission;
+async function saveToken(uid) {
+  const { getMessaging, getToken } = await import(MSG_URL);
+  const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+  await navigator.serviceWorker.ready;
+  const token = await getToken(getMessaging(fbApp), { vapidKey:VAPID_KEY, serviceWorkerRegistration:reg });
+  if (!token) throw new Error('Không lấy được mã thông báo của thiết bị');
+  await setDoc(doc(db, 'users', uid, 'devices', token), { token, ua:navigator.userAgent.slice(0, 120), updatedAt:serverTimestamp() });
+  try { localStorage.setItem('fcmTok:' + uid, token); } catch (e) {}
+  return token;
+}
+/* Gọi khi khách bấm "Bật thông báo" (bắt buộc từ thao tác bấm của khách thì trình duyệt mới hỏi quyền) */
+export async function enablePush(uid) {
+  if (!pushOK()) throw new Error('Trình duyệt này chưa hỗ trợ thông báo');
+  const p = await Notification.requestPermission();
+  if (p !== 'granted') throw new Error(p === 'denied' ? 'Bạn đang chặn thông báo. Hãy cho phép “Thông báo” trong cài đặt trang web.' : 'Bạn chưa cho phép thông báo');
+  return saveToken(uid);
+}
+/* Đã cho phép từ trước: mỗi lần đăng nhập lặng lẽ cập nhật lại token (token có thể đổi) */
+export async function syncPush(uid) {
+  if (!pushOK() || Notification.permission !== 'granted') return;
+  try { await saveToken(uid); } catch (e) { console.warn('Không đồng bộ được token thông báo', e); }
+}
+export async function disablePush(uid) {
+  let tk = ''; try { tk = localStorage.getItem('fcmTok:' + uid) || ''; } catch (e) {}
+  if (tk) { try { await deleteDoc(doc(db, 'users', uid, 'devices', tk)); } catch (e) {} try { localStorage.removeItem('fcmTok:' + uid); } catch (e) {} }
+  if (pushOK()) { try { const { getMessaging, deleteToken } = await import(MSG_URL); await deleteToken(getMessaging(fbApp)); } catch (e) {} }
+}
+/* Đang mở web mà có thông báo tới: trình duyệt không tự hiện, nên gọi cb({title, body}) để web tự hiện toast */
+export async function onForegroundPush(cb) {
+  if (!pushOK()) return;
+  try { const { getMessaging, onMessage } = await import(MSG_URL); onMessage(getMessaging(fbApp), p => cb(p.notification || {})); } catch (e) {}
+}
 export const createShop = d => addDoc(collection(db, 'shops'), { ...d, createdAt:serverTimestamp() });
 export const patchShop = (id, patch) => updateDoc(doc(db, 'shops', id), patch);
 export const removeShop = id => deleteDoc(doc(db, 'shops', id));

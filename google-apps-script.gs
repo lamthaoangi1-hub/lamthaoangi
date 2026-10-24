@@ -14,6 +14,7 @@ const FOLDER_ID = '1lqBEj_wMTjuk4WSXZeP5aMtiNinO5M0g';   // thư mục Drive ch�
 const FIREBASE_PROJECT = 'lamthaoangi1-c01cb';
 const FIREBASE_API_KEY = 'AIzaSyC9jqo52PyA3QT51XGCyWcOs0ViC1fL-a0';
 const MAX_BYTES = 3 * 1024 * 1024;
+const SITE_ORIGIN = 'https://lamthaoangi.io.vn';        // địa chỉ website (dùng cho biểu tượng + link khi khách bấm vào thông báo đẩy)
 
 const ADMIN_EMAIL = 'lamthaoangi1@gmail.com';             // Gmail nhận thông báo đơn mới (có thể ghi nhiều, cách nhau dấu phẩy)
 const SITE_URL = 'https://lamthaoangi.io.vn/quanly.html';  // link trang quản lý (đăng nhập chung) gắn vào email báo đơn
@@ -86,6 +87,7 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     if (body.action === 'notifyOrder') return notifyOrder(body);
+    if (body.action === 'notifyStatus') return notifyStatus(body);
     if (body.action === 'resetPassword') return resetPassword(body);
     return uploadImage(body);
   } catch (err) {
@@ -174,7 +176,9 @@ function notifyOrder(body) {
     cache.put(key, '1', 21600);
   } finally { lock.releaseLock(); }
 
-  const result = { email: false, admin: 0, shop: 0, shipper: 0 };
+  const result = { email: false, admin: 0, shop: 0, shipper: 0, customer: 0 };
+  // Thông báo đẩy về máy khách: đặt đơn thành công
+  try { result.customer = pushToUser(order.uid, 'Đặt đơn thành công 🎉', 'Đơn #' + order.code + ' – ' + money(order.total) + '. Đang chờ quán/tài xế nhận đơn.', 'order-' + body.orderId); } catch (e) { console.error('Push khách: ' + e); }
   const shop = order.type ? {} : (getDoc('shops/' + order.shopId, body.token) || {});   // đơn Giao hàng/Mua hộ không thuộc quán nào
   const notify = getDocAdmin('settings/notify', body.token) || {};   // do Admin lưu: { shops:{shopId:[id]}, shippers:[id] }
 
@@ -196,8 +200,92 @@ function notifyOrder(body) {
   push(adminIds, 'admin', zaloText(order, shop, 'Vui lòng mở lamthaoangi.io.vn/quanly.html để theo dõi đơn.'));
   push(shopIds, 'shop', zaloText(order, shop, 'Vui lòng mở lamthaoangi.io.vn/quanly.html để xem đơn.'));
   push(shipperIds, 'shipper', '🛎 Có đơn mới! Mở lamthaoangi.io.vn/quanly.html để xem và nhận đơn.');
-  if (!result.email && !result.admin && !result.shop && !result.shipper) { try { CacheService.getScriptCache().remove('notified_' + body.orderId); } catch (e) {} return out({ ok: false, error: 'Chưa gửi được thông báo nào', result: result }); }
+  if (!result.email && !result.admin && !result.shop && !result.shipper && !result.customer) { try { CacheService.getScriptCache().remove('notified_' + body.orderId); } catch (e) {} return out({ ok: false, error: 'Chưa gửi được thông báo nào', result: result }); }
   return out({ ok: true, result: result });
+}
+
+// ===================== 3) THÔNG BÁO ĐẨY VỀ MÁY KHÁCH (Firebase Cloud Messaging) =====================
+// Khách bật thông báo → web lưu token vào Firestore users/{uid}/devices/{token}. Script đọc token bằng quyền riêng rồi gửi qua FCM HTTP v1.
+// Cần: (1) VAPID key trong push-config.js, (2) bật "Firebase Cloud Messaging API (V1)" của project, (3) Deploy lại Web app bản mới (xem HUONG-DAN-THONG-BAO.md).
+function statusMessage(order, st) {
+  const c = '#' + order.code;
+  switch (st) {
+    case 'confirmed': return { title: 'Quán đã nhận đơn ✅', body: 'Đơn ' + c + ' đã được xác nhận, quán sẽ sớm chuẩn bị món.' };
+    case 'preparing': return { title: 'Quán đang chuẩn bị món 🍳', body: 'Đơn ' + c + ' đang được chuẩn bị.' };
+    case 'ready': return { title: 'Món đã sẵn sàng 🛍', body: 'Đơn ' + c + ' đã làm xong, tài xế sẽ sớm tới lấy.' };
+    case 'delivering': return { title: 'Tài xế đang giao đơn 🛵', body: (order.shipperName ? order.shipperName + ' đang giao đơn ' : 'Tài xế đang giao đơn ') + c + ' tới bạn.' + (order.shipperPhone ? ' SĐT: ' + order.shipperPhone : '') };
+    case 'done': return { title: 'Giao hàng thành công 🎉', body: 'Đơn ' + c + ' đã hoàn thành. Chúc bạn ngon miệng!' };
+    case 'cancelled': return { title: 'Đơn đã bị hủy', body: 'Đơn ' + c + ' đã bị hủy. Cần hỗ trợ hãy liên hệ Lâm Thao Ăn Gì qua Zalo.' };
+  }
+  return null;
+}
+
+// Web gọi sau khi Admin / Quán / Shipper đổi trạng thái đơn. Trạng thái LẤY TỪ DỮ LIỆU THẬT, không tin trạng thái người gọi gửi lên.
+function notifyStatus(body) {
+  if (!body.token || !body.orderId) return out({ ok: false, error: 'Thiếu dữ liệu' });
+  const uid = verifyToken(body.token);
+  if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn' });
+  const order = getDoc('orders/' + body.orderId, body.token);   // luật bảo mật: chỉ người có quyền xem đơn mới đọc được
+  if (!order) return out({ ok: false, error: 'Không tìm thấy đơn' });
+  if (order.uid === uid) return out({ ok: true, skipped: 'khách tự thao tác' });
+  const msg = statusMessage(order, order.status);
+  if (!msg) return out({ ok: true, skipped: 'trạng thái ' + order.status });
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {   // chống gửi trùng khi web gọi lại: mỗi lần đổi trạng thái (updatedAt khác) chỉ gửi 1 lần
+    const cache = CacheService.getScriptCache(), key = ('st_' + body.orderId + '_' + order.status + '_' + order.updatedAt).slice(0, 240);
+    if (cache.get(key)) return out({ ok: true, duplicate: true });
+    cache.put(key, '1', 21600);
+  } finally { lock.releaseLock(); }
+
+  const n = pushToUser(order.uid, msg.title, msg.body, 'order-' + body.orderId);
+  return out({ ok: true, sent: n });
+}
+
+// Gửi tới mọi thiết bị của 1 khách; trả về số thiết bị gửi được
+function pushToUser(uid, title, text, tag) {
+  if (!uid) return 0;
+  let sent = 0;
+  listDevices(uid).forEach(d => { if (fcmSend(uid, d, title, text, tag)) sent++; });
+  return sent;
+}
+function listDevices(uid) {
+  const r = UrlFetchApp.fetch(FS + 'users/' + uid + '/devices?pageSize=20', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) { console.log('listDevices ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 200)); return []; }
+  return (JSON.parse(r.getContentText()).documents || []).map(d => (d.fields && d.fields.token && d.fields.token.stringValue) || '').filter(Boolean);
+}
+function fcmRequest(message, validateOnly) {
+  return UrlFetchApp.fetch('https://fcm.googleapis.com/v1/projects/' + FIREBASE_PROJECT + '/messages:send', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Goog-User-Project': FIREBASE_PROJECT },
+    payload: JSON.stringify({ validate_only: !!validateOnly, message: message }) });
+}
+function fcmSend(uid, token, title, text, tag) {
+  const r = fcmRequest({
+    token: token,
+    notification: { title: title, body: text },
+    webpush: {
+      headers: { Urgency: 'high', TTL: '86400' },
+      notification: { icon: SITE_ORIGIN + '/icon-192.png', badge: SITE_ORIGIN + '/icon-192.png', tag: tag, renotify: true },
+      fcm_options: { link: SITE_ORIGIN + '/#orders' }
+    } });
+  const code = r.getResponseCode();
+  if (code === 200) return true;
+  const txt = r.getContentText();
+  console.log('FCM ' + code + ': ' + txt.slice(0, 300));
+  if (code === 404 || /UNREGISTERED|registration-token-not-registered/.test(txt)) {   // token đã hết hạn / khách gỡ trình duyệt → xóa khỏi hệ thống
+    try { UrlFetchApp.fetch(FS + 'users/' + uid + '/devices/' + encodeURIComponent(token), { method: 'delete', headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true }); } catch (e) {}
+  }
+  return false;
+}
+// Chạy tay 1 lần trong trình soạn thảo để kiểm tra quyền gửi FCM: phải in ra OK
+function checkPushAccess() {
+  const r = fcmRequest({ token: 'test-token-khong-ton-tai', notification: { title: 't', body: 't' } }, true);
+  const code = r.getResponseCode();
+  Logger.log(code === 400 || code === 404 || code === 200
+    ? 'OK – script có quyền gửi thông báo đẩy (' + code + ')'
+    : 'LỖI ' + code + ': ' + r.getContentText() + '\n→ Kiểm tra đã bật "Firebase Cloud Messaging API (V1)" và tài khoản chủ script là Owner/Editor của project Firebase.');
 }
 
 // So giá từng món trong đơn với thực đơn hiện tại của quán. Lệch → cảnh báo to đầu tin/mail để Admin kiểm tra trước khi giao.
