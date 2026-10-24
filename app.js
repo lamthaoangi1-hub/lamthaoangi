@@ -446,10 +446,9 @@
     } else {
       el.innerHTML = `
         <div class="hero" style="padding-bottom:50px"><div style="padding-top:34px"><div class="page-title" style="font-size:28px">Cá nhân</div><p class="page-sub">Đăng nhập để quản lý đơn hàng,<br>địa chỉ và ưu đãi của bạn</p></div></div>
-        <div class="guest-card"><div class="guest-top"><div class="ghost">${fx.guestUser}<span class="spark">${fx.spark}</span></div>
+        <div class="guest-card"><div class="guest-top"><div class="ghost">${fx.guestUser}</div>
           <div><h2>Bạn chưa đăng nhập</h2><p>Đăng nhập hoặc đăng ký để trải nghiệm đầy đủ tính năng và nhận nhiều ưu đãi hấp dẫn từ Lâm Thao Ăn Gì!</p></div></div>
           <div class="guest-btns"><button class="btn primary" data-auth="login">${ic('login')}Đăng nhập</button><button class="btn outline" data-auth="register">${ic('user')}Đăng ký</button></div></div>
-        <button class="promo" data-auth="register" style="display:block;width:calc(100% - 32px);text-align:left"><span class="gift">${fx.giftBig}</span><h3>Đăng ký ngay<br>nhận nhiều ưu đãi hấp dẫn!</h3><p>Khám phá quán ngon, nhận mã giảm giá và nhiều tiện ích khác.</p><span class="go">${ic('arrowRight')}</span></button>
         <div class="group-title">Tiện ích khác</div>
         <div class="menu">
           ${menuItem('help', ic('headset'), '', 'Trung tâm hỗ trợ', 'Giải đáp thắc mắc, liên hệ chúng tôi')}
