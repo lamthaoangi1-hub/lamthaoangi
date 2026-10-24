@@ -564,3 +564,92 @@ html{touch-action:manipulation;-webkit-text-size-adjust:100%}
 .sp-hours{font-size:12.5px;color:var(--ink2,#6b7280);margin-top:3px}
 .tag.hot{background:#ffe9e0;color:#b23a10}
 .tag.new{background:#e3f1ff;color:#0b5394}
+
+/* =====================================================================
+   THU NHỎ CỠ CHỮ / THẺ CHO GỌN (điện thoại) – đặt cuối file để ghi đè
+   ===================================================================== */
+body{font-size:13px}
+.loc{font-size:13.5px}
+.tagline{font-size:12.5px}
+.page-title,.title-row h1{font-size:22px}
+.page-sub{font-size:12.5px}
+.section-head h2,.h2,.group-title{font-size:17px}
+.group-title{padding:16px 16px 8px}
+.see-all{font-size:13px}
+.search input{font-size:14px}
+.chip{height:38px;padding:0 16px;font-size:13px;gap:6px}
+.chips.sm .chip{height:36px;padding:0 13px;font-size:13px}
+.seg button{height:42px;font-size:13px;border-radius:21px}
+.service{font-size:11px}
+
+/* thẻ quán */
+.shop-list{gap:10px;padding-top:8px}
+.shop{gap:12px;padding:10px;border-radius:16px}
+.shop .img{width:80px;height:80px;border-radius:12px}
+.shop h3{font-size:14.5px;line-height:1.25;padding-right:30px}
+.shop .cat{font-size:12px;margin-top:3px}
+.meta{font-size:12px;gap:8px;margin-top:5px}
+.meta .rate svg{width:15px;height:15px}
+.meta .eta svg{width:16px;height:16px}
+.meta .sep{height:12px}
+.tags{gap:6px;margin-top:6px}
+.tag{font-size:11px;padding:3px 8px;border-radius:9px;gap:4px}
+.tag svg{width:13px;height:13px}
+.heart{top:8px;right:8px;width:28px;height:28px}
+.heart svg{width:22px;height:22px}
+.rcard h4{font-size:13.5px}
+.rcard .cat,.rcard .meta{font-size:12px}
+.rcard .tag{font-size:11px;padding:3px 7px}
+.sort{height:36px;font-size:12.5px}
+
+/* thẻ đơn hàng */
+.order-list{gap:10px;padding-top:12px}
+.order{padding:10px;border-radius:16px}
+.order .row{gap:10px}
+.order .img{width:64px;height:64px;border-radius:12px}
+.order h3{font-size:14px;line-height:1.25;padding-right:0}
+.order .code{font-size:11.5px;margin-top:2px}
+.order .items{font-size:12.5px;line-height:1.35;margin-top:5px;padding-right:0}
+.order .status{position:static;float:right;margin:0 0 4px 6px;padding:3px 9px;font-size:11px;gap:4px;border-radius:11px}
+.status svg{width:13px;height:13px}
+.order .price{position:static;display:block;margin-top:6px;font-size:15px}
+.order .foot{font-size:11.5px;gap:3px 12px;margin-top:6px}
+.order .foot svg{width:15px;height:15px}
+.order .actions{gap:8px;margin-top:8px;padding-top:8px}
+.btn-soft{height:38px;font-size:13px;gap:6px;border-radius:11px}
+.btn-soft svg{width:18px;height:18px}
+
+/* cá nhân / thông báo / khuyến mãi */
+.guest-top h2{font-size:16px}
+.guest-top p{font-size:12.5px}
+.btn{height:46px;font-size:14px;border-radius:12px}
+.promo{padding-left:120px}
+.promo h3{font-size:14px}.promo p{font-size:12px}
+.notice h3{font-size:13.5px}.notice p,.notice .time{font-size:12px}
+.pc-info h2{font-size:16px}.pc-info .phone{font-size:14px}
+.member{font-size:12px;padding:4px 11px}
+.stat small{font-size:11.5px}.stat b{font-size:13px}
+.mi .mt b{font-size:14px}.mi .mt small{font-size:12px}
+.auth-title{font-size:24px}.auth-sub{font-size:14px}
+.tabs button{height:56px;font-size:15px}
+.btn-main{height:52px;font-size:16px}
+.social button{height:48px;font-size:13px}
+.bottom-sheet h3{font-size:16px}
+.bottom-sheet .sub{font-size:12.5px}
+.opt{font-size:14px}
+.row-kv,.track .st{font-size:13.5px}
+.toast{font-size:13px;padding:10px 16px}
+#nav button{font-size:10.5px}
+
+/* trang quán + giỏ hàng */
+.sp-head h2{font-size:15.5px}
+.sp-group h3{font-size:14px;padding:10px 12px}
+.sp-item .in b{font-size:13px}
+.sp-item .in span{font-size:13px}
+.sp-add{width:38px;height:38px;border-radius:12px;font-size:20px}
+.sp-cartbar{height:50px;font-size:14px}
+.co-head h3{font-size:18px}
+.co-item{font-size:13.5px}
+.co-f input,.co-promo input{height:42px;font-size:14px}
+.co-row{font-size:13px}
+.co-total span{font-size:14px}.co-total b{font-size:19px}
