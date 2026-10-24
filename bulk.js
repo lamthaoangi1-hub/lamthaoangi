@@ -1,6 +1,6 @@
 /* Nhập hàng loạt: dán danh sách món / đọc file Excel, và tải file Excel mẫu.
    Dùng chung cho Admin và Nhà bán hàng (trình sửa thực đơn) và Admin (nhập nhiều quán). */
-import { norm, driveUrl } from './import-sheet.js?v=20261023a';
+import { norm, driveUrl } from './import-sheet.js?v=20261024b';
 
 export const loadXLSX = () => window.XLSX ? Promise.resolve(window.XLSX) : new Promise((ok, no) => {
   const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';

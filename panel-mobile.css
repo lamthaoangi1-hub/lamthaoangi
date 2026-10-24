@@ -1,0 +1,36 @@
+/* ==========================================================================
+   Cổng quản lý (quanly.html) — giao diện kiểu Shopee, mobile-first.
+   Chỉ ghi đè CSS sau panel.css. Không sửa panel.js / admin.js / seller.js /
+   shipper.js, nên mọi nút, bảng và luồng duyệt đơn giữ nguyên.
+   ========================================================================== */
+:root{
+  --g:#ee4d2d; --gd:#d73211; --gl:#fff1ed; --bg:#f5f5f5;
+}
+body{background:#f5f5f5;font-size:14px}
+.top{background:linear-gradient(180deg,#f53d2d,#ff6633)!important;padding:12px 14px}
+.top h1{font-size:16px}
+.top a,.top button{min-height:40px;display:inline-flex;align-items:center}
+.tabs{top:52px;padding:8px 12px;gap:8px}
+.tabs button{height:36px;padding:0 14px;border-radius:18px;font-size:13px;background:#fff;border:1px solid #eee}
+.tabs button.on{background:#ee4d2d!important}
+main{max-width:540px;padding:12px 12px 80px}
+.card{border-radius:12px!important;border:1px solid #f0f0f0!important;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.btn{background:#ee4d2d!important;min-height:44px;border-radius:10px}
+.btn.o{background:#fff!important;color:#ee4d2d!important;border:1px solid #ee4d2d!important}
+.btn:hover{background:#d73211!important}
+input:focus,select:focus,textarea:focus{outline:2px solid #ee4d2d!important;border-color:#ee4d2d!important}
+.total,.stat b{color:#ee4d2d!important}
+.badge.ok{background:#fff1ed;color:#d73211}
+.oc{border-radius:12px!important;box-shadow:0 1px 4px rgba(0,0,0,.08)!important}
+.oc-go,.oc-act{min-height:44px}
+.oc-money b{font-size:18px}
+/* Bảng admin trên điện thoại: cho cuộn ngang thay vì vỡ cột, chữ không quá nhỏ */
+.card table{display:block;overflow-x:auto;white-space:nowrap}
+.card table th,.card table td{font-size:13px}
+.mrow{grid-template-columns:1fr 96px 64px 36px}
+@media (max-width:560px){
+  .mrow{grid-template-columns:1fr 90px 60px 32px}
+  .stat{grid-template-columns:1fr 1fr}
+  .login{margin:24px auto}
+  .top small{font-size:11px}
+}

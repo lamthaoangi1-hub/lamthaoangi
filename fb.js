@@ -2,10 +2,10 @@
 import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, limit, serverTimestamp }
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, limit, serverTimestamp, runTransaction }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { firebaseConfig } from './firebase-config.js?v=20261023a';
-import { UPLOAD_URL } from './upload-config.js?v=20261023a';
+import { firebaseConfig } from './firebase-config.js?v=20261024b';
+import { UPLOAD_URL } from './upload-config.js?v=20261024b';
 
 export const configured = !!firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(firebaseConfig.apiKey);
 let auth, db;
@@ -76,6 +76,22 @@ export const watchAllOrders = cb => watch(collection(db, 'orders'), cb);
 
 /* ---- ghi ---- */
 export const placeOrder = o => addDoc(collection(db, 'orders'), { ...o, createdAt:serverTimestamp(), updatedAt:serverTimestamp() });
+/* Xác thực giá đơn qua Apps Script trước khi ghi (bản hoàn thiện).
+   Trả về null khi chưa cấu hình script hoặc script cũ chưa có validateOrder
+   (script cũ sẽ rơi vào nhánh uploadImage và trả lỗi 'Thiếu dữ liệu') — khi
+   đó app vẫn đặt đơn trực tiếp như cũ để không vỡ luồng, và admin cần deploy
+   script mới để bật lớp kiểm tra này. Chỉ chặn đơn khi script trả về
+   ok:false KÈM expected (tức là đã kiểm tra và thấy tiền không khớp). */
+export async function validateOrder(payload) {
+  if (!UPLOAD_URL) return null;
+  try {
+    const token = await idToken();
+    const res = await fetch(UPLOAD_URL, { method: 'POST', body: JSON.stringify({ action: 'validateOrder', token, ...payload }) });
+    const j = await res.json().catch(() => null);
+    if (!j || j.error === 'Thiếu dữ liệu') return null;
+    return j;
+  } catch { return null; }
+}
 /* Báo đơn mới qua Gmail (admin) + Zalo (quán, admin) bằng Google Apps Script. Không chặn việc đặt đơn nếu lỗi. */
 export async function notifyNewOrder(orderId) {
   if (!UPLOAD_URL) return;
@@ -91,6 +107,19 @@ export async function notifyNewOrder(orderId) {
   }
 }
 export const patchOrder = (id, patch) => updateDoc(doc(db, 'orders', id), { ...patch, updatedAt:serverTimestamp() });
+/* Shipper nhận đơn bằng TRANSACTION (bản hoàn thiện 24/10/2026):
+   Đọc + ghi trong 1 transaction của Firestore. Nếu 2 shipper bấm cùng lúc,
+   chỉ transaction đầu tiên thắng; transaction thứ hai đọc thấy đơn đã có
+   shipperUid / đã sang 'delivering' sẽ throw và không ghi đè. */
+export const claimOrder = (id, shipper) => runTransaction(db, async (tx) => {
+  const ref = doc(db, 'orders', id);
+  const snap = await tx.get(ref);
+  if (!snap.exists()) throw new Error('Không tìm thấy đơn');
+  const o = snap.data();
+  if (!['pending', 'confirmed', 'preparing', 'ready'].includes(o.status)) throw new Error('Đơn đã có shipper khác nhận hoặc đã đổi trạng thái');
+  if (o.shipperUid) throw new Error('Đơn đã có shipper khác nhận');
+  tx.update(ref, { status: 'delivering', shipperUid: shipper.uid, shipperName: shipper.name || '', shipperPhone: shipper.phone || '', updatedAt: serverTimestamp() });
+});
 export const createShop = d => addDoc(collection(db, 'shops'), { ...d, createdAt:serverTimestamp() });
 export const patchShop = (id, patch) => updateDoc(doc(db, 'shops', id), patch);
 export const removeShop = id => deleteDoc(doc(db, 'shops', id));

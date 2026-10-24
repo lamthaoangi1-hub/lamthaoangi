@@ -123,7 +123,7 @@
   let LIVE = false, FB = null, BANK = null, PROMOS = [], CONTACT = { hotline:'0900 000 000', email:'lamthaoangi1@gmail.com', zalo:'' };
   const GHOST = {};
   let shopsLoaded = false;
-  const CART = { shop:null, q:{}, promo:'', note:'', address:null, loc:null, pay:'cash' };
+  const CART = { shop:null, q:{}, promo:'', note:'', address:null, loc:null, pay:'cash', orderKey:null };
   const SP = { id:null, cat:'Tất cả' };
   let shopPageOpen = false;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -710,17 +710,33 @@
     if (c.shipMode === 'need-loc') return toast('Vui lòng chia sẻ vị trí để tính phí giao hàng');
     btn.disabled = true;
     const pay = BANK && CART.pay === 'bank' ? 'bank' : 'cash';
+    // Chống đơn trùng (bản hoàn thiện): 1 lần mở checkout chỉ có 1 orderKey.
+    // Bấm lại / mạng gửi lại trong cùng phiên checkout sẽ dùng lại key cũ và
+    // nếu đơn với key đó đã có trong danh sách realtime thì không tạo đơn mới.
+    if (!CART.orderKey) CART.orderKey = 'LTK' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    if (typeof RAW !== 'undefined' && RAW.some(o => o.clientKey === CART.orderKey)) {
+      closeSheet(); S.orders.tab = 'proc'; go('orders'); toast('Đơn này đã được tạo, không tạo trùng.');
+      btn.disabled = false; return;
+    }
     try {
       const data = {
+        clientKey:CART.orderKey,
         code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone,
         address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '', shopLat:s.lat ?? null, shopLng:s.lng ?? null, lat:CART.loc.lat, lng:CART.loc.lng, locAcc:CART.loc.acc,
         items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff, promoCode:c.promo ? c.promo.code : '',
         shipFee:c.ship, distanceKm:c.km, total:c.total, payment:pay, ...(pay === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending',
       };
+      // Xác thực giá qua Apps Script (bản hoàn thiện): nếu script mới trả về
+      // mismatch kèm expected thì chặn đơn; nếu script chưa cập nhật / lỗi
+      // mạng thì vẫn đặt đơn trực tiếp như cũ để không vỡ luồng (xem fb.js).
+      if (FB.validateOrder) {
+        const v = await FB.validateOrder({ shopId:s.id, items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff, shipFee:c.ship, total:c.total, lat:CART.loc.lat, lng:CART.loc.lng, promoCode:c.promo ? c.promo.code : '' });
+        if (v && v.ok === false && v.expected) { btn.disabled = false; toast(v.error || 'Tổng tiền không khớp với thực đơn hiện tại'); return; }
+      }
       const ref = await FB.placeOrder(data);
       FB.notifyNewOrder(ref.id);   // Gmail admin + Zalo quán/admin (chạy nền)
       FB.updateMyProfile(S.user.uid, { address:addr }).catch(() => {}); S.user.address = addr;
-      CART.q = {}; CART.promo = ''; CART.note = ''; CART.address = null; CART.loc = null; CART.pay = 'cash';
+      CART.q = {}; CART.promo = ''; CART.note = ''; CART.address = null; CART.loc = null; CART.pay = 'cash'; CART.orderKey = null;
       closeSheet(); S.orders.tab = 'proc'; go('orders');
       if (pay === 'bank') bankSheet({ ...data, id:ref.id }); else toast('Đặt đơn thành công! Đang chờ tài xế nhận đơn.');
     } catch (e) { btn.disabled = false; toast(FB.errMsg(e)); }
@@ -849,7 +865,7 @@
   /* ----- bản đồ chọn điểm: kéo bản đồ để đưa ghim đỏ vào đúng chỗ ----- */
   /* ----- Bản đồ: ưu tiên Goong (khóa trong goong-config.js); chưa có khóa hoặc Goong lỗi thì dùng Leaflet + OpenStreetMap/Esri ----- */
   let GOONG = { map:'', api:'' }, GOONG_ERR = '';
-  import('./goong-config.js?v=20261023a').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
+  import('./goong-config.js?v=20261024b').then(m => { GOONG = { map:String(m.GOONG_MAP_KEY || '').trim(), api:String(m.GOONG_API_KEY || '').trim() }; }).catch(() => {});
   const LF = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.', GJ = 'https://cdn.jsdelivr.net/npm/@goongmaps/goong-js@1.0.9/dist/goong-js.';
   const loadAsset = (tag, attrs) => new Promise((ok, no) => { const e = document.createElement(tag); Object.assign(e, attrs); e.onload = ok; e.onerror = () => no(new Error(tag)); document.head.appendChild(e); });
   const loadLeaflet = () => window.L ? Promise.resolve() : Promise.all([loadAsset('link', { rel:'stylesheet', href:LF + 'css' }), loadAsset('script', { src:LF + 'js' })]);
@@ -1221,7 +1237,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261023a').then(m => {
+    import('./fb.js?v=20261024b').then(m => {
       FB = m;
       let RAWSHOPS = [], openSig = '';
       const applyShops = () => {
@@ -1264,7 +1280,7 @@
     history.replaceState(null, '', '#' + S.tab);
     startSlider();
   }
-  import('./firebase-config.js?v=20261023a')
+  import('./firebase-config.js?v=20261024b')
     .then(m => { LIVE = !!m.firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(m.firebaseConfig.apiKey); })
     .catch(() => {})
     .then(() => { if (LIVE) prepareLive(); boot(); if (LIVE) connectLive(); });

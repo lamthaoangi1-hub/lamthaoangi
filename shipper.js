@@ -1,4 +1,4 @@
-import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payText, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261023a';
+import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payText, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261024b';
 
 export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
   let tab = 'open', open = [], mine = [], err = '';
@@ -75,7 +75,7 @@ export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'
     const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; draw(); return; }
     const c = e.target.closest('[data-claim]'), d = e.target.closest('[data-done]');
     try {
-      if (c) { c.disabled = true; await fb.patchOrder(c.dataset.claim, { status:'delivering', shipperUid:me.uid, shipperName:me.name || '', shipperPhone:me.phone || '' }); toast('Đã nhận đơn'); tab = 'mine'; draw(); }
+      if (c) { c.disabled = true; await fb.claimOrder(c.dataset.claim, me); toast('Đã nhận đơn'); tab = 'mine'; draw(); }
       if (d) { const od = mine.find(x => x.id === d.dataset.done) || {}; if (!confirm(od.payment === 'bank' ? (od.payStatus === 'paid' ? 'Xác nhận đã giao xong? (khách đã chuyển khoản, không thu tiền)' : 'Đơn chuyển khoản CHƯA được xác nhận nhận tiền. Vẫn xác nhận đã giao xong?') : 'Xác nhận đã giao và thu tiền xong?')) return; d.disabled = true; await fb.patchOrder(d.dataset.done, { status:'done' }); toast('Đã hoàn thành đơn'); }
     } catch (er) { toast(fb.errMsg(er) + ' (đơn có thể đã có shipper khác nhận)'); draw(); }
   });

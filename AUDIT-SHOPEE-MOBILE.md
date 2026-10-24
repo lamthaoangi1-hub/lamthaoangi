@@ -113,3 +113,52 @@ trên đúng bản Firebase này, không ghi đè bản Next.js kia.
 - Chưa kiểm thử trực quan trên điện thoại thật và chưa chạy với dữ liệu
   Firebase thật (cần tài khoản Firebase của bạn) — hãy làm bước kiểm tra
   nhanh ở mục 5 sau khi deploy.
+
+## 7. Bản HOÀN THIỆN 24/10/2026 — những gì đã sửa thêm so với bản Shopee-mobile đầu
+1. **Giao diện Shopee-mobile cho cổng quản lý:** thêm `panel-mobile.css`
+   (nạp sau `panel.css` trong `quanly.html`), đổi theme sang cam `#ee4d2d`,
+   nền xám, nút tối thiểu 44px, bảng admin cuộn ngang trên điện thoại thay vì
+   vỡ cột, khung quản lý giới hạn 540px. Không sửa `panel.js`/`admin.js`/
+   `seller.js`/`shipper.js` ngoài việc đổi số phiên bản cache.
+2. **Shipper nhận đơn bằng transaction:** `fb.js` thêm `claimOrder()` dùng
+   `runTransaction` — đọc trạng thái + `shipperUid` rồi mới ghi. 2 shipper
+   bấm cùng lúc thì chỉ 1 thắng, người còn lại nhận lỗi và toast sẵn có
+   trong `shipper.js` sẽ hiện "đơn có thể đã có shipper khác nhận".
+3. **Chống đơn trùng bằng `clientKey`:** mỗi lần mở checkout chỉ sinh 1 key
+   (`CART.orderKey`), đơn ghi vào Firestore kèm `clientKey`. Nếu bấm lại /
+   mạng gửi lại trong cùng phiên checkout mà đơn với key đó đã có trong danh
+   sách realtime thì app không tạo đơn mới mà chuyển sang trang Đơn hàng.
+   Lưu ý: Firestore không có unique constraint nên key này chặn trùng ở
+   luồng app bình thường, không chặn được kẻ gọi thẳng API.
+4. **Xác thực giá đơn qua Apps Script:** `google-apps-script.gs` thêm
+   `validateOrder` — đọc lại thực đơn thật của quán, tính lại tạm tính,
+   giảm % của quán, mã giảm giá, phí ship (đúng công thức 15.000đ/3,5km +
+   3.000đ/km, hệ số 1,3, freeship) và tổng tiền; khác nhau thì app chặn đơn.
+   `app.js` gọi hàm này trước `placeOrder`, `fb.js` thêm `validateOrder()`.
+5. **Chống cache cũ:** tất cả import `?v=20261023a` đã đổi sang
+   `?v=20261024b` (kể cả `app.js`, `quanly.js`) để trình duyệt tải đúng bản mới.
+
+## 8. Cách deploy bản hoàn thiện (làm đủ 2 bước, thiếu 1 bước là mất tác dụng)
+**Bước A — Website (GitHub Pages):** copy toàn bộ thư mục này đè lên repo,
+commit + push `main`, đợi Pages deploy.
+**Bước B — Apps Script (bắt buộc để bật xác thực giá):** mở script.google.com,
+dán đè toàn bộ file `google-apps-script.gs` mới vào project cũ (giữ nguyên
+Script Properties: Zalo token, admin IDs — không dán lại token vào code),
+Deploy → Manage deployments → Edit → New version → Deploy. Nếu không làm
+bước B, website vẫn chạy như cũ và xác thực giá sẽ tự bỏ qua (đã cố tình
+thiết kế fallback này để không vỡ luồng đặt đơn).
+**Kiểm tra sau deploy:** (1) điện thoại mở `lamthaoangi.io.vn` thấy header
+cam + lưới quán 2 cột; (2) mở `quanly.html` thấy header cam + bảng cuộn
+ngang; (3) đặt thử 1 đơn, hủy khi còn `pending`; (4) 2 tài khoản shipper
+cùng bấm nhận 1 đơn — chỉ 1 người nhận được; (5) đổi giá 1 món trong
+quanly rồi đặt đơn cũ chưa tải lại — app phải chặn và báo giá đã thay đổi
+(chỉ đúng sau khi đã deploy script mới ở bước B).
+
+## 9. Giới hạn còn lại — nói thẳng
+- Xác thực giá ở mục 7.4 vẫn bypass được nếu kẻ tấn công gọi thẳng
+  Firestore API. Chặn tuyệt đối cần Cloud Function tạo đơn (đọc menu bằng
+  Admin SDK, ghi đơn bằng Admin SDK) — đó là bước nâng cấp tiếp theo, không
+  thể làm chỉ bằng Apps Script + Rules vì Rules không cộng dồn được giá
+  theo thực đơn.
+- Chưa test trên điện thoại thật và dữ liệu Firebase thật (cần tài khoản
+  của bạn) — hãy chạy checklist mục 8 sau khi deploy.

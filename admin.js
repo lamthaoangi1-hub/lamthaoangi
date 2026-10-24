@@ -1,8 +1,8 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261023a';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261023a';
-import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
-import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
-import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
+import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261024b';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261024b';
+import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261024b';
+import { readSheets, downloadShopTemplate } from './bulk.js?v=20261024b';
+import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261024b';
 
 const SAMPLE = [
   { name:'Phở Bò Lâm Thao', cat:'Phở • Món Việt', group:['Phở', 'Món Việt'], desc:'Phở bò gia truyền.', img:'pho.jpg', eta:'15 - 25 phút', shipFee:15000, freeShipMin:100000, sale:0, open:true, menu:[{ name:'Phở bò tái nạm', price:55000, available:true }, { name:'Trà đá', price:10000, available:true }] },
