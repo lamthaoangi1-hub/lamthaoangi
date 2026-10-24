@@ -653,3 +653,34 @@ body{font-size:13px}
 .co-f input,.co-promo input{height:42px;font-size:14px}
 .co-row{font-size:13px}
 .co-total span{font-size:14px}.co-total b{font-size:19px}
+
+/* ---- Đăng nhập / Đăng ký: thu nhỏ cho gọn ---- */
+.auth-hero{padding-bottom:96px}
+.auth-title{font-size:22px;margin-top:14px}
+.auth-sub{font-size:13px}
+.back{font-size:13px}
+.back svg{width:18px;height:18px}
+.auth-card{margin:-62px 14px 0;border-radius:22px;padding-bottom:16px}
+.tabs button{height:52px;font-size:14.5px}
+.tabs button.on::after{bottom:6px;height:3px}
+.form{padding:0 14px}
+.field{height:46px;gap:10px;padding:0 14px;margin-top:10px;border-radius:14px}
+.field svg{width:20px;height:20px}
+.field input{font-size:16px}               /* giữ 16px để iPhone không tự phóng to khi bấm vào ô */
+.field input::placeholder{font-size:13.5px}
+.field .eye{width:28px;height:28px}
+.field .eye svg{width:20px;height:20px}
+.err-msg{font-size:12px}
+.forgot{font-size:13px;margin-top:12px}
+.btn-main{height:48px;font-size:15px;border-radius:24px;margin-top:14px}
+.or{font-size:13px;margin:16px 0 12px}
+.social button{height:44px;font-size:13px;border-radius:22px}
+.social button svg{width:22px;height:22px}
+.reg-card{margin:14px 14px 0;border-radius:20px;padding:16px 14px 16px}
+.reg-card h2{font-size:16px}
+.reg-card > p{font-size:12.5px}
+.reg-card .field{height:46px;margin-top:10px;border-radius:23px}
+.agree{gap:10px;margin-top:14px;font-size:12px}
+.agree label{gap:10px}
+.agree input{width:24px;height:24px;border-radius:7px}
+.agree input:checked::after{left:8px;top:3px;width:6px;height:12px;border-width:0 2.5px 2.5px 0}
