@@ -47,7 +47,7 @@ export async function register(name, phone, pass) {
   const c = await createUserWithEmailAndPassword(auth, toEmail(phone), pass);
   await setDoc(doc(db, 'users', c.user.uid), { name, phone, role:'customer', address:'', createdAt:serverTimestamp() });
 }
-export const logout = async () => { try { if (auth.currentUser) await disablePush(auth.currentUser.uid); } catch (e) {} return signOut(auth); };   // gỡ máy này khỏi danh sách nhận thông báo của tài khoản trước khi thoát
+export const logout = async () => { try { if (auth.currentUser) await disablePush(auth.currentUser.uid, false); } catch (e) {} return signOut(auth); };   // gỡ máy này khỏi danh sách nhận thông báo của tài khoản trước khi thoát
 
 /* Admin tạo sẵn tài khoản Nhà bán hàng: dùng 1 app Firebase phụ để đăng ký (admin không bị đăng xuất), rồi admin gán vai trò + cửa hàng */
 export async function createSellerAccount({ name, phone, pass, shopId, zaloId = '' }) {
@@ -115,7 +115,10 @@ async function notifyStatus(orderId) {
 const MSG_URL = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js';
 const pushOK = () => configured && !!VAPID_KEY && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
 /* 'unsupported' | 'denied' | 'default' (chưa hỏi) | 'granted' */
-export const pushState = () => !pushOK() ? 'unsupported' : Notification.permission;
+const offKey = uid => 'pushOff:' + uid;
+const isOff = uid => { try { return !!uid && localStorage.getItem(offKey(uid)) === '1'; } catch (e) { return false; } };
+/* 'off' = trình duyệt vẫn cho phép nhưng khách đã tự tắt thông báo trên máy này (bật lại được ngay, không cần hỏi quyền) */
+export const pushState = uid => !pushOK() ? 'unsupported' : (Notification.permission === 'granted' && isOff(uid) ? 'off' : Notification.permission);
 async function saveToken(uid) {
   const { getMessaging, getToken } = await import(MSG_URL);
   const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
@@ -129,16 +132,19 @@ async function saveToken(uid) {
 /* Gọi khi khách bấm "Bật thông báo" (bắt buộc từ thao tác bấm của khách thì trình duyệt mới hỏi quyền) */
 export async function enablePush(uid) {
   if (!pushOK()) throw new Error('Trình duyệt này chưa hỗ trợ thông báo');
-  const p = await Notification.requestPermission();
+  const p = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
   if (p !== 'granted') throw new Error(p === 'denied' ? 'Bạn đang chặn thông báo. Hãy cho phép “Thông báo” trong cài đặt trang web.' : 'Bạn chưa cho phép thông báo');
+  try { localStorage.removeItem(offKey(uid)); } catch (e) {}   // bật lại: bỏ cờ "đã tắt"
   return saveToken(uid);
 }
 /* Đã cho phép từ trước: mỗi lần đăng nhập lặng lẽ cập nhật lại token (token có thể đổi) */
 export async function syncPush(uid) {
-  if (!pushOK() || Notification.permission !== 'granted') return;
+  if (!pushOK() || Notification.permission !== 'granted' || isOff(uid)) return;   // khách đã tự tắt thì không tự bật lại
   try { await saveToken(uid); } catch (e) { console.warn('Không đồng bộ được token thông báo', e); }
 }
-export async function disablePush(uid) {
+/* byUser=true: khách chủ động tắt (nhớ lại để lần sau không tự bật). byUser=false: chỉ gỡ máy khi đăng xuất, đăng nhập lại sẽ tự bật lại. */
+export async function disablePush(uid, byUser = true) {
+  if (byUser) { try { localStorage.setItem(offKey(uid), '1'); } catch (e) {} }
   let tk = ''; try { tk = localStorage.getItem('fcmTok:' + uid) || ''; } catch (e) {}
   if (tk) { try { await deleteDoc(doc(db, 'users', uid, 'devices', tk)); } catch (e) {} try { localStorage.removeItem('fcmTok:' + uid); } catch (e) {} }
   if (pushOK()) { try { const { getMessaging, deleteToken } = await import(MSG_URL); await deleteToken(getMessaging(fbApp)); } catch (e) {} }
