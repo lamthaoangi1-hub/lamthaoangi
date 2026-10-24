@@ -87,7 +87,6 @@ function doPost(e) {
     const body = JSON.parse(e.postData.contents);
     if (body.action === 'notifyOrder') return notifyOrder(body);
     if (body.action === 'resetPassword') return resetPassword(body);
-    if (body.action === 'validateOrder') return validateOrder(body);
     return uploadImage(body);
   } catch (err) {
     return out({ ok: false, error: 'Lỗi máy chủ: ' + err });
@@ -313,73 +312,4 @@ function testNotify() {
     customerName: 'Khách thử', customerPhone: '0900000000', address: 'Thôn thử, Lâm Thao', note: 'Đây là tin thử' };
   sendOrderEmail(order, {});
   String(props().getProperty('ZALO_ADMIN_IDS') || '').split(',').map(s => s.trim()).filter(Boolean).forEach(id => Logger.log(id + ': ' + sendZalo(id, zaloText(order, {}))));
-}
-
-// ===================== 4) XÁC THỰC GIÁ ĐƠN TRƯỚC KHI GHI (bản hoàn thiện 24/10/2026) =====================
-// Luồng app gọi validateOrder TRƯỚC khi addDoc vào Firestore. Hàm này đọc lại
-// thực đơn thật của quán từ Firestore (bằng token của chính khách, shops đọc
-// công khai) và tính lại toàn bộ tiền bằng đúng công thức trong app.js.
-// Nếu giá món / giảm giá / phí ship / tổng tiền client gửi lên khác với giá
-// tính lại -> trả ok:false + expected, app sẽ CHẶN đơn và hiện lỗi.
-// GIỚI HẠN TRUNG THỰC: đây là lớp kiểm tra cho luồng app bình thường. Kẻ tấn
-// công gọi thẳng Firestore API vẫn bypass được nó, vì Firestore Rules không
-// thể cộng dồn giá theo thực đơn. Muốn chặn tuyệt đối phải chuyển tạo đơn
-// sang Cloud Function (xem AUDIT-SHOPEE-MOBILE.md mục 3.1).
-function validateOrder(body) {
-  if (!body.token || !body.shopId || !Array.isArray(body.items) || !body.items.length) return out({ ok: false, error: 'Thiếu dữ liệu' });
-  const uid = verifyToken(body.token);
-  if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn, hãy đăng nhập lại' });
-  const shop = getDoc('shops/' + body.shopId, body.token);
-  if (!shop) return out({ ok: false, error: 'Không tìm thấy quán' });
-  if (shop.open === false) return out({ ok: false, error: 'Quán đang đóng cửa' });
-  // Giờ mở cửa tự động (giờ Việt Nam UTC+7), cùng logic với firestore.rules
-  if (shop.autoHours === true && shop.openMin != null && shop.closeMin != null && shop.openMin !== shop.closeMin) {
-    const mins = Math.floor(((Date.now() + 25200000) % 86400000) / 60000);
-    const inRange = shop.openMin < shop.closeMin ? (mins >= shop.openMin && mins < shop.closeMin) : (mins >= shop.openMin || mins < shop.closeMin);
-    if (!inRange) return out({ ok: false, error: 'Quán đang ngoài giờ mở cửa' });
-  }
-  const menu = {};
-  (shop.menu || []).forEach(m => { if (m.name) menu[String(m.name)] = m; });
-  let sub = 0;
-  for (const it of body.items) {
-    const m = menu[String(it.name)];
-    if (!m) return out({ ok: false, error: 'Món không còn trong thực đơn: ' + it.name });
-    if (m.available === false) return out({ ok: false, error: 'Món đã hết hàng: ' + it.name });
-    if (Number(it.price) !== Number(m.price)) return out({ ok: false, error: 'Giá món đã thay đổi, vui lòng tải lại quán: ' + it.name, expected: { price: Number(m.price) } });
-    const q = Number(it.qty);
-    if (!q || q < 1 || q > 40) return out({ ok: false, error: 'Số lượng không hợp lệ' });
-    sub += Number(m.price) * q;
-  }
-  if (body.items.length > 40) return out({ ok: false, error: 'Quá nhiều món' });
-  const disc = Math.round(sub * (Number(shop.sale) || 0) / 100);
-  // Mã giảm giá: đọc collection promos (đọc công khai), chỉ mã đang bật + đủ đơn tối thiểu
-  let promoOff = 0;
-  if (body.promoCode) {
-    try {
-      const r = UrlFetchApp.fetch(FS + 'promos', { headers: { Authorization: 'Bearer ' + body.token }, muteHttpExceptions: true });
-      const docs = (JSON.parse(r.getContentText()).documents || []).map(docToObj);
-      const p = docs.find(x => String(x.code || '').toUpperCase() === String(body.promoCode).toUpperCase());
-      if (!p || p.active === false) return out({ ok: false, error: 'Mã giảm giá không hợp lệ' });
-      if (sub < (Number(p.min) || 0)) return out({ ok: false, error: 'Chưa đạt đơn tối thiểu của mã giảm giá' });
-      promoOff = Math.min(Number(p.off) || 0, sub - disc);
-    } catch (e) { return out({ ok: false, error: 'Không kiểm tra được mã giảm giá' }); }
-  }
-  // Phí ship: đúng công thức app.js (15.000đ / 3,5km đầu, +3.000đ/km sau, hệ số đường 1,3)
-  let ship = 0, km = null, extraKm = 0;
-  if (shop.lat == null || shop.lng == null || body.lat == null || body.lng == null) {
-    ship = Number(shop.shipFee) || 15000;
-  } else {
-    const R = 6371, rad = x => x * Math.PI / 180;
-    const dLa = rad(Number(body.lat) - Number(shop.lat)), dLo = rad(Number(body.lng) - Number(shop.lng));
-    const h = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(rad(Number(shop.lat))) * Math.cos(rad(Number(body.lat))) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
-    km = Math.round(2 * R * Math.asin(Math.sqrt(h)) * 1.3 * 10) / 10;
-    extraKm = Math.max(0, Math.ceil(Math.round((km - 3.5) * 10) / 10));
-    ship = 15000 + extraKm * 3000;
-  }
-  const hit = !!(shop.freeShipMin && sub >= Number(shop.freeShipMin));
-  if (hit) ship = shop.freeShipAll ? 0 : (km == null ? 0 : extraKm * 3000);
-  const expected = { subtotal: sub, discount: disc + promoOff, shipFee: ship, total: sub - disc - promoOff + ship, km: km };
-  const mismatch = Number(body.subtotal) !== expected.subtotal || Number(body.discount) !== expected.discount || Number(body.shipFee) !== expected.shipFee || Number(body.total) !== expected.total;
-  if (mismatch) return out({ ok: false, error: 'Tổng tiền không khớp với thực đơn hiện tại, vui lòng tải lại quán và đặt lại.', expected: expected });
-  return out({ ok: true, expected: expected });
 }
