@@ -101,7 +101,7 @@ async function notifyStatus(orderId) {
   for (let i = 0; i < 2; i++) {
     try {
       const token = await idToken();
-      const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'notifyStatus', token, orderId }) });
+      const res = await fetch(UPLOAD_URL, { method:'POST', keepalive:true, body:JSON.stringify({ action:'notifyStatus', token, orderId }) });   // keepalive: shipper tắt app ngay sau khi bấm thì yêu cầu vẫn được gửi đi
       const j = await res.json().catch(() => null);
       console.log('[Báo trạng thái đơn]', j);
       if (j && j.ok) return;
