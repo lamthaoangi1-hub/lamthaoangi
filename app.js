@@ -321,7 +321,8 @@
     const s = shopBy(o.shop);
     openSheet(`<h3>Chi tiết đơn #${o.code}</h3><div class="sub">${s.name} • ${o.when}</div>
       <div style="margin-top:12px">${o.items.map(i => `<div class="row-kv"><span>${i}</span></div>`).join('')}
-      <div class="row-kv"><span>Phí giao hàng</span><b>${money(o.shipFee ?? 15000)}</b></div>
+      <div class="row-kv"><span>Phí giao hàng</span><b>${money((o.shipFee ?? 15000) - ((o.raw && o.raw.nightFee) || 0))}</b></div>
+      ${o.raw && o.raw.nightFee ? `<div class="row-kv"><span>Phụ phí ship đêm</span><b>${money(o.raw.nightFee)}</b></div>` : ''}
       <div class="row-kv"><span>Tổng thanh toán</span><b style="color:var(--green-d)">${money(o.total)}</b></div>
       <div class="row-kv"><span>Thanh toán</span><b>${o.raw ? payLabel(o.raw) : 'Tiền mặt'}</b></div>
       <div class="row-kv"><span>Địa chỉ</span><b>${o.address || S.area}</b></div></div>
@@ -596,6 +597,9 @@
   /* Phí giao hàng theo khoảng cách quán → khách: baseKm đầu giá base, mỗi km (làm tròn lên) sau đó + perKm.
      Khoảng cách = đường chim bay × road (hệ số đường thực tế), làm tròn 0,1 km; chính số đã làm tròn này được hiển thị và dùng để tính tiền. */
   const SHIPCFG = { base:15000, baseKm:3.5, perKm:3000, road:1.3 };
+  /* Phụ phí ship ban đêm: +fee / 1 đơn nếu đặt từ 22h đến trước 5h sáng (giờ Việt Nam). Đổi giờ/mức phí ngay tại đây. */
+  const NIGHT = { fee:5000, from:22, to:5 };
+  const nightFee = () => { const h = new Date(Date.now() + 7 * 36e5).getUTCHours(); return (h >= NIGHT.from || h < NIGHT.to) ? NIGHT.fee : 0; };
   const haverKm = (a, b) => {
     const R = 6371, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lng - a.lng);
     const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2;
@@ -618,8 +622,10 @@
     // đơn đạt mức miễn phí ship: chỉ miễn phần phí cơ bản, khách vẫn trả phần km vượt
     // Admin cài riêng từng quán: freeShipMin = mức đơn được freeship; freeShipAll = miễn TOÀN BỘ phí giao (không thì chỉ miễn phần cơ bản)
     const hit = !!(s.freeShipMin && sub >= s.freeShipMin);
-    const ship = hit ? (s.freeShipAll ? 0 : (q.mode === 'km' ? q.extraKm * SHIPCFG.perKm : 0)) : q.fee;
-    return { sub, disc, promo, promoOff, ship, shipMode:q.mode, km:q.km, extraKm:q.extraKm, freeBase:hit, freeAll:hit && !!s.freeShipAll, toFree:(s.freeShipMin && !hit) ? s.freeShipMin - sub : 0, freeAllShop:!!s.freeShipAll, total:sub - disc - promoOff + ship };
+    const shipBase = hit ? (s.freeShipAll ? 0 : (q.mode === 'km' ? q.extraKm * SHIPCFG.perKm : 0)) : q.fee;
+    const night = q.mode === 'need-loc' ? 0 : nightFee();   // phụ phí đêm: luôn cộng, kể cả khi đơn đạt freeship
+    const ship = shipBase + night;
+    return { sub, disc, promo, promoOff, ship, shipBase, night, shipMode:q.mode, km:q.km, extraKm:q.extraKm, freeBase:hit, freeAll:hit && !!s.freeShipAll, toFree:(s.freeShipMin && !hit) ? s.freeShipMin - sub : 0, freeAllShop:!!s.freeShipAll, total:sub - disc - promoOff + ship };
   }
   function updateCartUI() {
     const bar = $('#cart-bar'), { s, lines } = cartData(); if (!bar || !s) return;
@@ -686,7 +692,8 @@
         ${c.disc ? `<div class="co-row off"><span>Giảm giá quán (${s.sale}%)</span><b>-${money(c.disc)}</b></div>` : ''}
         ${c.promoOff ? `<div class="co-row off"><span>Mã ${esc(c.promo.code)}</span><b>-${money(c.promoOff)}</b></div>` : ''}
         ${c.shipMode === 'need-loc' ? `<div class="co-row"><span>Phí giao hàng</span><b style="color:var(--orange)">Chia sẻ vị trí để tính</b></div>`
-          : `<div class="co-row"><span>Phí giao hàng${c.shipMode === 'km' ? ` <small>· ${String(c.km).replace('.', ',')} km</small>` : ''}</span><b>${c.ship ? money(c.ship) : 'Miễn phí'}</b></div>`}
+          : `<div class="co-row"><span>Phí giao hàng${c.shipMode === 'km' ? ` <small>· ${String(c.km).replace('.', ',')} km</small>` : ''}</span><b>${c.shipBase ? money(c.shipBase) : 'Miễn phí'}</b></div>`}
+        ${c.night ? `<div class="co-row"><span>Phụ phí ship đêm <small>· ${NIGHT.from}h - ${NIGHT.to}h</small></span><b>${money(c.night)}</b></div>` : ''}
         ${c.toFree > 0 && c.shipMode !== 'need-loc' ? `<div class="co-hint" style="margin:-2px 0 4px;color:var(--green-d);font-weight:600">🎁 Mua thêm ${money(c.toFree)} để được ${c.freeAllShop ? 'miễn phí giao hàng' : 'miễn phí ship cơ bản'}</div>` : ''}${c.freeAll ? `<div class="co-hint" style="margin:-2px 0 4px;color:var(--green-d);font-weight:600">🎉 Đơn đạt mức freeship, miễn phí giao hàng</div>` : ''}
         ${c.shipMode === 'km' && !c.freeAll ? `<div class="co-hint" style="margin:-2px 0 4px">${c.freeBase ? 'Miễn phí ' + money(SHIPCFG.base) + ' cơ bản · ' : money(SHIPCFG.base) + ' cho ' + String(SHIPCFG.baseKm).replace('.', ',') + ' km đầu · '}${c.extraKm ? c.extraKm + ' km tiếp theo × ' + money(SHIPCFG.perKm) : 'không phát sinh thêm km'}</div>` : ''}
         <div class="co-total"><span>Tổng thanh toán${c.shipMode === 'need-loc' ? ' <small style="font-weight:500;color:var(--ink-3)">(chưa gồm phí ship)</small>' : ''}</span><b>${money(c.total)}</b></div>
@@ -715,7 +722,7 @@
         code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone,
         address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '', shopLat:s.lat ?? null, shopLng:s.lng ?? null, lat:CART.loc.lat, lng:CART.loc.lng, locAcc:CART.loc.acc,
         items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff, promoCode:c.promo ? c.promo.code : '',
-        shipFee:c.ship, distanceKm:c.km, total:c.total, payment:pay, ...(pay === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending',
+        shipFee:c.ship, ...(c.night ? { nightFee:c.night } : {}), distanceKm:c.km, total:c.total, payment:pay, ...(pay === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending',
       };
       const ref = await FB.placeOrder(data);
       FB.notifyNewOrder(ref.id);   // Gmail admin + Zalo quán/admin (chạy nền)
@@ -797,7 +804,8 @@
     const extraKm = Math.max(0, Math.ceil(Math.round((km - SHIPCFG.baseKm) * 10) / 10));
     const dist = SHIPCFG.base + extraKm * SHIPCFG.perKm;
     const extra = type === 'errand' ? SVCCFG.errand : [0, SVCCFG.w2, SVCCFG.w3][weight] || 0;
-    return { km, extraKm, dist, extra, fee:dist + extra, far:km > MAXKM };
+    const night = nightFee();
+    return { km, extraKm, dist, extra, night, fee:dist + extra + night, far:km > MAXKM };
   }
   /* Chuyển khoản chỉ áp dụng cho phí dịch vụ; Giao hàng mà người nhận trả phí thì phải tiền mặt (người nhận không đặt đơn trên app) */
   const svcBankOk = () => !!BANK && !(SV.type === 'delivery' && SV.payer === 'receiver');
@@ -829,6 +837,7 @@
         <div class="co-row"><span>Phí theo quãng đường</span><b>${money(q.dist)}</b></div>
         <div class="co-hint" style="margin:-2px 0 4px">${money(SHIPCFG.base)} cho ${kmStr(SHIPCFG.baseKm)} km đầu · ${q.extraKm ? q.extraKm + ' km tiếp theo × ' + money(SHIPCFG.perKm) : 'không phát sinh thêm km'}</div>
         ${q.extra ? `<div class="co-row"><span>${D ? 'Phụ phí khối lượng' : 'Phí mua hộ'}</span><b>${money(q.extra)}</b></div>` : ''}
+        ${q.night ? `<div class="co-row"><span>Phụ phí ship đêm <small>· ${NIGHT.from}h - ${NIGHT.to}h</small></span><b>${money(q.night)}</b></div>` : ''}
         <div class="co-total"><span>${D ? 'Phí giao hàng' : 'Phí mua hộ + giao'}</span><b>${money(q.fee)}</b></div>
         ${svcBankOk() ? payPicker('sv', svcPay()) : ''}
         ${D ? `${cod ? `<div class="co-row"><span>Shipper thu hộ từ người nhận</span><b>${money(cod)}</b></div>` : ''}<div class="co-pay">${svcPay() === 'bank' ? '🏦 Bạn chuyển khoản <b>phí giao hàng</b> qua mã QR sau khi đặt.' + (cod ? ' Tiền thu hộ vẫn do shipper thu bằng tiền mặt từ người nhận.' : '') : '💵 ' + (SV.payer === 'receiver' ? 'Người nhận trả phí ' + (cod ? '+ tiền thu hộ ' : '') + 'bằng tiền mặt khi nhận hàng' : 'Người gửi trả phí bằng tiền mặt cho shipper')}</div>`
@@ -983,7 +992,7 @@
     if (!SV.drop || t('daddr').length < 5) return toast('Nhập địa chỉ nhận hàng và ghim vị trí');
     const base = { code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone, type:SV.type, shopId:'svc-' + SV.type,
       address:t('daddr'), note:t('note'), lat:SV.drop.lat, lng:SV.drop.lng, locAcc:null, shopLat:SV.pick.lat, shopLng:SV.pick.lng,
-      subtotal:0, discount:0, promoCode:'', shipFee:q.fee, distanceKm:q.km, total:q.fee, payment:svcPay(), ...(svcPay() === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending' };
+      subtotal:0, discount:0, promoCode:'', shipFee:q.fee, ...(q.night ? { nightFee:q.night } : {}), distanceKm:q.km, total:q.fee, payment:svcPay(), ...(svcPay() === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending' };
     const o = D ? { ...base, shopName:'Giao hàng', shopPhone:S.user.phone || '', shopAddress:t('paddr'), receiverName:t('rname'), receiverPhone:digits(SV.rphone), goods:GOODS[SV.goods], weight:WEIGHTS[SV.weight], codAmount:+digits(SV.cod) || 0, feePayer:SV.payer,
         items:[{ name:`${GOODS[SV.goods]} · ${WEIGHTS[SV.weight]}`, price:0, qty:1 }] }
       : { ...base, shopName:'Mua hộ', shopPhone:'', shopAddress:t('store'), advanceMax:BUDGETS[SV.budget],

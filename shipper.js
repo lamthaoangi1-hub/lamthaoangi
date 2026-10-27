@@ -39,7 +39,7 @@ export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'
     const bank = o.payment === 'bank', paid = bank && o.payStatus === 'paid';
     return `<article class="oc">
       <header class="oc-head"><div><span class="oc-code">#${esc(o.code)}</span><div class="oc-time">${extra}</div></div>${badge(o.status)}</header>
-      <div class="oc-money"><div class="earn"><small>Phí ship bạn nhận</small><b>${money(o.shipFee)}</b></div><div class="${bank ? (paid ? 'bank' : 'bankwait') : ''}"><small>${bank ? (paid ? 'Khách ĐÃ chuyển khoản – không thu tiền' : 'Chuyển khoản – chờ xác nhận nhận tiền') : o.type ? 'Phí dịch vụ (tiền mặt)' : 'Thu tiền mặt của khách'}</small><b>${paid ? '0đ' : money(o.total)}</b></div></div>
+      <div class="oc-money"><div class="earn"><small>Phí ship bạn nhận${o.nightFee ? ' (gồm phụ phí đêm ' + money(o.nightFee) + ')' : ''}</small><b>${money(o.shipFee)}</b></div><div class="${bank ? (paid ? 'bank' : 'bankwait') : ''}"><small>${bank ? (paid ? 'Khách ĐÃ chuyển khoản – không thu tiền' : 'Chuyển khoản – chờ xác nhận nhận tiền') : o.type ? 'Phí dịch vụ (tiền mặt)' : 'Thu tiền mặt của khách'}</small><b>${paid ? '0đ' : money(o.total)}</b></div></div>
       ${bank && !paid ? '<div class="oc-warn">⚠️ Đơn chuyển khoản CHƯA được xác nhận nhận tiền. Hãy hỏi Admin hoặc khách trước khi giao.</div>' : ''}
       <div class="oc-route">
         <div class="oc-stop from"><i class="oc-dot"></i><div>
