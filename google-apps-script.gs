@@ -213,7 +213,7 @@ function statusMessage(order, st) {
     case 'confirmed': return { title: 'Quán đã nhận đơn ✅', body: 'Đơn ' + c + ' đã được xác nhận, quán sẽ sớm chuẩn bị món.' };
     case 'preparing': return { title: 'Quán đang chuẩn bị món 🍳', body: 'Đơn ' + c + ' đang được chuẩn bị.' };
     case 'ready': return { title: 'Món đã sẵn sàng 🛍', body: 'Đơn ' + c + ' đã làm xong, tài xế sẽ sớm tới lấy.' };
-    case 'delivering': return { title: 'Tài xế đang giao đơn 🛵', body: (order.shipperName ? order.shipperName + ' đang giao đơn ' : 'Tài xế đang giao đơn ') + c + ' tới bạn.' + (order.shipperPhone ? ' SĐT: ' + order.shipperPhone : '') };
+    case 'delivering': return { title: 'Shipper đã nhận đơn 🛵', body: (order.shipperName ? 'Tài xế ' + order.shipperName : 'Tài xế') + ' đã nhận đơn ' + c + ' và đang giao tới bạn.' + (order.shipperPhone ? ' SĐT tài xế: ' + order.shipperPhone + ' – bấm vào thông báo để mở đơn và gọi tài xế.' : '') };
     case 'done': return { title: 'Giao hàng thành công 🎉', body: 'Đơn ' + c + ' đã hoàn thành. Chúc bạn ngon miệng!' };
     case 'cancelled': return { title: 'Đơn đã bị hủy', body: 'Đơn ' + c + ' đã bị hủy. Cần hỗ trợ hãy liên hệ Lâm Thao Ăn Gì qua Zalo.' };
   }
@@ -231,23 +231,76 @@ function notifyStatus(body) {
   const msg = statusMessage(order, order.status);
   if (!msg) return out({ ok: true, skipped: 'trạng thái ' + order.status });
 
+  if (!claimStatusPush(body.orderId, order)) return out({ ok: true, duplicate: true });
+
+  const dbg = { errors: [] };
+  const n = pushToUser(order.uid, msg.title, msg.body, 'order-' + body.orderId, dbg);
+  return out({ ok: true, sent: n, devices: dbg.devices, errors: dbg.errors, status: order.status });   // devices = 0 → khách chưa có token; errors = lý do FCM từ chối
+}
+
+// Đánh dấu "trạng thái này của đơn đã được báo" – dùng chung cho web gọi (notifyStatus) và bộ quét tự động (sweepOrderStatus),
+// nên dù đường nào tới trước thì khách cũng chỉ nhận 1 thông báo. Trả true nếu lần này được phép gửi.
+function claimStatusPush(orderId, order) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
-  try {   // chống gửi trùng khi web gọi lại: mỗi lần đổi trạng thái (updatedAt khác) chỉ gửi 1 lần
-    const cache = CacheService.getScriptCache(), key = ('st_' + body.orderId + '_' + order.status + '_' + order.updatedAt).slice(0, 240);
-    if (cache.get(key)) return out({ ok: true, duplicate: true });
-    cache.put(key, '1', 21600);
+  try {
+    const cache = CacheService.getScriptCache();
+    const legacyKey = ('st_' + orderId + '_' + order.status + '_' + order.updatedAt).slice(0, 240);   // khóa của bản cũ, giữ để không báo trùng lúc nâng cấp
+    if (cache.get(legacyKey) || cache.get('last_' + orderId) === order.status) return false;
+    cache.put(legacyKey, '1', 21600);
+    cache.put('last_' + orderId, order.status, 21600);
+    return true;
   } finally { lock.releaseLock(); }
+}
 
-  const n = pushToUser(order.uid, msg.title, msg.body, 'order-' + body.orderId);
-  return out({ ok: true, sent: n });
+// ===================== BỘ QUÉT TỰ ĐỘNG (đảm bảo khách luôn nhận thông báo) =====================
+// Vì sao cần: thông báo trạng thái ban đầu do TRÌNH DUYỆT CỦA SHIPPER/QUÁN gọi lên. Nếu shipper tắt app ngay sau khi bấm,
+// mất mạng hoặc Google chập chờn thì cuộc gọi đó rớt và khách không được báo. Hàm này chạy mỗi phút (trigger của Apps Script),
+// tự tìm các đơn vừa đổi trạng thái rồi đẩy thông báo tới máy khách – không phụ thuộc ai đang mở web.
+// Cài 1 lần: chọn hàm installTrigger → Run (xem HUONG-DAN-THONG-BAO.md).
+const SWEEP_WINDOW_MS = 15 * 60 * 1000;   // chỉ xét đơn đổi trong 15 phút gần nhất
+function sweepOrderStatus() {
+  const since = new Date(Date.now() - SWEEP_WINDOW_MS).toISOString();
+  const r = UrlFetchApp.fetch(FS.replace(/\/documents\/$/, '/documents') + ':runQuery', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload: JSON.stringify({ structuredQuery: {
+      from: [{ collectionId: 'orders' }],
+      where: { fieldFilter: { field: { fieldPath: 'updatedAt' }, op: 'GREATER_THAN_OR_EQUAL', value: { timestampValue: since } } },
+      limit: 100 } }) });
+  if (r.getResponseCode() !== 200) { console.error('sweep lỗi ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 300)); return; }
+  let sent = 0;
+  JSON.parse(r.getContentText()).forEach(row => {
+    if (!row.document) return;
+    const orderId = row.document.name.split('/').pop();
+    const order = docToObj(row.document);
+    // 'cancelled' bỏ qua: khách tự hủy cũng đổi sang trạng thái này, không phân biệt được ai hủy → để web báo như cũ
+    if (!order.uid || order.status === 'cancelled') return;
+    const msg = statusMessage(order, order.status);
+    if (!msg || !claimStatusPush(orderId, order)) return;
+    try { sent += pushToUser(order.uid, msg.title, msg.body, 'order-' + orderId); } catch (e) { console.error('sweep push: ' + e); }
+    console.log('sweep: đơn ' + order.code + ' → ' + order.status);
+  });
+  if (sent) console.log('sweep: đã gửi ' + sent + ' thông báo');
+}
+// Chạy tay 1 lần: tạo bộ hẹn giờ chạy sweepOrderStatus mỗi phút (chạy lại nhiều lần cũng không bị tạo trùng)
+function installTrigger() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'sweepOrderStatus').forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('sweepOrderStatus').timeBased().everyMinutes(1).create();
+  Logger.log('OK – đã bật quét đơn mỗi phút.');
+}
+function removeTrigger() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'sweepOrderStatus').forEach(t => ScriptApp.deleteTrigger(t));
+  Logger.log('Đã tắt quét đơn tự động.');
 }
 
 // Gửi tới mọi thiết bị của 1 khách; trả về số thiết bị gửi được
-function pushToUser(uid, title, text, tag) {
+function pushToUser(uid, title, text, tag, dbg) {
   if (!uid) return 0;
   let sent = 0;
-  listDevices(uid).forEach(d => { if (fcmSend(uid, d, title, text, tag)) sent++; });
+  const list = listDevices(uid);
+  if (dbg) dbg.devices = list.length;
+  list.forEach(d => { if (fcmSend(uid, d, title, text, tag, dbg)) sent++; });
   return sent;
 }
 function listDevices(uid) {
@@ -261,19 +314,23 @@ function fcmRequest(message, validateOnly) {
     headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Goog-User-Project': FIREBASE_PROJECT },
     payload: JSON.stringify({ validate_only: !!validateOnly, message: message }) });
 }
-function fcmSend(uid, token, title, text, tag) {
+function fcmSend(uid, token, title, text, tag, dbg) {
   const r = fcmRequest({
     token: token,
     notification: { title: title, body: text },
+    // data: service worker (firebase-messaging-sw.js) đọc tag + url từ đây khi web đã đóng để tự hiện thông báo và mở đúng trang đơn khi khách bấm vào
+    data: { tag: String(tag || 'order-update'), url: SITE_ORIGIN + '/#orders', body: String(text || '') },
     webpush: {
       headers: { Urgency: 'high', TTL: '86400' },
-      notification: { icon: SITE_ORIGIN + '/icon-192.png', badge: SITE_ORIGIN + '/icon-192.png', tag: tag, renotify: true },
+      // title + body phải có cả trong webpush.notification: thiếu 2 trường này một số trình duyệt hiện thông báo trống / không hiện
+      notification: { title: title, body: text, icon: SITE_ORIGIN + '/icon-192.png', badge: SITE_ORIGIN + '/icon-192.png', tag: tag, renotify: true, requireInteraction: true, vibrate: [200, 100, 200] },
       fcm_options: { link: SITE_ORIGIN + '/#orders' }
     } });
   const code = r.getResponseCode();
   if (code === 200) return true;
   const txt = r.getContentText();
   console.log('FCM ' + code + ': ' + txt.slice(0, 300));
+  if (dbg) dbg.errors.push(code + ': ' + txt.slice(0, 200));
   if (code === 404 || /UNREGISTERED|registration-token-not-registered/.test(txt)) {   // token đã hết hạn / khách gỡ trình duyệt → xóa khỏi hệ thống
     try { UrlFetchApp.fetch(FS + 'users/' + uid + '/devices/' + encodeURIComponent(token), { method: 'delete', headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true }); } catch (e) {}
   }
@@ -315,7 +372,7 @@ function zaloText(order, shop, footer) {
   const w = order._warn ? order._warn + '\n' : '';
   if (order.type) return w + '🛎 ĐƠN ' + (order.type === 'errand' ? 'MUA HỘ' : 'GIAO HÀNG') + ' MỚI #' + order.code + '\n'
     + svcLines(order).join('\n') + '\n'
-    + 'Quãng đường: ' + (order.distanceKm != null ? order.distanceKm + ' km' : '?') + ' | PHÍ: ' + money(order.total) + ' (' + payLabel(order) + ')\n'
+    + 'Quãng đường: ' + (order.distanceKm != null ? order.distanceKm + ' km' : '?') + ' | PHÍ: ' + money(order.total) + (order.nightFee ? ' (gồm phụ phí đêm ' + money(order.nightFee) + ')' : '') + ' (' + payLabel(order) + ')\n'
     + 'Khách đặt: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
     + 'Giao đến: ' + (order.address || '') + '\n'
     + (order.note ? 'Ghi chú: ' + order.note + '\n' : '')
@@ -324,7 +381,7 @@ function zaloText(order, shop, footer) {
   return w + '🛎 ĐƠN MỚI #' + order.code + '\n'
     + 'Quán: ' + (order.shopName || shop.name || '') + '\n'
     + itemsLines(order) + '\n'
-    + 'Phí ship: ' + money(order.shipFee) + (order.discount ? ' | Giảm: -' + money(order.discount) : '') + '\n'
+    + 'Phí ship: ' + money(order.shipFee) + (order.nightFee ? ' (gồm phụ phí đêm ' + money(order.nightFee) + ')' : '') + (order.shopShip ? ' | Quán hỗ trợ ship: ' + money(order.shopShip) : '') + (order.discount ? ' | Giảm: -' + money(order.discount) : '') + '\n'
     + 'TỔNG: ' + money(order.total) + ' (' + payLabel(order) + ')\n'
     + 'Khách: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
     + 'Giao đến: ' + (order.address || '') + '\n'
@@ -342,7 +399,7 @@ function sendOrderEmail(order, shop) {
     + '<h2 style="color:#16a34a;margin:0 0 8px">🛎 Đơn mới #' + esc(order.code) + '</h2>'
     + '<p style="margin:0 0 8px"><b>' + (order.type ? 'Dịch vụ' : 'Quán') + ':</b> ' + esc(order.shopName || shop.name) + (shop.phone ? ' · ' + esc(shop.phone) : '') + '</p>'
     + '<table style="border-collapse:collapse;width:100%;border:1px solid #e5e7eb">' + rows
-    + '<tr><td style="padding:4px 8px">Phí giao hàng</td><td style="padding:4px 8px;text-align:right">' + money(order.shipFee) + '</td></tr>'
+    + '<tr><td style="padding:4px 8px">Phí giao hàng' + (order.nightFee ? ' (gồm phụ phí đêm ' + money(order.nightFee) + ')' : '') + '</td><td style="padding:4px 8px;text-align:right">' + money(order.shipFee) + '</td></tr>'
     + (order.discount ? '<tr><td style="padding:4px 8px">Giảm giá</td><td style="padding:4px 8px;text-align:right">-' + money(order.discount) + '</td></tr>' : '')
     + '<tr><td style="padding:4px 8px"><b>' + (order.type ? 'Phí' : 'Tổng') + '</b></td><td style="padding:4px 8px;text-align:right"><b>' + money(order.total) + '</b></td></tr></table>'
     + '<p><b>Khách:</b> ' + esc(order.customerName) + ' · <a href="tel:' + esc(order.customerPhone) + '">' + esc(order.customerPhone) + '</a><br>'

@@ -690,3 +690,8 @@ body{font-size:13px}
 .status-banner.show{transform:none;opacity:1;pointer-events:auto}
 .status-banner b{font-size:15px;font-weight:700}
 .status-banner span{font-size:13.5px;line-height:1.4;font-weight:500;opacity:.95}
+/* Thông tin shipper đã nhận đơn – hiện trong thẻ đơn, chi tiết đơn (bản cập nhật thông báo 27/10/2026) */
+.shipper-line{margin-top:8px;background:var(--green-l,#e7f7ee);color:var(--green-d,#0b6a33);border-radius:12px;padding:8px 10px;font-size:13.5px;line-height:1.45}
+.shipper-line a{color:var(--green-d,#0b6a33);font-weight:700;text-decoration:underline}
+.shipper-box{margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--green-l,#e7f7ee);border-radius:16px;padding:12px 14px}
+.shipper-call{flex:none;background:var(--green,#12a150);color:#fff;font-weight:700;border-radius:999px;padding:10px 16px;text-decoration:none;font-size:14px}

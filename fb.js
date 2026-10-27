@@ -6,7 +6,7 @@ import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateD
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js?v=20261023a';
 import { UPLOAD_URL } from './upload-config.js?v=20261023a';
-import { VAPID_KEY } from './push-config.js?v=20261024a';
+import { VAPID_KEY } from './push-config.js?v=20261027b';
 
 export const configured = !!firebaseConfig.apiKey && !/^(DAN_|YOUR_)/.test(firebaseConfig.apiKey);
 let auth, db, fbApp;
@@ -121,7 +121,7 @@ const isOff = uid => { try { return !!uid && localStorage.getItem(offKey(uid)) =
 export const pushState = uid => !pushOK() ? 'unsupported' : (Notification.permission === 'granted' && isOff(uid) ? 'off' : Notification.permission);
 async function saveToken(uid) {
   const { getMessaging, getToken } = await import(MSG_URL);
-  const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+  const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js', { updateViaCache:'none' });   // luôn kiểm tra bản service worker mới nhất (bản cũ kẹt cache là nguyên nhân hay gặp khiến thoát web không nhận được thông báo)
   await navigator.serviceWorker.ready;
   const token = await getToken(getMessaging(fbApp), { vapidKey:VAPID_KEY, serviceWorkerRegistration:reg });
   if (!token) throw new Error('Không lấy được mã thông báo của thiết bị');
@@ -141,6 +141,24 @@ export async function enablePush(uid) {
 export async function syncPush(uid) {
   if (!pushOK() || Notification.permission !== 'granted' || isOff(uid)) return;   // khách đã tự tắt thì không tự bật lại
   try { await saveToken(uid); } catch (e) { console.warn('Không đồng bộ được token thông báo', e); }
+}
+/* Khi khách đã cho phép thông báo: mỗi lần khách quay lại tab / mở lại web trong lúc vẫn đăng nhập,
+   lặng lẽ đồng bộ lại token (tối đa 1 lần / 10 phút). Nhờ vậy khách cấp quyền ở cài đặt trình duyệt,
+   hoặc token bị FCM đổi, thì máy vẫn được đăng ký lại ngay mà không cần đăng xuất / đăng nhập lại.
+   Gắn listener 1 lần duy nhất; gọi lại khi đổi tài khoản để cập nhật uid. */
+let resyncUid = null, resyncAt = 0, resyncBound = false;
+export function autoResyncPush(uid) {
+  resyncUid = uid || null;
+  if (!uid) return;
+  if (!resyncAt) resyncAt = Date.now();   // vừa syncPush lúc đăng nhập xong, không cần chạy lại ngay
+  if (resyncBound) return; resyncBound = true;
+  const kick = () => {
+    if (!resyncUid || document.visibilityState !== 'visible') return;
+    if (Date.now() - resyncAt < 600000) return;
+    resyncAt = Date.now(); syncPush(resyncUid);
+  };
+  document.addEventListener('visibilitychange', kick);
+  window.addEventListener('focus', kick);
 }
 /* byUser=true: khách chủ động tắt (nhớ lại để lần sau không tự bật). byUser=false: chỉ gỡ máy khi đăng xuất, đăng nhập lại sẽ tự bật lại. */
 export async function disablePush(uid, byUser = true) {

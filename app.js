@@ -340,7 +340,7 @@
         <div class="row"><img class="img" src="${s.img}" alt="${s.name}" loading="lazy">
           <div class="body"><span class="status ${st.cls}">${st.icon}${o.label || st.label}</span>
             <h3>${s.name}</h3><div class="code">Mã đơn: #${o.code}</div>
-            <div class="items">${o.items.join('<br>')}</div>${payTag(o.raw || {})}<div class="price">${money(o.total)}</div>
+            <div class="items">${o.items.join('<br>')}</div>${payTag(o.raw || {})}<div class="price">${money(o.total)}</div>${o.status === 'delivering' && o.shipperName ? `<div class="shipper-line">🛵 Tài xế <b>${o.shipperName}</b> đã nhận đơn${o.shipperPhone ? ` · <a href="tel:${o.shipperPhone.replace(/\s/g, '')}">Gọi ${o.shipperPhone}</a>` : ''}</div>` : ''}
             <div class="foot"><span>${ic('shop')}${s.group[0]} • Lâm Thao</span><span>${ic('clock')}${o.when}</span>${o.st === 'ship' ? `<span>${ic('truck')}Dự kiến 15 - 25 phút</span>` : ''}</div></div></div>
         <div class="actions"><button class="btn-soft" data-detail="${o.code}">${ic('list')}Xem chi tiết</button>${second}</div></article>`;
     }).join('');
@@ -368,15 +368,17 @@
       <div class="row-kv"><span>Tổng thanh toán</span><b style="color:var(--green-d)">${money(o.total)}</b></div>
       <div class="row-kv"><span>Thanh toán</span><b>${o.raw ? payLabel(o.raw) : 'Tiền mặt'}</b></div>
       <div class="row-kv"><span>Địa chỉ</span><b>${o.address || S.area}</b></div></div>
+      ${o.shipperName || o.shipperPhone ? `<div class="shipper-box"><div><b>🛵 Shipper đã nhận đơn</b><div class="sub" style="margin-top:2px">${o.shipperName ? 'Tài xế ' + o.shipperName : 'Tài xế'}${o.shipperPhone ? ' · ' + o.shipperPhone : ''}</div></div>${o.shipperPhone ? `<a class="shipper-call" href="tel:${o.shipperPhone.replace(/\s/g, '')}">📞 Gọi</a>` : ''}</div>` : ''}
       ${o.raw && o.raw.payment === 'bank' && o.raw.payStatus !== 'paid' && !['done', 'cancelled'].includes(o.raw.status) ? `<button class="sheet-btn" data-paybank="${esc(o.raw.id)}">Xem mã QR chuyển khoản</button>` : ''}
       <button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`);
   }
   function trackSheet(o) {
     const s = shopBy(o.shop);
     const idx = o.status ? ({ pending:0, confirmed:1, preparing:1, ready:1, delivering:2, done:3, cancelled:-1 }[o.status] ?? 0) : ({ proc:1, ship:2, done:3 }[o.st] ?? 0);
-    const steps = [['Đã đặt đơn', o.when], ['Đã báo cho quán và tài xế', 'Đang chờ tài xế nhận đơn'], ['Tài xế đang giao hàng', o.shipperName ? 'Tài xế: ' + o.shipperName : 'Đang trên đường đến bạn'], ['Giao thành công', 'Cảm ơn bạn đã đặt món']];
+    const steps = [['Đã đặt đơn', o.when], ['Đã báo cho quán và tài xế', 'Đang chờ tài xế nhận đơn'], ['Tài xế đang giao hàng', o.shipperName ? 'Tài xế: ' + o.shipperName + (o.shipperPhone ? ' · SĐT: ' + o.shipperPhone : '') : 'Đang trên đường đến bạn'], ['Giao thành công', 'Cảm ơn bạn đã đặt món']];
     openSheet(`<h3>Theo dõi đơn #${o.code}</h3><div class="sub">${s.name}${o.status === 'cancelled' ? ' • Đơn đã hủy' : ''}</div>
       <div class="track">${steps.map((st, i) => `<div class="st ${i <= idx ? 'done' : ''}"><i></i><b>${st[0]}</b><small>${st[1]}</small></div>`).join('')}</div>
+      ${o.status === 'delivering' && o.shipperPhone ? `<a class="sheet-btn" style="display:block;text-align:center;line-height:56px;text-decoration:none" href="tel:${o.shipperPhone.replace(/\s/g, '')}">📞 Gọi tài xế${o.shipperName ? ' ' + o.shipperName : ''} – ${o.shipperPhone}</a>` : ''}
       <button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`);
   }
   function contactSheet(o) {
@@ -1196,7 +1198,7 @@
       : st === 'denied'
       ? `<p class="sub" style="margin-top:10px;line-height:1.5">Bạn đang chặn thông báo của trang web này. Hãy vào cài đặt trình duyệt (biểu tượng ổ khóa cạnh địa chỉ web) → <b>Thông báo</b> → <b>Cho phép</b>, rồi tải lại trang.</p>`
       : st === 'granted'
-      ? `<div class="row-kv" style="margin-top:12px"><span>Thông báo trên thiết bị này</span><b style="color:var(--green-d)">Đang bật</b></div><button class="sheet-btn" style="background:var(--chip);color:var(--ink)" data-disablepush>Tắt thông báo trên máy này</button>`
+      ? `<div class="row-kv" style="margin-top:12px"><span>Thông báo trên thiết bị này</span><b style="color:var(--green-d)">Đang bật</b></div><p class="sub" style="margin-top:8px;line-height:1.5">Bạn sẽ nhận thông báo ngay cả khi đóng web / tắt màn hình. Nếu đổi điện thoại hoặc lâu không thấy thông báo, bấm Đăng ký lại máy này.</p><button class="sheet-btn" data-enablepush>Đăng ký lại máy này</button><button class="sheet-btn" style="background:var(--chip);color:var(--ink)" data-disablepush>Tắt thông báo trên máy này</button>`
       : `<p class="sub" style="margin-top:10px;line-height:1.5">Nhận thông báo ngay trên điện thoại, kể cả khi đóng web hoặc tắt màn hình: tài xế nhận đơn, quán chuẩn bị xong, đang giao và giao thành công.</p><button class="sheet-btn" data-enablepush>Bật thông báo</button>`;
     openSheet(`<h3>Thông báo đơn hàng</h3>${body}<button class="sheet-btn" style="background:var(--chip);color:var(--ink)" onclick="document.getElementById('sheet-backdrop').click()">${st === 'default' ? 'Để sau' : 'Đóng'}</button>`);
   }
@@ -1338,13 +1340,13 @@
     const t = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate() : new Date();
     if (!SHOPS.some(s => s.id === o.shopId)) GHOST[o.shopId] = { id:o.shopId, name:esc(o.shopName), cat:'', img:o.type ? 'n-driver.jpg' : 'hero.svg', group:[o.type === 'errand' ? 'Mua hộ' : o.type === 'delivery' ? 'Giao hàng' : 'Quán'], menu:[] };
     return { id:o.id, code:esc(o.code), shop:o.shopId, st:ST_MAP[o.status] || 'proc', status:o.status, label:ST_LABEL[o.status], items:(o.items || []).map(i => `${i.qty} x ${esc(i.name)}`),
-      total:o.total || 0, shipFee:o.shipFee || 0, address:esc(o.address), when:fmtWhen(t), t:t.getTime(), shipperName:esc(o.shipperName || ''), raw:o };
+      total:o.total || 0, shipFee:o.shipFee || 0, address:esc(o.address), when:fmtWhen(t), t:t.getTime(), shipperName:esc(o.shipperName || ''), shipperPhone:esc(o.shipperPhone || ''), raw:o };
   }
   function rebuildNotices() {
     const read = new Set(store.get('readn', []));
     NOTICES = [
       ...ORDERS.slice(0, 20).map(o => ({ id:o.id + ':' + o.status, type:'order', title:ST_NOTE[o.status][0], time:o.when, img:shopBy(o.shop).img,
-        body:o.status === 'delivering' && o.shipperName ? `Tài xế <b>${o.shipperName}</b> đã nhận đơn #${o.code} và đang giao tới bạn.` : o.status === 'delivering' || o.status === 'done' ? `Đơn #${o.code}: ${ST_NOTE[o.status][1]}` : `<b>${shopBy(o.shop).name}</b> ${ST_NOTE[o.status][1]}` })),
+        body:o.status === 'delivering' && o.shipperName ? `Tài xế <b>${o.shipperName}</b> đã nhận đơn #${o.code} và đang giao tới bạn.${o.shipperPhone ? ' SĐT: ' + o.shipperPhone : ''}` : o.status === 'delivering' || o.status === 'done' ? `Đơn #${o.code}: ${ST_NOTE[o.status][1]}` : `<b>${shopBy(o.shop).name}</b> ${ST_NOTE[o.status][1]}` })),
       ...PROMOS.map(p => ({ id:'p:' + p.id, type:'promo', title:'Ưu đãi: ' + esc(p.code), body:esc(p.desc), time:'', svg:'giftSm' })),
     ];
     S.notices = NOTICES.map(n => ({ id:n.id, unread:!read.has(n.id) }));
@@ -1364,7 +1366,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261027a').then(m => {
+    import('./fb.js?v=20261027b').then(m => {
       FB = m;
       let RAWSHOPS = [], openSig = '';
       const applyShops = () => {
@@ -1396,8 +1398,8 @@
         if (u && p) {
           S.user = { uid:u.uid, name:p.name, phone:p.phone, role:p.role, address:p.address || '' };
           PREV_ST = null; ordersUnsub = FB.watchMyOrders(u.uid, l => { watchStatusChanges(l); RAW = l; rebuildOrders(); });
-          FB.syncPush(u.uid);
-        } else S.user = null;
+          FB.syncPush(u.uid); FB.autoResyncPush && FB.autoResyncPush(u.uid);
+        } else { S.user = null; if (FB.autoResyncPush) FB.autoResyncPush(null); }
         rebuildOrders();
         if (S.tab === 'profile') renderProfile();
       });
