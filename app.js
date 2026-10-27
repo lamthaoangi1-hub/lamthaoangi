@@ -176,6 +176,48 @@
     const t = $('#toast'); t.textContent = msg; t.classList.add('show');
     clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1900);
   }
+  /* ---- Báo khách ngay trong web khi đơn đổi trạng thái (không cần bật thông báo đẩy) ---- */
+  const STATUS_PUSH = (o, st) => {
+    const c = '#' + o.code, ship = o.shipperName ? 'Tài xế ' + o.shipperName : 'Tài xế';
+    return ({
+      confirmed:['Quán đã nhận đơn ✅', 'Đơn ' + c + ' đã được xác nhận, quán sẽ sớm chuẩn bị món.'],
+      preparing:['Quán đang chuẩn bị món 🍳', 'Đơn ' + c + ' đang được chuẩn bị.'],
+      ready:['Món đã sẵn sàng 🛍', 'Đơn ' + c + ' đã làm xong, tài xế sẽ sớm tới lấy.'],
+      delivering:['Tài xế đã nhận đơn 🛵', ship + ' đã nhận đơn ' + c + ' và đang giao tới bạn.' + (o.shipperPhone ? ' SĐT: ' + o.shipperPhone : '')],
+      done:['Giao hàng thành công 🎉', 'Đơn ' + c + ' đã hoàn thành. Chúc bạn ngon miệng!'],
+      cancelled:['Đơn đã bị hủy', 'Đơn ' + c + ' đã bị hủy. Cần hỗ trợ hãy liên hệ qua Zalo.'],
+    })[st] || null;
+  };
+  /* Trả về các đơn vừa đổi trạng thái giữa 2 lần nhận dữ liệu (bỏ qua lần đầu và đơn mới tạo) */
+  const statusChanges = (prev, list) => list.filter(o => prev[o.id] !== undefined && prev[o.id] !== o.status && o.status !== 'pending');
+  let PREV_ST = null, lastInApp = 0, actx = null, bannerT; const SELF_ST = new Set();
+  const unlockAudio = () => { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {} };
+  ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { once:true, passive:true }));
+  function ding() {
+    try { if (navigator.vibrate) navigator.vibrate([150, 80, 150]); } catch (e) {}
+    try {
+      if (!actx || actx.state !== 'running') return;
+      [[880, 0], [1175, .16]].forEach(([f, t]) => { const o = actx.createOscillator(), g = actx.createGain(); o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(actx.destination);
+        const t0 = actx.currentTime + t; g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(.25, t0 + .02); g.gain.exponentialRampToValueAtTime(.0001, t0 + .3); o.start(t0); o.stop(t0 + .32); });
+    } catch (e) {}
+  }
+  function statusBanner(title, body, tab) {
+    let b = $('#status-banner');
+    if (!b) { b = document.createElement('div'); b.id = 'status-banner'; b.className = 'status-banner'; b.setAttribute('role', 'alert'); $('#app').appendChild(b);
+      b.addEventListener('click', () => { b.classList.remove('show'); S.orders.tab = b.dataset.tab || 'proc'; go('orders'); }); }
+    b.dataset.tab = tab || 'proc'; b.innerHTML = `<b>${esc(title)}</b><span>${esc(body)}</span>`;
+    b.classList.add('show'); clearTimeout(bannerT); bannerT = setTimeout(() => b.classList.remove('show'), 9000);
+    ding();
+  }
+  function watchStatusChanges(list) {
+    if (PREV_ST === null) { PREV_ST = {}; list.forEach(o => { PREV_ST[o.id] = o.status; }); return; }   // lần đầu: chỉ ghi nhớ
+    statusChanges(PREV_ST, list).forEach(o => {
+      if (o.status === 'cancelled' && SELF_ST.has(o.id)) return;   // khách tự hủy: đã có thông báo "Đã hủy đơn"
+      const m = STATUS_PUSH(o, o.status); if (!m) return;
+      lastInApp = Date.now(); statusBanner(m[0], m[1], ST_MAP[o.status] || 'proc');
+    });
+    list.forEach(o => { PREV_ST[o.id] = o.status; });
+  }
   function openSheet(html) {
     $('#sheet').innerHTML = '<div class="grab"></div>' + html;
     $('#sheet').hidden = false; $('#sheet-backdrop').hidden = false;
@@ -731,7 +773,7 @@
       FB.updateMyProfile(S.user.uid, { address:addr }).catch(() => {}); S.user.address = addr;
       CART.q = {}; CART.promo = ''; CART.note = ''; CART.address = null; CART.loc = null; CART.pay = 'cash';
       closeSheet(); S.orders.tab = 'proc'; go('orders');
-      if (pay === 'bank') bankSheet({ ...data, id:ref.id }); else toast('Đặt đơn thành công! Đang chờ tài xế nhận đơn.');
+      if (pay === 'bank') bankSheet({ ...data, id:ref.id }); else { toast('Đặt đơn thành công! Đang chờ tài xế nhận đơn.'); pushAskAfterOrder(); }
     } catch (e) { btn.disabled = false; toast(FB.errMsg(e)); }
   }
   function shareLoc(btn) {
@@ -1004,7 +1046,7 @@
       const ref = await FB.placeOrder(o);
       FB.notifyNewOrder(ref.id);
       SV = svcFresh(SV.type); closeSheet(); S.orders.tab = 'proc'; go('orders');
-      if (o.payment === 'bank') bankSheet({ ...o, id:ref.id }); else toast('Đặt thành công! Đang chờ shipper nhận đơn.');
+      if (o.payment === 'bank') bankSheet({ ...o, id:ref.id }); else { toast('Đặt thành công! Đang chờ shipper nhận đơn.'); pushAskAfterOrder(); }
     } catch (e) { btn.disabled = false; toast(FB.errMsg(e)); }
   }
   function svcClick(t) {
@@ -1078,7 +1120,7 @@
       if (!o || !LIVE) return toast('Không hủy được đơn này');
       const wasPaid = o.raw && o.raw.payment === 'bank' && (o.raw.payStatus === 'paid' || o.raw.customerPaid);
       if (!confirm('Hủy đơn #' + o.code + '?' + (wasPaid ? '\nBạn đã chuyển khoản cho đơn này. Sau khi hủy, hãy liên hệ Admin để được hoàn tiền.' : ''))) return;
-      cx.disabled = true;
+      cx.disabled = true; SELF_ST.add(o.id);
       FB.patchOrder(o.id, { status:'cancelled' }).then(() => toast('Đã hủy đơn')).catch(e => { cx.disabled = false; toast(FB.errMsg(e) + ' (có thể shipper vừa nhận đơn)'); });
       return;
     }
@@ -1099,6 +1141,7 @@
     if (eye) { const inp = eye.parentElement.querySelector('input'); const show = inp.type === 'password'; inp.type = show ? 'text' : 'password'; eye.innerHTML = ic(show ? 'eye' : 'eyeOff'); return; }
     const soc = t.closest('[data-social]'); if (soc && !LIVE) { toast('Đăng nhập bằng ' + soc.dataset.social + ' (demo)'); loginAs({ name:DEMO.name, phone:DEMO.phone }); return; }
     const menu = t.closest('[data-menu]'); if (menu) return menuAction(menu.dataset.menu);
+    const pal = t.closest('[data-permallow]'); if (pal) { permAllow(pal); return; }
     const enp = t.closest('[data-enablepush]');
     if (enp) { enp.disabled = true; FB.enablePush(S.user.uid).then(() => { closeSheet(); toast('Đã bật thông báo đơn hàng 🔔'); }).catch(er => { closeSheet(); toast(er.message || 'Không bật được thông báo'); }); return; }
     const dsp = t.closest('[data-disablepush]');
@@ -1154,7 +1197,7 @@
       ? `<p class="sub" style="margin-top:10px;line-height:1.5">Bạn đang chặn thông báo của trang web này. Hãy vào cài đặt trình duyệt (biểu tượng ổ khóa cạnh địa chỉ web) → <b>Thông báo</b> → <b>Cho phép</b>, rồi tải lại trang.</p>`
       : st === 'granted'
       ? `<div class="row-kv" style="margin-top:12px"><span>Thông báo trên thiết bị này</span><b style="color:var(--green-d)">Đang bật</b></div><button class="sheet-btn" style="background:var(--chip);color:var(--ink)" data-disablepush>Tắt thông báo trên máy này</button>`
-      : `<p class="sub" style="margin-top:10px;line-height:1.5">Nhận thông báo ngay trên điện thoại khi quán nhận đơn, món làm xong, tài xế đang giao và giao thành công.</p><button class="sheet-btn" data-enablepush>Bật thông báo</button>`;
+      : `<p class="sub" style="margin-top:10px;line-height:1.5">Nhận thông báo ngay trên điện thoại, kể cả khi đóng web hoặc tắt màn hình: tài xế nhận đơn, quán chuẩn bị xong, đang giao và giao thành công.</p><button class="sheet-btn" data-enablepush>Bật thông báo</button>`;
     openSheet(`<h3>Thông báo đơn hàng</h3>${body}<button class="sheet-btn" style="background:var(--chip);color:var(--ink)" onclick="document.getElementById('sheet-backdrop').click()">${st === 'default' ? 'Để sau' : 'Đóng'}</button>`);
   }
   /* Tự hỏi 1 lần sau khi đăng nhập (nếu chưa từng cho phép/chặn); khách bấm "Để sau" thì 3 ngày sau mới hỏi lại */
@@ -1166,6 +1209,66 @@
       try { localStorage.setItem('pushAsk', String(Date.now())); } catch (e) {}
       pushSheet();
     }, 4000);
+  }
+
+  /* ---------------- Mỗi lần khách vào web: mời cho phép Vị trí + Thông báo ----------------
+     Chỉ hỏi những quyền chưa được cấp / chưa bị chặn. Mỗi lượt truy cập hỏi 1 lần; bấm "Để sau" thì lần vào web sau hỏi lại.
+     Hỏi qua nút bấm của khách (trình duyệt tin cậy hơn và Safari bắt buộc) thay vì bật hộp thoại trình duyệt tự động. */
+  async function permStates() {
+    let geo = 'unsupported', notif = 'unsupported';
+    if (navigator.geolocation) {
+      geo = 'prompt';
+      try { if (navigator.permissions && navigator.permissions.query) geo = (await navigator.permissions.query({ name:'geolocation' })).state; }
+      catch (e) { try { if (localStorage.getItem('geoOK') === '1') geo = 'granted'; } catch (e2) {} }
+    }
+    if (FB) { const st = FB.pushState(S.user ? S.user.uid : ''); notif = st === 'off' ? 'granted' : st; }   // 'default' | 'granted' | 'denied' | 'unsupported'
+    return { geo, notif };
+  }
+  function permSheet(st) {
+    const needGeo = st.geo === 'prompt', needNotif = st.notif === 'default';
+    const row = (ico, t, sub) => `<div style="display:flex;gap:12px;align-items:flex-start;margin-top:14px"><div style="font-size:26px;line-height:1">${ico}</div><div><b style="font-size:15px">${t}</b><div class="sub" style="margin-top:2px;line-height:1.45">${sub}</div></div></div>`;
+    openSheet(`<h3>Cho phép để đặt món nhanh hơn</h3>
+      ${needGeo ? row('📍', 'Vị trí', 'Tính phí ship chính xác và giao đúng nơi bạn đang đứng.') : ''}
+      ${needNotif ? row('🔔', 'Thông báo', 'Báo ngay khi tài xế nhận đơn, quán chuẩn bị xong và đang giao, kể cả khi bạn đóng web.') : ''}
+      <button class="sheet-btn" style="margin-top:18px" data-permallow>Cho phép</button>
+      <button class="sheet-btn" style="background:var(--chip);color:var(--ink)" onclick="document.getElementById('sheet-backdrop').click()">Để sau</button>`);
+  }
+  async function permAllow(btn) {
+    btn.disabled = true; btn.textContent = 'Đang xử lý…';
+    const before = await permStates(), done = [];
+    if (before.notif === 'default') {   // thông báo trước: Safari chỉ cho hỏi ngay trong lúc khách vừa bấm nút
+      try {
+        if (S.user) await FB.enablePush(S.user.uid); else await Notification.requestPermission();
+      } catch (e) {}
+    }
+    if (before.geo === 'prompt') {
+      await new Promise(res => navigator.geolocation.getCurrentPosition(() => { try { localStorage.setItem('geoOK', '1'); } catch (e) {} done.push('vị trí'); res(); }, () => res(), { enableHighAccuracy:false, timeout:15000, maximumAge:600000 }));
+    }
+    const after = await permStates();
+    if (before.notif === 'default' && after.notif === 'granted') done.push('thông báo');
+    closeSheet();
+    toast(done.length ? 'Đã bật ' + done.join(' và ') : 'Bạn chưa cho phép. Có thể bật lại trong cài đặt trình duyệt.');
+  }
+  function permAskOnVisit(tries = 0) {
+    if (!LIVE || !FB) return;
+    try { if (sessionStorage.getItem('permAsk') === '1') return; } catch (e) {}
+    setTimeout(async () => {
+      try { if (sessionStorage.getItem('permAsk') === '1') return; } catch (e) {}
+      if (shopPageOpen || !$('#sheet').hidden) { if (tries < 6) permAskOnVisit(tries + 1); return; }   // đang xem quán / đang mở bảng khác: đợi rồi thử lại
+      const st = await permStates();
+      if (st.geo !== 'prompt' && st.notif !== 'default') return;   // đã cấp hoặc đã bị chặn thì không hỏi nữa
+      try { sessionStorage.setItem('permAsk', '1'); } catch (e) {}
+      permSheet(st);
+    }, tries ? 5000 : 3500);
+  }
+
+  /* Vừa đặt đơn xong mà chưa bật thông báo đẩy → mời bật để nhận tin cả khi đóng web / tắt màn hình */
+  function pushAskAfterOrder() {
+    setTimeout(() => {
+      if (!S.user || !FB || FB.pushState(S.user.uid) !== 'default' || !$('#sheet').hidden) return;
+      try { if (Date.now() - Number(localStorage.getItem('pushAskOrder') || 0) < 864e5) return; localStorage.setItem('pushAskOrder', String(Date.now())); } catch (e) {}
+      pushSheet();
+    }, 2500);
   }
 
   function menuAction(k) {
@@ -1241,7 +1344,7 @@
     const read = new Set(store.get('readn', []));
     NOTICES = [
       ...ORDERS.slice(0, 20).map(o => ({ id:o.id + ':' + o.status, type:'order', title:ST_NOTE[o.status][0], time:o.when, img:shopBy(o.shop).img,
-        body:o.status === 'delivering' || o.status === 'done' ? `Đơn #${o.code}: ${ST_NOTE[o.status][1]}` : `<b>${shopBy(o.shop).name}</b> ${ST_NOTE[o.status][1]}` })),
+        body:o.status === 'delivering' && o.shipperName ? `Tài xế <b>${o.shipperName}</b> đã nhận đơn #${o.code} và đang giao tới bạn.` : o.status === 'delivering' || o.status === 'done' ? `Đơn #${o.code}: ${ST_NOTE[o.status][1]}` : `<b>${shopBy(o.shop).name}</b> ${ST_NOTE[o.status][1]}` })),
       ...PROMOS.map(p => ({ id:'p:' + p.id, type:'promo', title:'Ưu đãi: ' + esc(p.code), body:esc(p.desc), time:'', svg:'giftSm' })),
     ];
     S.notices = NOTICES.map(n => ({ id:n.id, unread:!read.has(n.id) }));
@@ -1285,14 +1388,15 @@
         const bin = String(c.bankBin || '').replace(/\D/g, ''), acc = String(c.bankAccount || '').replace(/\s/g, '');
         BANK = c.bankEnabled === true && bin && acc ? { bin, acc, holder:String(c.bankHolder || ''), name:String(c.bankName || '') } : null;   // chưa bật / chưa nhập đủ thì khách chỉ thấy tiền mặt
         if (!BANK) { CART.pay = 'cash'; SV.pay = 'cash'; } });
-      FB.onForegroundPush(p => toast((p.title ? p.title + ' – ' : '') + (p.body || '')));
+      permAskOnVisit();
+      FB.onForegroundPush(p => { if (Date.now() - lastInApp < 20000) return; toast((p.title ? p.title + ' – ' : '') + (p.body || '')); });
       FB.onAuth((u, p) => {
         if (ordersUnsub) { ordersUnsub(); ordersUnsub = null; }
-        RAW = [];
+        RAW = []; PREV_ST = null;
         if (u && p) {
           S.user = { uid:u.uid, name:p.name, phone:p.phone, role:p.role, address:p.address || '' };
-          ordersUnsub = FB.watchMyOrders(u.uid, l => { RAW = l; rebuildOrders(); });
-          FB.syncPush(u.uid); pushAskLater();
+          PREV_ST = null; ordersUnsub = FB.watchMyOrders(u.uid, l => { watchStatusChanges(l); RAW = l; rebuildOrders(); });
+          FB.syncPush(u.uid);
         } else S.user = null;
         rebuildOrders();
         if (S.tab === 'profile') renderProfile();
