@@ -1,4 +1,4 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261023a';
+import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261027a';
 import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261023a';
 import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261024a';
 
@@ -11,7 +11,7 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
     return `<div class="card"><div class="row sb"><b>#${esc(o.code)}</b>${badge(o.status)}</div><div class="muted">${fmtTime(o.createdAt)} · ${esc(o.customerName)} · <a href="tel:${esc(o.customerPhone)}">${esc(o.customerPhone)}</a></div>
       <ul class="items">${items}</ul>${o.note ? `<p class="muted">Ghi chú: ${esc(o.note)}</p>` : ''}
       <div class="row sb"><span>Tổng: <b class="total">${money(o.total)}</b> <span class="muted">· ${payText(o)}${o.shipperName ? ' · Shipper: ' + esc(o.shipperName) : ''}</span></span>
-      <span class="muted">Quán chỉ xem đơn – shipper nhận và giao</span></div></div>`;
+      <span class="muted">Quán chỉ xem đơn – shipper nhận và giao</span></div>${o.shopShip ? `<div class="muted" style="margin-top:6px">Quán hỗ trợ phí ship (freeship): <b>-${money(o.shopShip)}</b> · Quán thực nhận: <b>${money(Math.max(0, (o.subtotal || 0) - (o.discount || 0) - o.shopShip))}</b></div>` : ''}</div>`;
   }
   function ordersTab() {
     const act = o => ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(o.status);

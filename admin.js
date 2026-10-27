@@ -1,4 +1,4 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261023a';
+import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261027a';
 import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261024a';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';

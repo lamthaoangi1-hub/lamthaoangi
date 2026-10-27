@@ -624,8 +624,10 @@
     const hit = !!(s.freeShipMin && sub >= s.freeShipMin);
     const shipBase = hit ? (s.freeShipAll ? 0 : (q.mode === 'km' ? q.extraKm * SHIPCFG.perKm : 0)) : q.fee;
     const night = q.mode === 'need-loc' ? 0 : nightFee();   // phụ phí đêm: luôn cộng, kể cả khi đơn đạt freeship
-    const ship = shipBase + night;
-    return { sub, disc, promo, promoOff, ship, shipBase, night, shipMode:q.mode, km:q.km, extraKm:q.extraKm, freeBase:hit, freeAll:hit && !!s.freeShipAll, toFree:(s.freeShipMin && !hit) ? s.freeShipMin - sub : 0, freeAllShop:!!s.freeShipAll, total:sub - disc - promoOff + ship };
+    const ship = shipBase + night;                       // khách trả
+    const shipFull = q.mode === 'need-loc' ? 0 : q.fee + night;   // tiền ship thật shipper nhận
+    const shopShip = Math.max(0, shipFull - ship);       // quán hỗ trợ (freeship): quán trả cho shipper, khách không thấy
+    return { sub, disc, promo, promoOff, ship, shipBase, night, shipFull, shopShip, shipMode:q.mode, km:q.km, extraKm:q.extraKm, freeBase:hit, freeAll:hit && !!s.freeShipAll, toFree:(s.freeShipMin && !hit) ? s.freeShipMin - sub : 0, freeAllShop:!!s.freeShipAll, total:sub - disc - promoOff + ship };
   }
   function updateCartUI() {
     const bar = $('#cart-bar'), { s, lines } = cartData(); if (!bar || !s) return;
@@ -722,7 +724,7 @@
         code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone,
         address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '', shopLat:s.lat ?? null, shopLng:s.lng ?? null, lat:CART.loc.lat, lng:CART.loc.lng, locAcc:CART.loc.acc,
         items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff, promoCode:c.promo ? c.promo.code : '',
-        shipFee:c.ship, ...(c.night ? { nightFee:c.night } : {}), distanceKm:c.km, total:c.total, payment:pay, ...(pay === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending',
+        shipFee:c.ship, shipFull:c.shipFull, ...(c.shopShip ? { shopShip:c.shopShip } : {}), ...(c.night ? { nightFee:c.night } : {}), distanceKm:c.km, total:c.total, payment:pay, ...(pay === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending',
       };
       const ref = await FB.placeOrder(data);
       FB.notifyNewOrder(ref.id);   // Gmail admin + Zalo quán/admin (chạy nền)
