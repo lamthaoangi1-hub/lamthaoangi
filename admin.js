@@ -1,5 +1,5 @@
 import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261027a';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261024a';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261028a';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -134,6 +134,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     <label class="f">Mỗi km tiếp theo (đ)<input type="number" id="sh-perkm" min="0" step="500" value="${settings.shipPerKm ?? 3000}"></label><label class="f">Hệ số đường đi (1,3 = đường thực dài hơn đường chim bay 30%)<input type="number" id="sh-road" min="1" max="2" step="0.05" value="${settings.shipRoad ?? 1.3}"></label></div>
     <h3 style="margin:16px 0 4px">Giao hàng &amp; Mua hộ</h3><p class="muted">Cộng thêm vào phí theo quãng đường ở trên.</p><div class="grid"><label class="f">Phụ phí hàng 5–10 kg (đ)<input type="number" id="sh-w2" min="0" step="1000" value="${settings.shipW2 ?? 5000}"></label><label class="f">Phụ phí hàng trên 10 kg (đ)<input type="number" id="sh-w3" min="0" step="1000" value="${settings.shipW3 ?? 15000}"></label><label class="f">Phí mua hộ (đ)<input type="number" id="sh-errand" min="0" step="1000" value="${settings.errandFee ?? 10000}"></label></div>
     <button class="btn" style="margin-top:12px" data-saveship>Lưu phí giao hàng</button></div>`;
+  const custView = () => `<div class="card"><h3>Thông tin khách cho quán</h3><label class="sw" style="margin:8px 0"><input type="checkbox" id="c-shopcust" data-shopcust ${settings.shopSeeCustomer !== false ? 'checked' : ''}>Cho quán xem tên, SĐT, địa chỉ khách (bản đồ)</label><p class="muted">Bật: quán thấy thông tin khách trên trang quản lý và trong tin Zalo báo đơn, để tự giao hàng khi chưa có shipper. Tắt: quán chỉ thấy món và tiền, không thấy thông tin khách (khi đã có shipper). Có hiệu lực ngay, Admin vẫn luôn thấy đầy đủ.</p></div>`;
   const contactView = () => `<div class="card"><h3>Thông tin liên hệ hiển thị trên website</h3><div class="grid"><label class="f">Hotline<input type="tel" id="c-hot" value="${esc(settings.hotline || '')}"></label><label class="f">Email<input type="text" id="c-mail" value="${esc(settings.email || '')}"></label><label class="f">Zalo nhận tin khách (số điện thoại hoặc link zalo.me)<input type="text" id="c-zalo" placeholder="VD: 0912345678" value="${esc(settings.zalo || '')}"></label></div><button class="btn" style="margin-top:12px" data-savesettings>Lưu</button></div>`;
   /* Mã BIN ngân hàng theo danh mục VietQR (NAPAS). Chọn ngân hàng thì mã BIN tự điền; ngân hàng khác thì gõ tay mã BIN vào ô bên cạnh. */
   const BANKS = [['Vietcombank', '970436'], ['VietinBank', '970415'], ['BIDV', '970418'], ['Agribank', '970405'], ['MB Bank', '970422'], ['Techcombank', '970407'], ['ACB', '970416'], ['VPBank', '970432'], ['TPBank', '970423'], ['Sacombank', '970403'], ['VIB', '970441'], ['SHB', '970443'], ['HDBank', '970437'], ['OCB', '970448'], ['MSB', '970426'], ['SeABank', '970440'], ['LPBank', '970449'], ['Eximbank', '970431'], ['Nam A Bank', '970428'], ['Bac A Bank', '970409'], ['PVcomBank', '970412']];
@@ -150,7 +151,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       <button class="btn" style="margin-top:12px" data-savebank>Lưu thông tin ngân hàng</button>
       ${prev ? `<p class="muted" style="margin-top:12px">Mã QR thử (10.000đ). Hãy quét thử bằng app ngân hàng để chắc chắn đúng tài khoản trước khi bật:</p><img src="${prev}" alt="QR thử" style="width:100%;max-width:260px;border-radius:12px;border:1px solid var(--line)" onerror="this.outerHTML='<p class=muted>Không tạo được mã QR. Kiểm tra lại mã BIN và số tài khoản.</p>'">` : ''}</div>`;
   };
-  const settingsView = () => contactView() + bankView() + shipCfgView();
+  const settingsView = () => custView() + contactView() + bankView() + shipCfgView();
 
   function draw() {
     const keep = $('#uq')?.value;
@@ -209,6 +210,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
         if (!imp.length) { imp = null; toast('Không thấy dữ liệu quán trong file (cần tab “Quán” có cột “Tên quán”). Bấm “File Excel mẫu” để xem mẫu.'); }
         t.value = ''; draw();
       }
+      if (t.dataset.shopcust !== undefined) { await fb.saveSettings({ shopSeeCustomer:t.checked }); toast(t.checked ? 'Quán đã được xem thông tin khách' : 'Đã ẩn thông tin khách với quán'); return; }
       if (t.id === 'rev-shop') { revShop = t.value; draw(); return; }
       if (t.id === 'bk-bank') { if (t.value && t.value !== 'other') $('#bk-bin').value = t.value; return; }
       if (t.dataset.ost) await fb.patchOrder(t.dataset.ost, { status:t.value });
