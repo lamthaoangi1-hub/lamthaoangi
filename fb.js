@@ -43,21 +43,29 @@ export function onAuth(cb) {
   });
 }
 export async function login(phone, pass) { await signInWithEmailAndPassword(auth, toEmail(phone), pass); }
+/* Chờ tối đa ms mili-giây; quá hạn thì báo lỗi thay vì treo mãi (Firestore hết hạn mức / mất mạng sẽ tự thử lại vô hạn) */
+const withTimeout = (p, ms, msg) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
+const SLOW = 'Máy chủ Firestore không phản hồi (có thể đã hết hạn mức đọc/ghi miễn phí trong ngày hoặc mất mạng). Chưa tạo tài khoản, hãy thử lại sau.';
 export async function register(name, phone, pass) {
   const c = await createUserWithEmailAndPassword(auth, toEmail(phone), pass);
-  await setDoc(doc(db, 'users', c.user.uid), { name, phone, role:'customer', address:'', createdAt:serverTimestamp() });
+  try { await withTimeout(setDoc(doc(db, 'users', c.user.uid), { name, phone, role:'customer', address:'', createdAt:serverTimestamp() }), 15000, SLOW); }
+  catch (e) { try { await c.user.delete(); } catch (e2) {} throw e; }   // ghi hồ sơ lỗi thì xóa luôn tài khoản vừa tạo, tránh để lại tài khoản "mồ côi" (báo đã đăng ký nhưng không có trong danh sách)
 }
 export const logout = async () => { try { if (auth.currentUser) await disablePush(auth.currentUser.uid, false); } catch (e) {} return signOut(auth); };   // gỡ máy này khỏi danh sách nhận thông báo của tài khoản trước khi thoát
 
 /* Admin tạo sẵn tài khoản Nhà bán hàng: dùng 1 app Firebase phụ để đăng ký (admin không bị đăng xuất), rồi admin gán vai trò + cửa hàng */
-export async function createSellerAccount({ name, phone, pass, shopId, zaloId = '' }) {
+export async function createSellerAccount({ name, phone, pass, shopId, zaloId = '', onStep = () => {} }) {
   const app2 = initializeApp(firebaseConfig, 'seller-' + Date.now());
   try {
     const a2 = getAuth(app2), d2 = getFirestore(app2);
-    const c = await createUserWithEmailAndPassword(a2, toEmail(phone), pass);
-    await setDoc(doc(d2, 'users', c.user.uid), { name, phone, role:'customer', address:'', createdAt:serverTimestamp() });
+    onStep('1/3 – tạo tài khoản đăng nhập');
+    const c = await withTimeout(createUserWithEmailAndPassword(a2, toEmail(phone), pass), 20000, 'Không nhận được phản hồi từ Firebase Authentication (kiểm tra mạng, hoặc thử lại sau ít phút).');
+    onStep('2/3 – ghi hồ sơ người dùng');
+    try { await withTimeout(setDoc(doc(d2, 'users', c.user.uid), { name, phone, role:'customer', address:'', createdAt:serverTimestamp() }), 15000, SLOW); }
+    catch (e) { try { await c.user.delete(); } catch (e2) {} throw e; }   // không để lại tài khoản mồ côi
     await signOut(a2);
-    await updateDoc(doc(db, 'users', c.user.uid), { role:'seller', shopId, ...(zaloId ? { zaloId } : {}) });
+    onStep('3/3 – gán quyền chủ quán');
+    await withTimeout(updateDoc(doc(db, 'users', c.user.uid), { role:'seller', shopId, ...(zaloId ? { zaloId } : {}) }), 15000, 'Đã tạo tài khoản nhưng chưa gán được quyền chủ quán (Firestore không phản hồi). Hãy vào tab Người dùng, tìm SĐT này và đổi vai trò thành Nhà bán hàng.');
   } finally { await deleteApp(app2); }
 }
 export const updateMyProfile = (uid, patch) => updateDoc(doc(db, 'users', uid), patch);
@@ -176,15 +184,15 @@ export const createShop = d => addDoc(collection(db, 'shops'), { ...d, createdAt
 export const patchShop = (id, patch) => updateDoc(doc(db, 'shops', id), patch);
 export const removeShop = id => deleteDoc(doc(db, 'shops', id));
 /* Trước đây chỉ lấy 300 hồ sơ đầu (thứ tự theo mã ngẫu nhiên) nên khi khách đăng ký nhiều, chủ quán/shipper mới bị rớt khỏi danh sách Admin.
-   Giờ luôn lấy ĐỦ nhân sự (admin/seller/shipper) rồi mới lấy thêm khách (tối đa 2000). */
+   Giờ luôn lấy ĐỦ nhân sự (admin/seller/shipper) rồi mới lấy thêm khách (tối đa 300, để tiết kiệm lượt đọc Firestore). */
 export async function listUsers() {
   const col = collection(db, 'users'), map = new Map();
   const add = s => s.docs.forEach(d => map.set(d.id, { uid:d.id, ...d.data() }));
   add(await getDocs(query(col, where('role', 'in', ['admin', 'seller', 'shipper']))));
-  add(await getDocs(query(col, limit(2000))));
+  add(await getDocs(query(col, where('role', '==', 'customer'), limit(300))));
   return [...map.values()];
 }
-export const patchUser = (uid, patch) => updateDoc(doc(db, 'users', uid), patch);
+export const patchUser = (uid, patch) => withTimeout(updateDoc(doc(db, 'users', uid), patch), 15000, 'Firestore không phản hồi (có thể đã hết hạn mức miễn phí trong ngày hoặc mất mạng). Thử lại sau.');
 /* Admin đặt lại mật khẩu cho người dùng: gọi Apps Script (script tự kiểm tra người gọi là Admin rồi đổi mật khẩu trong Firebase Auth) */
 export async function resetUserPassword(uid, password) {
   if (!UPLOAD_URL) throw new Error('Chưa cấu hình Google Apps Script (upload-config.js)');

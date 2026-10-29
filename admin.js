@@ -1,5 +1,5 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261027a';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261028a';
+import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261029c';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261029c';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -64,7 +64,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       <label class="f">Mật khẩu (tối thiểu 6 ký tự) *<input type="text" id="mk-pass" value="${esc(mk.pass)}" placeholder="Nhập mật khẩu cho chủ quán" autocomplete="off"></label>
       <label class="f">Zalo ID nhận báo đơn (không bắt buộc)<input type="text" id="mk-zalo" value="${esc(mk.zalo)}" autocomplete="off"></label></div>
       <p class="muted" style="margin-top:8px">Nếu số điện thoại đã có tài khoản, hệ thống chỉ gán quyền chủ quán (không đổi mật khẩu).</p>
-      <div class="row" style="margin-top:12px"><button class="btn" data-mkgo ${mk.busy ? 'disabled' : ''}>${mk.busy ? 'Đang tạo…' : 'Tạo tài khoản'}</button><button class="btn sm o" data-mkrand>Tạo mật khẩu ngẫu nhiên</button><button class="btn o" data-mkclose>Hủy</button></div></div>`;
+      <div class="row" style="margin-top:12px"><button class="btn" data-mkgo ${mk.busy ? 'disabled' : ''}>${mk.busy ? 'Đang tạo… ' + (mk.step || 'bắt đầu') : 'Tạo tài khoản'}</button><button class="btn sm o" data-mkrand>Tạo mật khẩu ngẫu nhiên</button><button class="btn o" data-mkclose>Hủy</button></div></div>`;
   }
   /* Form đặt lại mật khẩu: Admin nhập (hoặc tạo ngẫu nhiên) mật khẩu mới rồi gửi cho người dùng */
   const rpUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '') + (rp.role === 'customer' ? '' : 'quanly.html');
@@ -274,7 +274,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
             await fb.patchUser(old.uid, { role:'seller', shopId:s.id, ...(mk.zalo ? { zaloId:mk.zalo } : {}) }); mk.pass = '';
           } else {
             if (mk.pass.length < 6) throw new Error('Mật khẩu tối thiểu 6 ký tự');
-            await fb.createSellerAccount({ name:s.name, phone:mk.phone, pass:mk.pass, shopId:s.id, zaloId:mk.zalo });
+            await fb.createSellerAccount({ name:s.name, phone:mk.phone, pass:mk.pass, shopId:s.id, zaloId:mk.zalo, onStep:t => { mk.step = t; draw(); } });
           }
           await loadUsers(); await syncNotify().catch(() => {});
           mk.busy = false; mk.done = true; draw(); toast('Đã cấp tài khoản nhà bán hàng');
