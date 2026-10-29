@@ -175,7 +175,15 @@ export async function onForegroundPush(cb) {
 export const createShop = d => addDoc(collection(db, 'shops'), { ...d, createdAt:serverTimestamp() });
 export const patchShop = (id, patch) => updateDoc(doc(db, 'shops', id), patch);
 export const removeShop = id => deleteDoc(doc(db, 'shops', id));
-export const listUsers = async () => (await getDocs(query(collection(db, 'users'), limit(300)))).docs.map(d => ({ uid:d.id, ...d.data() }));
+/* Trước đây chỉ lấy 300 hồ sơ đầu (thứ tự theo mã ngẫu nhiên) nên khi khách đăng ký nhiều, chủ quán/shipper mới bị rớt khỏi danh sách Admin.
+   Giờ luôn lấy ĐỦ nhân sự (admin/seller/shipper) rồi mới lấy thêm khách (tối đa 2000). */
+export async function listUsers() {
+  const col = collection(db, 'users'), map = new Map();
+  const add = s => s.docs.forEach(d => map.set(d.id, { uid:d.id, ...d.data() }));
+  add(await getDocs(query(col, where('role', 'in', ['admin', 'seller', 'shipper']))));
+  add(await getDocs(query(col, limit(2000))));
+  return [...map.values()];
+}
 export const patchUser = (uid, patch) => updateDoc(doc(db, 'users', uid), patch);
 /* Admin đặt lại mật khẩu cho người dùng: gọi Apps Script (script tự kiểm tra người gọi là Admin rồi đổi mật khẩu trong Firebase Auth) */
 export async function resetUserPassword(uid, password) {
