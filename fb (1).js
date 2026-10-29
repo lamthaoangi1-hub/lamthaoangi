@@ -54,16 +54,15 @@ export async function register(name, phone, pass) {
 export const logout = async () => { try { if (auth.currentUser) await disablePush(auth.currentUser.uid, false); } catch (e) {} return signOut(auth); };   // gỡ máy này khỏi danh sách nhận thông báo của tài khoản trước khi thoát
 
 /* Admin tạo sẵn tài khoản Nhà bán hàng: dùng 1 app Firebase phụ để đăng ký (admin không bị đăng xuất), rồi admin gán vai trò + cửa hàng */
-export async function createSellerAccount({ name, phone, pass, shopId, zaloId = '' }) {
-  const app2 = initializeApp(firebaseConfig, 'seller-' + Date.now());
-  try {
-    const a2 = getAuth(app2), d2 = getFirestore(app2);
-    const c = await createUserWithEmailAndPassword(a2, toEmail(phone), pass);
-    try { await withTimeout(setDoc(doc(d2, 'users', c.user.uid), { name, phone, role:'customer', address:'', createdAt:serverTimestamp() }), 15000, SLOW); }
-    catch (e) { try { await c.user.delete(); } catch (e2) {} throw e; }   // không để lại tài khoản mồ côi
-    await signOut(a2);
-    await withTimeout(updateDoc(doc(db, 'users', c.user.uid), { role:'seller', shopId, ...(zaloId ? { zaloId } : {}) }), 15000, 'Đã tạo tài khoản nhưng chưa gán được quyền chủ quán (Firestore không phản hồi). Hãy vào tab Người dùng, tìm SĐT này và đổi vai trò thành Nhà bán hàng.');
-  } finally { await deleteApp(app2); }
+export async function createSellerAccount({ name, phone, pass, shopId, zaloId = '', onStep = () => {} }) {
+  if (!UPLOAD_URL) throw new Error('Chưa cấu hình Google Apps Script (upload-config.js)');
+  onStep('1/2 – lấy phiên đăng nhập');
+  const token = await withTimeout(idToken(), 15000, 'Không lấy được phiên đăng nhập, hãy đăng nhập lại.');
+  onStep('2/2 – tạo tài khoản và hồ sơ (có thể mất 5–15 giây)');
+  const res = await withTimeout(fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'createSeller', token, name, phone, password:pass, shopId, zaloId }) }), 60000,
+    'Google Apps Script không phản hồi. Kiểm tra đã Deploy bản mới (New version) chưa, rồi thử lại.');
+  const j = await res.json().catch(() => null);
+  if (!j || !j.ok) throw new Error((j && j.error) || 'Không cấp được tài khoản, thử lại sau');
 }
 export const updateMyProfile = (uid, patch) => updateDoc(doc(db, 'users', uid), patch);
 
@@ -189,7 +188,7 @@ export async function listUsers() {
   add(await getDocs(query(col, where('role', '==', 'customer'), limit(300))));
   return [...map.values()];
 }
-export const patchUser = (uid, patch) => updateDoc(doc(db, 'users', uid), patch);
+export const patchUser = (uid, patch) => withTimeout(updateDoc(doc(db, 'users', uid), patch), 15000, 'Firestore không phản hồi (có thể đã hết hạn mức miễn phí trong ngày hoặc mất mạng). Thử lại sau.');
 /* Admin đặt lại mật khẩu cho người dùng: gọi Apps Script (script tự kiểm tra người gọi là Admin rồi đổi mật khẩu trong Firebase Auth) */
 export async function resetUserPassword(uid, password) {
   if (!UPLOAD_URL) throw new Error('Chưa cấu hình Google Apps Script (upload-config.js)');
