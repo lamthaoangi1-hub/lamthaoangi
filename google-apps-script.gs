@@ -89,6 +89,7 @@ function doPost(e) {
     if (body.action === 'notifyOrder') return notifyOrder(body);
     if (body.action === 'notifyStatus') return notifyStatus(body);
     if (body.action === 'resetPassword') return resetPassword(body);
+    if (body.action === 'createSeller') return createSeller(body);
     return uploadImage(body);
   } catch (err) {
     return out({ ok: false, error: 'Lỗi máy chủ: ' + err });
@@ -131,20 +132,148 @@ function resetPassword(body) {
   const target = getDoc('users/' + body.uid, body.token);
   if (!target) return out({ ok: false, error: 'Không tìm thấy tài khoản này' });
 
-  const r = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/projects/' + FIREBASE_PROJECT + '/accounts:update', {
+  const idt = op => 'https://identitytoolkit.googleapis.com/v1/projects/' + FIREBASE_PROJECT + '/accounts:' + op;
+  const adm = (op, payload) => UrlFetchApp.fetch(idt(op), {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true,
     headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Goog-User-Project': FIREBASE_PROJECT },
-    payload: JSON.stringify({ localId: String(body.uid), password: pass }) });
-  const code = r.getResponseCode();
-  if (code === 200) {
-    console.log('resetPassword: admin ' + adminUid + ' đã đặt lại mật khẩu cho ' + body.uid + ' (' + (target.phone || '') + ')');   // KHÔNG ghi mật khẩu vào log
-    return out({ ok: true });
+    payload: JSON.stringify(payload) });
+  const fail = (code, r) => {
+    console.error('resetPassword lỗi ' + code + ': ' + r.getContentText());
+    let msg = 'Không đặt lại được mật khẩu (mã ' + code + ')';
+    if (code === 403) msg = 'Script chưa có quyền quản lý tài khoản Firebase. Xem mục "Đặt lại mật khẩu" trong HUONG-DAN.md';
+    else if (code === 404) msg = 'Tài khoản này chưa có trong Firebase Authentication';
+    return out({ ok: false, error: msg });
+  };
+
+  // 1) Xem tài khoản Firebase Authentication đang gắn với uid này (email, có bị khóa không)
+  const lk = adm('lookup', { localId: [String(body.uid)] });
+  if (lk.getResponseCode() !== 200) return fail(lk.getResponseCode(), lk);
+  const acc = (JSON.parse(lk.getContentText()).users || [])[0];
+
+  // 2) Đặt mật khẩu mới. Web đăng nhập bằng SĐT@lamthaoangi.app nên đồng bộ luôn email theo SĐT trong hồ sơ, và mở khóa nếu tài khoản đang bị vô hiệu hóa
+  const phone = String(target.phone || '').trim();
+  const wantEmail = /^0\d{9}$/.test(phone) ? phone + '@lamthaoangi.app' : String((acc && acc.email) || '');
+  const emailTaken = 'SĐT ' + phone + ' đang gắn với một tài khoản Firebase khác (có thể là tài khoản cũ đã bị xóa hồ sơ). Vào Firebase Console → Authentication, xóa tài khoản ' + wantEmail + ' rồi đặt lại.';
+  let upd = { localId: String(body.uid) }, recreated = false;
+  if (!acc) {
+    // Hồ sơ còn trong Firestore nhưng tài khoản đăng nhập đã bị xóa khỏi Firebase Authentication → tạo lại ĐÚNG uid cũ, nên đơn hàng và quyền chủ quán/shipper vẫn giữ nguyên
+    if (!/^0\d{9}$/.test(phone)) return out({ ok: false, error: 'Hồ sơ này không có SĐT hợp lệ (10 số, bắt đầu bằng 0) nên không tạo lại được tài khoản đăng nhập' });
+    const cr = UrlFetchApp.fetch(idt('').replace(/:$/, ''), {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Goog-User-Project': FIREBASE_PROJECT },
+      payload: JSON.stringify({ localId: String(body.uid), email: wantEmail, password: pass, emailVerified: true }) });
+    if (cr.getResponseCode() !== 200) {
+      if (cr.getResponseCode() === 400 && /EMAIL_EXISTS/.test(cr.getContentText())) return out({ ok: false, error: emailTaken });
+      return fail(cr.getResponseCode(), cr);
+    }
+    recreated = true;
+  } else {
+    upd = { localId: String(body.uid), password: pass, disableUser: false };
+    if (wantEmail && String(acc.email || '').toLowerCase() !== wantEmail) upd.email = wantEmail;
+    const r = adm('update', upd);
+    const code = r.getResponseCode();
+    if (code !== 200) {
+      if (code === 400 && /EMAIL_EXISTS/.test(r.getContentText())) return out({ ok: false, error: emailTaken });
+      return fail(code, r);
+    }
   }
-  console.error('resetPassword lỗi ' + code + ': ' + r.getContentText());
-  let msg = 'Không đặt lại được mật khẩu (mã ' + code + ')';
-  if (code === 403) msg = 'Script chưa có quyền quản lý tài khoản Firebase. Xem mục "Đặt lại mật khẩu" trong HUONG-DAN.md';
-  else if (code === 404) msg = 'Tài khoản này chưa có trong Firebase Authentication';
-  return out({ ok: false, error: msg });
+
+  // 3) Kiểm tra thật: đăng nhập thử bằng email + mật khẩu mới (thử tối đa 3 lần, cách nhau 1,5 giây, phòng máy chủ cập nhật chậm)
+  const verify = () => {
+    for (let i = 0; i < 3; i++) {
+      const c = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + FIREBASE_API_KEY, {
+        method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+        payload: JSON.stringify({ email: wantEmail, password: pass, returnSecureToken: true }) });
+      if (c.getResponseCode() === 200) return { ok: true };
+      var last = c;
+      if (i < 2) Utilities.sleep(1500);
+    }
+    return { ok: false, res: last };
+  };
+  let v = verify();
+
+  // 4) Dự phòng: nếu đường cập nhật theo project không có tác dụng, dùng đường cập nhật chung (targetProjectId) rồi kiểm tra lại
+  let usedFallback = false;
+  if (!v.ok) {
+    usedFallback = true;
+    const r2 = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:update', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Goog-User-Project': FIREBASE_PROJECT },
+      payload: JSON.stringify({ localId: String(body.uid), password: pass, targetProjectId: FIREBASE_PROJECT, returnSecureToken: false }) });
+    console.error('resetPassword: dự phòng accounts:update → ' + r2.getResponseCode() + ' ' + r2.getContentText().slice(0, 300));
+    if (r2.getResponseCode() === 200) v = verify();
+  }
+
+  if (!v.ok) {
+    // Ghi đủ thông tin để chẩn đoán: email thật đang gắn với uid, nhà cung cấp đăng nhập, thời điểm đổi mật khẩu (trước/sau), và lỗi đăng nhập thử
+    let after = {};
+    try { after = (JSON.parse(adm('lookup', { localId: [String(body.uid)] }).getContentText()).users || [])[0] || {}; } catch (e) {}
+    const info = {
+      uid: String(body.uid), emailTruocKhiSua: acc ? acc.email : '(chưa có tài khoản, đã tạo lại)', emailSauKhiSua: after.email, wantEmail: wantEmail,
+      providers: (after.providerUserInfo || []).map(x => x.providerId), khoa: after.disabled || false,
+      passwordUpdatedAtTruoc: (acc && acc.passwordUpdatedAt) || null, passwordUpdatedAtSau: after.passwordUpdatedAt || null,
+      duPhong: usedFallback, loiDangNhap: v.res ? v.res.getContentText().replace(/\s+/g, ' ').slice(0, 160) : ''
+    };
+    console.error('resetPassword: đăng nhập thử thất bại ' + JSON.stringify(info));
+    return out({ ok: false, error: 'Đã đặt mật khẩu nhưng đăng nhập thử không thành công. Chẩn đoán: ' + JSON.stringify(info), diag: info });
+  }
+  console.log('resetPassword: admin ' + adminUid + ' đã đặt lại mật khẩu cho ' + body.uid + ' (' + phone + ')' + (upd.email ? ' – đã sửa email thành ' + upd.email : '') + (recreated ? ' – đã tạo lại tài khoản đăng nhập với uid cũ' : '') + (usedFallback ? ' – qua đường dự phòng' : ''));   // KHÔNG ghi mật khẩu vào log
+  return out({ ok: true, email: wantEmail, emailFixed: !!upd.email, recreated: recreated });
+}
+
+// ===================== 3b) ADMIN CẤP TÀI KHOẢN NHÀ BÁN HÀNG =====================
+// Làm ở đây (bằng quyền của chủ script) thay vì trong trình duyệt: không phụ thuộc mạng/bộ nhớ trình duyệt của Admin,
+// tạo tài khoản đăng nhập + ghi hồ sơ trong cùng 1 lần, lỗi thì báo rõ thay vì treo.
+function createSeller(body) {
+  if (!body.token || !body.phone || !body.password || !body.shopId) return out({ ok: false, error: 'Thiếu dữ liệu' });
+  const adminUid = verifyToken(body.token);
+  if (!adminUid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn, hãy đăng nhập lại' });
+  const me = getDoc('users/' + adminUid, body.token);
+  if (!me || me.role !== 'admin') return out({ ok: false, error: 'Chỉ Admin mới được cấp tài khoản nhà bán hàng' });
+
+  const phone = String(body.phone).replace(/\D/g, ''), pass = String(body.password);
+  if (!/^0\d{9}$/.test(phone)) return out({ ok: false, error: 'Số điện thoại phải gồm 10 số, bắt đầu bằng 0' });
+  if (pass.length < 6 || pass.length > 64) return out({ ok: false, error: 'Mật khẩu phải từ 6 đến 64 ký tự' });
+  const shop = getDoc('shops/' + body.shopId, body.token);
+  if (!shop) return out({ ok: false, error: 'Không tìm thấy cửa hàng này' });
+
+  const email = phone + '@lamthaoangi.app';
+  const post = (op, payload) => UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/projects/' + FIREBASE_PROJECT + '/accounts' + op, {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Goog-User-Project': FIREBASE_PROJECT },
+    payload: JSON.stringify(payload) });
+
+  // 1) Tạo tài khoản đăng nhập; nếu email đã có thì xem tài khoản đó đã có hồ sơ chưa
+  let uid = '', adopted = false;
+  const cr = post('', { email: email, password: pass, emailVerified: true });
+  if (cr.getResponseCode() === 200) uid = JSON.parse(cr.getContentText()).localId;
+  else if (cr.getResponseCode() === 400 && /EMAIL_EXISTS/.test(cr.getContentText())) {
+    const lk = post(':lookup', { email: [email] });
+    const acc = lk.getResponseCode() === 200 ? (JSON.parse(lk.getContentText()).users || [])[0] : null;
+    if (!acc) return out({ ok: false, error: 'SĐT ' + phone + ' đã có tài khoản đăng nhập nhưng không tra được thông tin. Thử lại sau.' });
+    if (getDocAdmin('users/' + acc.localId, body.token)) return out({ ok: false, error: 'SĐT ' + phone + ' đã có tài khoản. Hãy vào tab Người dùng, tìm SĐT này và đổi vai trò / gán cửa hàng, hoặc bấm Đặt lại MK nếu quên mật khẩu.' });
+    // Tài khoản mồ côi (có đăng nhập, chưa có hồ sơ) → dùng lại, đặt mật khẩu mới và tạo hồ sơ
+    const up = post(':update', { localId: acc.localId, password: pass, disableUser: false });
+    if (up.getResponseCode() !== 200) return out({ ok: false, error: 'Không đặt được mật khẩu cho tài khoản sẵn có (mã ' + up.getResponseCode() + ')' });
+    uid = acc.localId; adopted = true;
+  } else {
+    console.error('createSeller: tạo tài khoản lỗi ' + cr.getResponseCode() + ': ' + cr.getContentText());
+    return out({ ok: false, error: cr.getResponseCode() === 403 ? 'Script chưa có quyền quản lý tài khoản Firebase. Xem mục "Đặt lại mật khẩu" trong HUONG-DAN.md' : 'Không tạo được tài khoản (mã ' + cr.getResponseCode() + '): ' + cr.getContentText().replace(/\s+/g, ' ').slice(0, 160) });
+  }
+
+  // 2) Ghi hồ sơ người dùng (vai trò nhà bán hàng + cửa hàng) bằng quyền của chủ script
+  const f = { name: { stringValue: String(body.name || shop.name || '') }, phone: { stringValue: phone }, role: { stringValue: 'seller' },
+    shopId: { stringValue: String(body.shopId) }, address: { stringValue: '' }, createdAt: { timestampValue: new Date().toISOString() } };
+  if (body.zaloId) f.zaloId = { stringValue: String(body.zaloId).trim() };
+  const w = UrlFetchApp.fetch(FS + 'users/' + uid, { method: 'patch', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, payload: JSON.stringify({ fields: f }) });
+  if (w.getResponseCode() !== 200) {
+    console.error('createSeller: ghi hồ sơ lỗi ' + w.getResponseCode() + ': ' + w.getContentText());
+    if (!adopted) { try { post(':delete', { localId: uid }); } catch (e) {} }   // không để lại tài khoản mồ côi
+    return out({ ok: false, error: 'Không ghi được hồ sơ (mã ' + w.getResponseCode() + '): ' + w.getContentText().replace(/\s+/g, ' ').slice(0, 160) });
+  }
+  console.log('createSeller: admin ' + adminUid + ' cấp tài khoản chủ quán ' + phone + ' cho quán ' + body.shopId + (adopted ? ' (dùng lại tài khoản sẵn có)' : ''));
+  return out({ ok: true, uid: uid, adopted: adopted });
 }
 
 // Chạy tay 1 lần trong trình soạn thảo (chọn hàm này → Run) để cấp quyền và kiểm tra kết nối với Firebase Authentication
@@ -198,7 +327,9 @@ function notifyOrder(body) {
     try { if (sendZalo(id, text)) result[kind]++; } catch (e) { console.error('Zalo ' + kind + ': ' + e); }
   });
   push(adminIds, 'admin', zaloText(order, shop, 'Vui lòng mở lamthaoangi.io.vn/quanly.html để theo dõi đơn.'));
-  push(shopIds, 'shop', zaloText(order, shop, 'Vui lòng mở lamthaoangi.io.vn/quanly.html để xem đơn.'));
+  const appSet = getDoc('settings/app', body.token) || {};   // Admin tắt "Cho quán xem thông tin khách" → tin gửi quán không kèm tên/SĐT/địa chỉ khách
+  const shopSeeCustomer = appSet.shopSeeCustomer !== false;
+  push(shopIds, 'shop', zaloText(order, shop, 'Vui lòng mở lamthaoangi.io.vn/quanly.html để xem đơn.', !shopSeeCustomer));
   push(shipperIds, 'shipper', '🛎 Có đơn mới! Mở lamthaoangi.io.vn/quanly.html để xem và nhận đơn.');
   if (!result.email && !result.admin && !result.shop && !result.shipper && !result.customer) { try { CacheService.getScriptCache().remove('notified_' + body.orderId); } catch (e) {} return out({ ok: false, error: 'Chưa gửi được thông báo nào', result: result }); }
   return out({ ok: true, result: result });
@@ -368,25 +499,25 @@ function svcLines(o) {
   return [];
 }
 
-function zaloText(order, shop, footer) {
+function zaloText(order, shop, footer, hideCustomer) {
   const w = order._warn ? order._warn + '\n' : '';
   if (order.type) return w + '🛎 ĐƠN ' + (order.type === 'errand' ? 'MUA HỘ' : 'GIAO HÀNG') + ' MỚI #' + order.code + '\n'
     + svcLines(order).join('\n') + '\n'
     + 'Quãng đường: ' + (order.distanceKm != null ? order.distanceKm + ' km' : '?') + ' | PHÍ: ' + money(order.total) + (order.nightFee ? ' (gồm phụ phí đêm ' + money(order.nightFee) + ')' : '') + ' (' + payLabel(order) + ')\n'
-    + 'Khách đặt: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
-    + 'Giao đến: ' + (order.address || '') + '\n'
+    + (hideCustomer ? '' : 'Khách đặt: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
+    + 'Giao đến: ' + (order.address || '') + '\n')
     + (order.note ? 'Ghi chú: ' + order.note + '\n' : '')
-    + (order.lat ? 'Bản đồ: https://maps.google.com/?q=' + order.lat + ',' + order.lng + '\n' : '')
+    + (order.lat && !hideCustomer ? 'Bản đồ: https://maps.google.com/?q=' + order.lat + ',' + order.lng + '\n' : '')
     + (footer || 'Vui lòng mở lamthaoangi.io.vn/quanly.html để xem đơn.');
   return w + '🛎 ĐƠN MỚI #' + order.code + '\n'
     + 'Quán: ' + (order.shopName || shop.name || '') + '\n'
     + itemsLines(order) + '\n'
     + 'Phí ship: ' + money(order.shipFee) + (order.nightFee ? ' (gồm phụ phí đêm ' + money(order.nightFee) + ')' : '') + (order.shopShip ? ' | Quán hỗ trợ ship: ' + money(order.shopShip) : '') + (order.discount ? ' | Giảm: -' + money(order.discount) : '') + '\n'
     + 'TỔNG: ' + money(order.total) + ' (' + payLabel(order) + ')\n'
-    + 'Khách: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
-    + 'Giao đến: ' + (order.address || '') + '\n'
+    + (hideCustomer ? '' : 'Khách: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
+    + 'Giao đến: ' + (order.address || '') + '\n')
     + (order.note ? 'Ghi chú: ' + order.note + '\n' : '')
-    + (order.lat ? 'Bản đồ: https://maps.google.com/?q=' + order.lat + ',' + order.lng + '\n' : '')
+    + (order.lat && !hideCustomer ? 'Bản đồ: https://maps.google.com/?q=' + order.lat + ',' + order.lng + '\n' : '')
     + (footer || 'Vui lòng mở lamthaoangi.io.vn/quanly.html để xem đơn.');
 }
 
