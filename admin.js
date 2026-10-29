@@ -109,7 +109,24 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     list = [...list].sort(byNewest);
     const isS = role === 'seller', hasZ = isS || role === 'shipper', cols = 5 + (isS ? 1 : 0) + (hasZ ? 1 : 0);
     const zalo = u => `<td><input type="text" data-uzalo="${u.uid}" value="${esc(u.zaloId || '')}" placeholder="Zalo ID (nhận báo đơn)" style="min-width:150px"></td>`;
-    return `<div class="card" style="overflow:auto"><table><tr><th>Tên</th><th>SĐT</th><th>Đăng ký lúc</th>${isS ? '<th>Cửa hàng</th>' : ''}${hasZ ? '<th>Zalo ID</th>' : ''}<th>Vai trò</th><th>Mật khẩu</th></tr>${list.length ? list.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td><td style="white-space:nowrap">${regAt(u) ? esc(regAt(u)) : '<span class="muted">—</span>'}</td>${isS ? `<td><select data-ushop="${u.uid}" style="width:auto"><option value="">— chọn quán —</option>${shops.map(s => `<option value="${s.id}" ${u.shopId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>${u.shopId ? '' : '<br><span class="badge warn">Chưa gán quán</span>'}</td>` : ''}${hasZ ? zalo(u) : ''}<td>${roleSel(u)}</td><td><button class="btn sm o" data-rp="${u.uid}">Đặt lại MK</button></td></tr>`).join('') : `<tr><td colspan="${cols}" class="muted">Chưa có ai trong nhóm này</td></tr>`}</table></div>`;
+    return `<div class="card" style="overflow:auto"><table><tr><th>Tên</th><th>SĐT</th><th>Đăng ký lúc</th>${isS ? '<th>Cửa hàng</th>' : ''}${hasZ ? '<th>Zalo ID</th>' : ''}<th>Vai trò</th><th>Mật khẩu</th></tr>${list.length ? list.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.phone)}</td><td style="white-space:nowrap">${regAt(u) ? esc(regAt(u)) : '<span class="muted">—</span>'}</td>${isS ? `<td><select data-ushop="${u.uid}" style="width:auto"><option value="">— chọn quán —</option>${shops.map(s => `<option value="${s.id}" ${u.shopId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>${!u.shopId ? '<br><span class="badge warn">Chưa gán quán</span>' : (shops.some(s => s.id === u.shopId) ? '' : '<br><span class="badge warn">Quán đã gán không còn tồn tại – hãy chọn lại</span>')}</td>` : ''}${hasZ ? zalo(u) : ''}<td>${roleSel(u)}</td><td><button class="btn sm o" data-rp="${u.uid}">Đặt lại MK</button></td></tr>`).join('') : `<tr><td colspan="${cols}" class="muted">Chưa có ai trong nhóm này</td></tr>`}</table></div>`;
+  };
+  /* Rà soát dữ liệu: số "Nhà bán hàng (n)" là số TÀI KHOẢN, không phải số quán. Thẻ này chỉ ra quán nào chưa có chủ, tài khoản nào gán sai quán, quán nào trùng tên */
+  const auditCard = () => {
+    if (!users.length || !shops.length) return '';
+    const sellers = users.filter(u => u.role === 'seller');
+    const noOwner = shops.filter(s => !sellers.some(u => u.shopId === s.id));
+    const orphan = sellers.filter(u => !u.shopId || !shops.some(s => s.id === u.shopId));
+    const names = {}; shops.forEach(s => { const k = flat(String(s.name || '').trim()); (names[k] = names[k] || []).push(s); });
+    const dups = Object.values(names).filter(a => a.length > 1);
+    const li = a => a.map(x => `<li>${x}</li>`).join('');
+    const bad = noOwner.length || orphan.length || dups.length;
+    return `<div class="card" style="${bad ? 'background:#fff8ec' : 'background:#f6faf7'}"><h3 style="margin-bottom:6px">Rà soát tài khoản – cửa hàng</h3>
+      <p class="muted" style="margin:0 0 6px">Có <b>${shops.length}</b> cửa hàng và <b>${sellers.length}</b> tài khoản nhà bán hàng (số trên nút là số tài khoản).</p>
+      ${bad ? '' : '<p style="margin:0">✅ Quán nào cũng có chủ quán, không có tài khoản gán sai.</p>'}
+      ${noOwner.length ? `<p style="margin:6px 0 2px"><b>⚠ ${noOwner.length} quán chưa có tài khoản chủ quán</b> (vào tab Cửa hàng → “Cấp TK”):</p><ul style="margin:0 0 4px 18px">${li(noOwner.map(s => esc(s.name)))}</ul>` : ''}
+      ${orphan.length ? `<p style="margin:6px 0 2px"><b>⚠ ${orphan.length} tài khoản nhà bán hàng chưa gán quán hoặc gán vào quán không còn tồn tại</b> (chọn lại quán ở bảng dưới):</p><ul style="margin:0 0 4px 18px">${li(orphan.map(u => esc(u.name || '') + ' · ' + esc(u.phone || '')))}</ul>` : ''}
+      ${dups.length ? `<p style="margin:6px 0 2px"><b>⚠ Quán trùng tên</b> (có thể là quán nhập hai lần – nên xóa bản thừa):</p><ul style="margin:0 0 4px 18px">${li(dups.map(a => esc(a[0].name) + ' ×' + a.length))}</ul>` : ''}</div>`;
   };
   const usersView = () => {
     if (rp) return rpForm();
@@ -118,7 +135,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     const cnt = r => users.filter(u => u.role === r).length;
     const pills = [['all', 'Tất cả', users.length], ...ROLES.map(([r, l]) => [r, l, cnt(r)])];
     const groups = ufil === 'all' ? ROLES : ROLES.filter(([r]) => r === ufil);
-    return `<div class="card"><div class="row"><input type="search" id="uq" placeholder="Tìm theo tên hoặc số điện thoại" style="max-width:280px;margin:0"><button class="btn sm" data-ureload>Tải lại danh sách</button></div>
+    return auditCard() + `<div class="card"><div class="row"><input type="search" id="uq" placeholder="Tìm theo tên hoặc số điện thoại" style="max-width:280px;margin:0"><button class="btn sm" data-ureload>Tải lại danh sách</button></div>
     <p class="muted" style="margin-top:8px">Khách tự đăng ký trên website (vai trò “Khách hàng”). Đổi vai trò tại đây; <b>Nhà bán hàng</b> cần gán cửa hàng, hoặc dùng nút “Cấp TK” ở tab Cửa hàng. Người dùng quên mật khẩu: bấm <b>Đặt lại MK</b> ở cuối dòng.</p></div>
     <div class="tabs" style="position:static;border:0;padding:0;background:none;margin:2px 0 10px">${pills.map(([k, l, n]) => `<button class="${ufil === k ? 'on' : ''}" data-ufil="${k}">${l} (${n})</button>`).join('')}</div>
     ${groups.map(([r, l]) => `${ufil === 'all' ? `<h3 style="margin:14px 0 6px">${l} (${cnt(r)})</h3>` : ''}${userTable(r, users.filter(u => u.role === r && match(u)))}`).join('')}`;
