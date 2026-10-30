@@ -111,6 +111,7 @@ function doPost(e) {
     if (body.action === 'syncUser') return syncUser(body);
     if (body.action === 'syncOrder') return syncOrder(body);
     if (body.action === 'adminList') return adminList(body);
+    if (body.action === 'backfill') return backfillWeb(body);
     return uploadImage(body);
   } catch (err) {
     return out({ ok: false, error: 'Lỗi máy chủ: ' + err });
@@ -322,7 +323,12 @@ function notifyOrder(body) {
   if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn' });
 
   // Đọc đơn bằng chính token của khách → luật bảo mật đảm bảo đơn có thật và thuộc về khách này
-  const order = getDoc('orders/' + body.orderId, body.token);
+  let order = getDoc('orders/' + body.orderId, body.token);
+  // Firestore hết hạn mức ĐỌC trong ngày (429) nhưng vẫn ghi được đơn → không đọc lại đơn được. Dùng bản đơn do web gửi kèm (chỉ khi đúng chủ đơn) để quán / Admin vẫn nhận báo.
+  if (!order && body.order && typeof body.order === 'object' && body.order.uid === uid && Array.isArray(body.order.items) && body.order.items.length) {
+    order = Object.assign({}, body.order, { status: 'pending', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    console.warn('notifyOrder: không đọc được đơn ' + body.orderId + ' từ Firestore, dùng dữ liệu web gửi kèm');
+  }
   if (!order || order.uid !== uid) return out({ ok: false, error: 'Không tìm thấy đơn' });
   // Lưu đơn vào Google Sheet trước (ghi đè theo mã đơn nên gọi lại nhiều lần cũng không bị trùng dòng)
   try { upsertOrder(body.orderId, order); } catch (e) { console.error('Sheet đơn: ' + e); }
@@ -719,6 +725,14 @@ function adminList(body) {
     const vals = sh.getRange(startRow, 1, endRow - startRow + 1, ORDER_COLS.length).getValues().reverse();
     return out({ ok: true, rows: vals.map(orderFromRow), total: total, done: startRow <= 2 });
   }
+  if (body.what === 'search') {   // tìm theo tên / SĐT trên TOÀN BỘ Sheet (mọi vai trò)
+    const flat = x => String(x == null ? '' : x).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+    const q = flat(body.q).trim(); if (q.length < 2) return out({ ok: true, rows: [], total: 0, done: true });
+    const sh = usersSheet(), last = sh.getLastRow();
+    const all = last < 2 ? [] : sh.getRange(2, 1, last - 1, USER_COLS.length).getValues().map(r => rowToObj(USER_COLS, r));
+    const rows = all.filter(u => flat(u.name).indexOf(q) >= 0 || flat(u.phone).indexOf(q) >= 0).slice(0, 50);
+    return out({ ok: true, rows: rows, total: rows.length, done: true });
+  }
   if (body.what === 'customers' || body.what === 'staff') {
     const sh = usersSheet(), last = sh.getLastRow();
     let all = last < 2 ? [] : sh.getRange(2, 1, last - 1, USER_COLS.length).getValues().map(r => rowToObj(USER_COLS, r));
@@ -741,28 +755,49 @@ function backfillUsers() { backfill_('users', usersSheet(), USER_COLS, (id, d) =
 function backfillOrders() { backfill_('orders', ordersSheet(), ORDER_COLS, (id, d) => orderArr(id, d)); }
 function backfillResetUsers() { props().deleteProperty('BF_users'); Logger.log('Đã đặt lại điểm dừng chuyển người dùng'); }
 function backfillResetOrders() { props().deleteProperty('BF_orders'); Logger.log('Đã đặt lại điểm dừng chuyển đơn hàng'); }
-function backfill_(col, sh, cols, toRow) {
-  const t0 = Date.now(), key = 'BF_' + col;
+function backfill_(col, sh, cols, toRow, maxMs) {
+  const t0 = Date.now(), key = 'BF_' + col, limitMs = maxMs || 240000;
   const lastRow = sh.getLastRow();
   const have = {}; if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, 1).getValues().forEach(r => have[String(r[0])] = 1);
   let token = props().getProperty(key) || '', added = 0, seen = 0;
-  while (Date.now() - t0 < 240000) {
+  while (Date.now() - t0 < limitMs) {
     const r = UrlFetchApp.fetch(FS + col + '?pageSize=300' + (token ? '&pageToken=' + encodeURIComponent(token) : ''), { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
-    if (r.getResponseCode() !== 200) { Logger.log('LỖI ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 300) + (r.getResponseCode() === 429 ? '\n→ Firestore hết hạn mức hôm nay, chạy lại sau 14h00 (giờ VN); script nhớ điểm dừng.' : '')); return; }
+    if (r.getResponseCode() !== 200) {
+      const c = r.getResponseCode();
+      Logger.log('LỖI ' + c + ': ' + r.getContentText().slice(0, 300) + (c === 429 ? '\n→ Firestore hết hạn mức hôm nay, chạy lại sau 14h00 (giờ VN); script nhớ điểm dừng.' : ''));
+      return { done: false, added: added, seen: seen, error: c === 429 ? QUOTA_MSG : 'Lỗi đọc Firestore (mã ' + c + ')', quota: c === 429 };
+    }
     const j = JSON.parse(r.getContentText()), rows = [];
     (j.documents || []).forEach(doc => {
       seen++; const id = doc.name.split('/').pop();
       if (!have[id]) { have[id] = 1; rows.push(toRow(id, docToObj(doc))); }
     });
     if (rows.length) {
-      const start = sh.getLastRow() + 1, need = start + rows.length - 1 - sh.getMaxRows();
-      if (need > 0) sh.insertRowsAfter(sh.getMaxRows(), need);
-      sh.getRange(start, 1, rows.length, cols.length).setValues(rows); added += rows.length;
+      const lock = LockService.getScriptLock(); lock.waitLock(20000);
+      try {
+        const start = sh.getLastRow() + 1, need = start + rows.length - 1 - sh.getMaxRows();
+        if (need > 0) sh.insertRowsAfter(sh.getMaxRows(), need);
+        sh.getRange(start, 1, rows.length, cols.length).setValues(rows); added += rows.length;
+      } finally { lock.releaseLock(); }
     }
     token = j.nextPageToken || '';
-    if (token) props().setProperty(key, token); else { props().deleteProperty(key); Logger.log('XONG chuyển ' + col + ': đã xét ' + seen + ' bản ghi, thêm mới ' + added + ' dòng.'); return; }
+    if (token) props().setProperty(key, token); else { props().deleteProperty(key); Logger.log('XONG chuyển ' + col + ': đã xét ' + seen + ' bản ghi, thêm mới ' + added + ' dòng.'); return { done: true, added: added, seen: seen }; }
   }
   Logger.log('Hết thời gian chạy (đã thêm ' + added + ' dòng). Hãy bấm Run lại hàm này để làm tiếp.');
+  return { done: false, added: added, seen: seen };
+}
+// Admin bấm nút "Đồng bộ" trên web: mỗi lần chạy tối đa ~2,5 phút rồi trả về, web tự gọi lại cho đến khi done = true
+function backfillWeb(body) {
+  if (!body.token) return out({ ok: false, error: 'Thiếu dữ liệu' });
+  const uid = verifyToken(body.token);
+  if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn, hãy đăng nhập lại' });
+  if (roleOf(uid, body.token) !== 'admin') return out({ ok: false, error: 'Chỉ Admin mới đồng bộ được' });
+  if (body.what !== 'users' && body.what !== 'orders') return out({ ok: false, error: 'Yêu cầu không hợp lệ' });
+  if (body.reset) props().deleteProperty('BF_' + body.what);
+  const r = body.what === 'users'
+    ? backfill_('users', usersSheet(), USER_COLS, (id, d) => USER_COLS.map(c => c === 'uid' ? id : cellVal(d[c])), 150000)
+    : backfill_('orders', ordersSheet(), ORDER_COLS, (id, d) => orderArr(id, d), 150000);
+  return out(Object.assign({ ok: !r.error }, r));
 }
 
 // ===================== ZALO BOT =====================

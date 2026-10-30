@@ -771,7 +771,7 @@
         shipFee:c.ship, shipFull:c.shipFull, ...(c.shopShip ? { shopShip:c.shopShip } : {}), ...(c.night ? { nightFee:c.night } : {}), distanceKm:c.km, total:c.total, payment:pay, ...(pay === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending',
       };
       const ref = await FB.placeOrder(data);
-      FB.notifyNewOrder(ref.id);   // Gmail admin + Zalo quán/admin (chạy nền)
+      FB.notifyNewOrder(ref.id, data);   // Gmail admin + Zalo quán/admin (chạy nền)
       FB.updateMyProfile(S.user.uid, { address:addr }).catch(() => {}); S.user.address = addr;
       CART.q = {}; CART.promo = ''; CART.note = ''; CART.address = null; CART.loc = null; CART.pay = 'cash';
       closeSheet(); S.orders.tab = 'proc'; go('orders');
@@ -1046,7 +1046,7 @@
     btn.disabled = true;
     try {
       const ref = await FB.placeOrder(o);
-      FB.notifyNewOrder(ref.id);
+      FB.notifyNewOrder(ref.id, o);
       SV = svcFresh(SV.type); closeSheet(); S.orders.tab = 'proc'; go('orders');
       if (o.payment === 'bank') bankSheet({ ...o, id:ref.id }); else { toast('Đặt thành công! Đang chờ shipper nhận đơn.'); pushAskAfterOrder(); }
     } catch (e) { btn.disabled = false; toast(FB.errMsg(e)); }
@@ -1366,7 +1366,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261030a').then(m => {
+    import('./fb.js?v=20261030c').then(m => {
       FB = m;
       let RAWSHOPS = [], openSig = '';
       const applyShops = () => {

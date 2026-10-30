@@ -1,5 +1,5 @@
 import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261029e';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261030a';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261030c';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -10,7 +10,7 @@ const SAMPLE = [
 ];
 
 export const panel = { key:'admin', title:'Quản trị', roles:['admin'], render(root, me) {
-  let tab = 'orders', shops = [], orders = [], live = [], hist = [], histDone = false, histBusy = false, histTotal = null, histErr = '', revRows = null, revBusy = false, revAt = 0, revErr = '', users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all', paste = null, sel = new Set(), bh = { open:'06:00', close:'21:00' };
+  let tab = 'orders', shops = [], orders = [], live = [], hist = [], histDone = false, histBusy = false, histTotal = null, histErr = '', revRows = null, revBusy = false, revAt = 0, revErr = '', users = [], sync = {}, syncBusy = '', syncMsg = '', promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all', paste = null, sel = new Set(), bh = { open:'06:00', close:'21:00' };
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
 
   const revenueView = () => {
@@ -35,8 +35,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       ${o.payment === 'bank' ? `<div class="payrow">${o.payStatus === 'paid' ? `<button class="btn sm o" data-paid="${o.id}:0">Bỏ xác nhận</button>` : `<button class="btn sm" data-paid="${o.id}:1">Xác nhận đã nhận ${money(o.total)}</button><button class="btn sm o" data-tocash="${o.id}">Đổi sang tiền mặt</button>`}<span class="muted">Nội dung CK: <b>${esc(o.code)}</b>${o.customerPaid && o.payStatus !== 'paid' ? ' · khách báo đã chuyển' : ''}</span></div>` : ''}
       <div class="row sb"><span><b class="total">${money(o.total)}</b> <span class="muted">${o.shipperName ? '· Shipper: ' + esc(o.shipperName) + ' ' + esc(o.shipperPhone || '') : ''}</span></span>
       <select data-ost="${o.id}" style="width:auto">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${o.status === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></div></div>`).join('') : '<div class="empty">Chưa có đơn</div>'}
-      <div class="card" style="text-align:center"><p class="muted" style="margin:0 0 8px">Đơn <b>đang xử lý</b> cập nhật tức thì. Đơn đã hoàn thành / hủy lấy từ <b>Google Sheet</b> (không tốn lượt đọc Firestore).${histErr ? `<br><span style="color:var(--red)">${esc(histErr)}</span>` : ''}${histTotal != null ? `<br>Đã tải ${hist.length.toLocaleString('vi-VN')} / ${histTotal.toLocaleString('vi-VN')} đơn trong Sheet.` : ''}</p>
-      ${histDone && !histErr ? '' : `<button class="btn sm" data-histmore ${histBusy ? 'disabled' : ''}>${histBusy ? 'Đang tải…' : hist.length ? 'Tải thêm đơn cũ' : 'Tải lịch sử đơn'}</button>`}</div>`;
+      ${syncBox('orders')}<div class="card" style="text-align:center"><p class="muted" style="margin:0 0 8px">Đơn <b>đang xử lý</b> cập nhật tức thì. Đơn đã hoàn thành / hủy lấy từ <b>Google Sheet</b> (không tốn lượt đọc Firestore).${histErr ? `<br><span style="color:var(--red)">${esc(histErr)}</span>` : ''}${histTotal != null ? `<br>Đã tải ${hist.length.toLocaleString('vi-VN')} / ${histTotal.toLocaleString('vi-VN')} đơn trong Sheet.` : ''}</p>
+      ${histDone && !histErr ? '' : `<div class="row" style="justify-content:center"><button class="btn sm" data-histmore ${histBusy ? 'disabled' : ''}>${histBusy ? 'Đang tải…' : hist.length ? 'Tải thêm đơn cũ' : 'Tải lịch sử đơn'}</button><button class="btn sm o" data-histall ${histBusy ? 'disabled' : ''}>Tải tất cả</button></div>`}</div>`;
   };
 
   const byOrder = (a, b) => (a.order ?? 9999) - (b.order ?? 9999) || String(a.name || '').localeCompare(String(b.name || ''), 'vi');
@@ -139,7 +139,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     const cnt = r => users.filter(u => u.role === r).length;
     const pills = [['all', 'Tất cả', utotal != null ? users.length - cnt('customer') + utotal : users.length], ...ROLES.map(([r, l]) => [r, l, r === 'customer' && utotal != null ? utotal : cnt(r)])];
     const groups = ufil === 'all' ? ROLES : ROLES.filter(([r]) => r === ufil);
-    return auditCard() + `<div class="card"><div class="row"><input type="search" id="uq" placeholder="Tìm theo tên hoặc số điện thoại" style="max-width:280px;margin:0"><button class="btn sm" data-ureload>Tải lại danh sách</button></div>
+    return auditCard() + syncBox('users') + `<div class="card"><div class="row"><input type="search" id="uq" placeholder="Tìm theo tên hoặc số điện thoại" style="max-width:280px;margin:0"><button class="btn sm" data-ureload>Tải lại danh sách</button></div>
     <p class="muted" style="margin-top:8px">Khách tự đăng ký trên website (vai trò “Khách hàng”). Đổi vai trò tại đây; <b>Nhà bán hàng</b> cần gán cửa hàng, hoặc dùng nút “Cấp TK” ở tab Cửa hàng. Người dùng quên mật khẩu: bấm <b>Đặt lại MK</b> ở cuối dòng.</p></div>
     <div class="tabs" style="position:static;border:0;padding:0;background:none;margin:2px 0 10px">${pills.map(([k, l, n]) => `<button class="${ufil === k ? 'on' : ''}" data-ufil="${k}">${l} (${n})</button>`).join('')}</div>
     ${groups.map(([r, l]) => `${ufil === 'all' ? `<h3 style="margin:14px 0 6px">${l} (${r === 'customer' && utotal != null ? utotal : cnt(r)})</h3>` : ''}${userTable(r, users.filter(u => u.role === r && match(u)))}`).join('')}
@@ -194,12 +194,12 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     });
     await fb.saveNotify({ shops:shopsMap, shippers });
   };
-  let ucur = null, udone = true, utotal = null, umore = false;
+  let ucur = null, udone = true, utotal = null, umore = false, usT = 0;
   const loadUsers = async () => {
     try {
       const [staff, c] = await Promise.all([fb.listStaff(), fb.listCustomers(null)]);
       const n = await fb.countCustomers();   // lấy tổng từ lần đọc Sheet vừa xong, không tốn thêm lượt đọc
-      users = [...staff, ...c.list]; ucur = c.cursor; udone = c.done; utotal = n; err = '';
+      users = [...staff, ...c.list]; ucur = c.cursor; udone = c.done; utotal = n; err = ''; if (!sync.users && histTotal != null) refreshCounts().catch(() => {});
     } catch (e) { err = fb.errMsg(e); }
     draw();
   };
@@ -218,7 +218,17 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     if (histBusy) return; histBusy = true; histErr = ''; if (reset) { hist = []; histDone = false; } if (tab === 'orders') draw();
     try { const r = await fb.sheetOrders(hist.length, 100); hist = [...hist, ...r.rows]; histTotal = r.total; histDone = r.done; mergeOrders(); }
     catch (e) { histErr = fb.errMsg(e); }
-    histBusy = false; if (tab === 'orders') draw();
+    histBusy = false; if (tab === 'orders') draw(); if (!sync.orders && histTotal != null && utotal != null) refreshCounts().catch(() => {});
+  };
+  /* so số lượng Google Sheet với Firestore → báo thiếu bao nhiêu và có nút đồng bộ */
+  const refreshCounts = async () => {
+    const [cu, od] = await Promise.all([fb.fsCount('customers'), fb.fsCount('orders')]);
+    sync = { users:{ fs:cu, sheet:utotal }, orders:{ fs:od, sheet:histTotal } }; draw();
+  };
+  const syncBox = k => {
+    const s = sync[k], name = k === 'users' ? 'khách hàng' : 'đơn hàng'; if (!s) return '';
+    const miss = s.fs != null && s.sheet != null ? s.fs - s.sheet : null;
+    return `<div class="card" style="${miss > 0 ? 'background:#fff7ed;border:1px solid #fdba74' : ''}"><div class="row sb" style="gap:8px"><span>${miss > 0 ? `⚠️ Google Sheet đang thiếu <b>${miss.toLocaleString('vi-VN')}</b> ${name}` : '✅ Google Sheet đã đủ ' + name}<span class="muted"> (Firestore ${s.fs ?? '?'} · Sheet ${s.sheet ?? '?'})</span></span><button class="btn sm ${miss > 0 ? '' : 'o'}" data-sync="${k}" ${syncBusy ? 'disabled' : ''}>${syncBusy === k ? esc(syncMsg) : miss > 0 ? 'Đồng bộ ngay' : 'Kiểm tra lại'}</button></div></div>`;
   };
   const loadRev = async (force) => {
     if (revBusy || (!force && revRows && Date.now() - revAt < 60000)) return;
@@ -244,7 +254,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   const clock = setInterval(() => { if (tab === 'shops' && !edit && !mk && !imp && !paste && !document.activeElement?.closest?.('input,textarea,select')) draw(); }, 60000);
   track(() => clearInterval(clock));
 
-  root.addEventListener('input', e => { if (e.target.id === 'uq') draw(), $('#uq').focus(); if (e.target.id === 'paste-txt' && paste) paste.text = e.target.value; });
+  root.addEventListener('input', e => { if (e.target.id === 'uq') { draw(); $('#uq').focus(); clearTimeout(usT); const v = $('#uq').value.trim(); if (v.length >= 3) usT = setTimeout(async () => { try { const f = await fb.searchUsers(v); if (!f.length) return; const m = new Map(users.map(u => [u.uid, u])); f.forEach(u => m.set(u.uid, { ...m.get(u.uid), ...u })); users = [...m.values()]; if ($('#uq')?.value.trim() === v) { draw(); $('#uq').focus(); } } catch (er) { toast(fb.errMsg(er)); } }, 500); } if (e.target.id === 'paste-txt' && paste) paste.text = e.target.value; });
   root.addEventListener('change', async e => {
     const t = e.target;
     try {
@@ -282,6 +292,16 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; rp = null; paste = null; draw(); if (tab === 'revenue') loadRev(false); if (tab === 'orders' && !hist.length && !histDone && !histBusy) loadHist(true); return; }
     if (g('[data-revreload]')) { loadRev(true); return; }
     if (g('[data-histmore]')) { loadHist(false); return; }
+    if (g('[data-histall]')) { (async () => { while (!histDone && !histErr) { const n = hist.length; await loadHist(false); if (hist.length === n) break; } })(); return; }
+    if (g('[data-sync]')) {
+      const k = g('[data-sync]').dataset.sync; if (syncBusy) return; syncBusy = k; syncMsg = 'Đang đồng bộ…'; draw();
+      try {
+        const n = await fb.sheetBackfill(k, (a, done) => { syncMsg = done ? 'Hoàn tất' : 'Đã thêm ' + a + ' dòng, đang làm tiếp…'; draw(); });
+        toast(n ? 'Đã thêm ' + n + ' dòng vào Google Sheet' : 'Google Sheet đã đủ dữ liệu');
+        sync = {}; if (k === 'users') await loadUsers(); else await loadHist(true);
+      } catch (er) { toast(fb.errMsg(er)); }
+      syncBusy = ''; syncMsg = ''; draw(); return;
+    }
     try {
       if (g('[data-newshop]')) { edit = { menu:[] }; draw(); }
       else if (g('[data-editshop]')) { edit = JSON.parse(JSON.stringify(shops.find(s => s.id === g('[data-editshop]').dataset.editshop))); draw(); }

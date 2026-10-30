@@ -99,12 +99,12 @@ export const watchActiveOrders = cb => watch(query(collection(db, 'orders'), whe
 /* ---- ghi ---- */
 export const placeOrder = o => withTimeout(addDoc(collection(db, 'orders'), { ...o, createdAt:serverTimestamp(), updatedAt:serverTimestamp() }), 30000, QUOTA_MSG);
 /* Báo đơn mới qua Gmail (admin) + Zalo (quán, admin) bằng Google Apps Script. Không chặn việc đặt đơn nếu lỗi. */
-export async function notifyNewOrder(orderId) {
+export async function notifyNewOrder(orderId, orderData) {
   if (!UPLOAD_URL) return;
   for (let i = 0; i < 3; i++) {   // thử lại tối đa 3 lần nếu mạng/Google chập chờn
     try {
       const token = await idToken();
-      const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'notifyOrder', token, orderId }) });
+      const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'notifyOrder', token, orderId, order:orderData }) });
       const j = await res.json().catch(() => null);
       console.log('[Báo đơn mới]', j);   // F12 → Console: ok:true là đã gửi
       if (j && j.ok) return;
@@ -226,6 +226,37 @@ export async function listCustomers(cursor = null, size = 300) {
 export async function countCustomers() {
   if (custTotal != null) return custTotal;
   try { return (await getCountFromServer(query(collection(db, 'users'), where('role', '==', 'customer')))).data().count; } catch (e) { return null; }
+}
+/* Tìm người dùng theo tên / SĐT: tìm trong Sheet, và nếu gõ đủ SĐT thì hỏi thêm Firestore đúng 1 truy vấn (để tìm được cả người chưa kịp chuyển sang Sheet) */
+export async function searchUsers(q) {
+  const found = {};
+  const j = await sheetCall('adminList', { what:'search', q }, 30000);
+  if (j && j.ok) j.rows.forEach(u => { found[u.uid] = u; });
+  const digits = String(q).replace(/\D/g, '');
+  if (digits.length >= 9) {
+    try { (await getDocs(query(collection(db, 'users'), where('phone', '==', digits), limit(3)))).docs.forEach(d => { found[d.id] = { uid:d.id, ...d.data() }; }); }
+    catch (e) { if (!(j && j.ok)) throw e; }
+  }
+  return Object.values(found);
+}
+/* Đếm bản ghi trên Firestore (chỉ vài lượt đọc) để so với Google Sheet và báo thiếu */
+export async function fsCount(what) {
+  try {
+    const q = what === 'customers' ? query(collection(db, 'users'), where('role', '==', 'customer')) : collection(db, what);
+    return (await getCountFromServer(q)).data().count;
+  } catch (e) { return null; }
+}
+/* Đồng bộ dữ liệu cũ Firestore → Google Sheet ngay trên web (script chạy từng đợt ~2,5 phút, hàm này tự gọi lại đến khi xong) */
+export async function sheetBackfill(what, onProgress) {
+  let added = 0;
+  for (let i = 0; i < 40; i++) {
+    const j = await sheetCall('backfill', { what }, 240000);
+    if (!j) throw new Error(SHEET_PAGE_FAIL);
+    if (!j.ok) throw new Error(j.quota ? QUOTA_MSG : (j.error || SHEET_PAGE_FAIL));
+    added += j.added || 0; if (onProgress) onProgress(added, !!j.done);
+    if (j.done) return added;
+  }
+  return added;
 }
 /* Lịch sử đơn từ Google Sheet: mới nhất trước. before = số đơn đã tải. */
 export async function sheetOrders(before = 0, size = 100) {
