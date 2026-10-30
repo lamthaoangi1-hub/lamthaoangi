@@ -1,5 +1,5 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261029d';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261029d';
+import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261029e';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261029e';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -133,12 +133,14 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     const q = flat($('#uq')?.value.trim());
     const match = u => !q || flat(u.phone).includes(q) || flat(u.name).includes(q);
     const cnt = r => users.filter(u => u.role === r).length;
-    const pills = [['all', 'Tất cả', users.length], ...ROLES.map(([r, l]) => [r, l, cnt(r)])];
+    const pills = [['all', 'Tất cả', utotal != null ? users.length - cnt('customer') + utotal : users.length], ...ROLES.map(([r, l]) => [r, l, r === 'customer' && utotal != null ? utotal : cnt(r)])];
     const groups = ufil === 'all' ? ROLES : ROLES.filter(([r]) => r === ufil);
     return auditCard() + `<div class="card"><div class="row"><input type="search" id="uq" placeholder="Tìm theo tên hoặc số điện thoại" style="max-width:280px;margin:0"><button class="btn sm" data-ureload>Tải lại danh sách</button></div>
     <p class="muted" style="margin-top:8px">Khách tự đăng ký trên website (vai trò “Khách hàng”). Đổi vai trò tại đây; <b>Nhà bán hàng</b> cần gán cửa hàng, hoặc dùng nút “Cấp TK” ở tab Cửa hàng. Người dùng quên mật khẩu: bấm <b>Đặt lại MK</b> ở cuối dòng.</p></div>
     <div class="tabs" style="position:static;border:0;padding:0;background:none;margin:2px 0 10px">${pills.map(([k, l, n]) => `<button class="${ufil === k ? 'on' : ''}" data-ufil="${k}">${l} (${n})</button>`).join('')}</div>
-    ${groups.map(([r, l]) => `${ufil === 'all' ? `<h3 style="margin:14px 0 6px">${l} (${cnt(r)})</h3>` : ''}${userTable(r, users.filter(u => u.role === r && match(u)))}`).join('')}`;
+    ${groups.map(([r, l]) => `${ufil === 'all' ? `<h3 style="margin:14px 0 6px">${l} (${r === 'customer' && utotal != null ? utotal : cnt(r)})</h3>` : ''}${userTable(r, users.filter(u => u.role === r && match(u)))}`).join('')}
+    ${(ufil === 'all' || ufil === 'customer') ? `<div class="card" style="text-align:center"><p class="muted" style="margin:0 0 8px">Đã tải <b>${cnt('customer')}</b>${utotal != null ? ' / <b>' + utotal + '</b>' : ''} khách hàng${udone ? ' (đã đủ)' : ''}.${q && !udone ? ' Chưa thấy người cần tìm? Bấm tải thêm rồi tìm lại.' : ''}</p>
+      ${udone ? '' : `<div class="row" style="justify-content:center"><button class="btn sm" data-umore ${umore ? 'disabled' : ''}>${umore ? 'Đang tải…' : 'Tải thêm 300 khách'}</button><button class="btn sm o" data-uall ${umore ? 'disabled' : ''}>Tải tất cả</button></div>`}</div>` : ''}`;
   };
 
   const promosView = () => `<div class="card"><h3>Thêm mã giảm giá</h3><div class="grid"><label class="f">Mã<input type="text" id="p-code" placeholder="GIAM30K"></label><label class="f">Mô tả<input type="text" id="p-desc" placeholder="Giảm 30K cho đơn từ 100K"></label>
@@ -188,7 +190,21 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     });
     await fb.saveNotify({ shops:shopsMap, shippers });
   };
-  const loadUsers = async () => { try { users = await fb.listUsers(); } catch (e) { err = fb.errMsg(e); } draw(); };
+  let ucur = null, udone = true, utotal = null, umore = false;
+  const loadUsers = async () => {
+    try {
+      const [staff, c, n] = await Promise.all([fb.listStaff(), fb.listCustomers(null), fb.countCustomers()]);
+      users = [...staff, ...c.list]; ucur = c.cursor; udone = c.done; utotal = n; err = '';
+    } catch (e) { err = fb.errMsg(e); }
+    draw();
+  };
+  const loadMoreUsers = async (all) => {
+    if (umore || udone) return; umore = true; draw();
+    try {
+      do { const c = await fb.listCustomers(ucur); users = [...users, ...c.list]; ucur = c.cursor; udone = c.done; } while (all && !udone);
+    } catch (e) { toast(e.code ? fb.errMsg(e) : e.message); }
+    umore = false; draw();
+  };
 
   track(fb.watchShops((l, e) => { shops = l.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi')); if (e) err = fb.errMsg(e); if (orders.length) syncSold(); if (!edit || !$('#f-name')) draw(); }));
   track(fb.watchAllOrders((l, e) => { orders = l; syncSold(); if (e) err = fb.errMsg(e); if (tab === 'orders' || tab === 'revenue') draw(); }));
@@ -336,6 +352,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       }
       else if (g('[data-ufil]')) { ufil = g('[data-ufil]').dataset.ufil; draw(); }
       else if (g('[data-ureload]')) { await loadUsers(); toast('Đã tải lại'); }
+      else if (g('[data-umore]')) { await loadMoreUsers(false); }
+      else if (g('[data-uall]')) { await loadMoreUsers(true); }
       else if (g('[data-addpromo]')) {
         const v = id => $('#' + id).value.trim(); if (!v('p-code')) return toast('Nhập mã');
         await fb.savePromo(null, { code:v('p-code').toUpperCase(), desc:v('p-desc'), off:+v('p-off') || 0, min:+v('p-min') || 0, active:true }); toast('Đã thêm mã');

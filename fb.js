@@ -2,7 +2,7 @@
 import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, limit, serverTimestamp }
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, limit, orderBy, startAfter, documentId, getCountFromServer, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js?v=20261023a';
 import { UPLOAD_URL } from './upload-config.js?v=20261023a';
@@ -179,16 +179,21 @@ export async function onForegroundPush(cb) {
 export const createShop = d => addDoc(collection(db, 'shops'), { ...d, createdAt:serverTimestamp() });
 export const patchShop = (id, patch) => updateDoc(doc(db, 'shops', id), patch);
 export const removeShop = id => deleteDoc(doc(db, 'shops', id));
-/* Trước đây chỉ lấy 300 hồ sơ đầu (thứ tự theo mã ngẫu nhiên) nên khi khách đăng ký nhiều, chủ quán/shipper mới bị rớt khỏi danh sách Admin.
-   Giờ luôn lấy ĐỦ nhân sự (admin/seller/shipper) rồi mới lấy thêm khách (tối đa 300, để tiết kiệm lượt đọc Firestore). */
-export async function listUsers() {
-  const col = collection(db, 'users'), map = new Map();
-  const add = s => s.docs.forEach(d => map.set(d.id, { uid:d.id, ...d.data() }));
-  add(await getDocs(query(col, where('role', 'in', ['admin', 'seller', 'shipper']))));
-  add(await getDocs(query(col, where('role', '==', 'customer'), limit(300))));
-  return [...map.values()];
+/* Danh sách người dùng cho Admin: nhân sự (admin/seller/shipper) luôn lấy ĐỦ; khách lấy theo từng trang (mặc định 300) để tiết kiệm lượt đọc, bấm "Tải thêm" để lấy tiếp.
+   Trước đây chỉ lấy 300 hồ sơ đầu (thứ tự theo mã ngẫu nhiên) nên chủ quán/shipper mới bị rớt khỏi danh sách. */
+export async function listStaff() {
+  const s = await getDocs(query(collection(db, 'users'), where('role', 'in', ['admin', 'seller', 'shipper'])));
+  return s.docs.map(d => ({ uid:d.id, ...d.data() }));
 }
-export const patchUser = (uid, patch) => withTimeout(updateDoc(doc(db, 'users', uid), patch), 15000, 'Firestore không phản hồi (có thể đã hết hạn mức miễn phí trong ngày hoặc mất mạng). Thử lại sau.');
+export async function listCustomers(cursor = null, size = 300) {
+  const q = query(collection(db, 'users'), where('role', '==', 'customer'), orderBy(documentId()), ...(cursor ? [startAfter(cursor)] : []), limit(size));
+  const s = await getDocs(q);
+  return { list: s.docs.map(d => ({ uid:d.id, ...d.data() })), cursor: s.docs.length ? s.docs[s.docs.length - 1] : cursor, done: s.docs.length < size };
+}
+/* Tổng số khách (đếm phía máy chủ, rất rẻ: 1 lượt đọc cho mỗi 1000 hồ sơ) */
+export async function countCustomers() {
+  try { return (await getCountFromServer(query(collection(db, 'users'), where('role', '==', 'customer')))).data().count; } catch (e) { return null; }
+}
 /* Admin đặt lại mật khẩu cho người dùng: gọi Apps Script (script tự kiểm tra người gọi là Admin rồi đổi mật khẩu trong Firebase Auth) */
 export async function resetUserPassword(uid, password) {
   if (!UPLOAD_URL) throw new Error('Chưa cấu hình Google Apps Script (upload-config.js)');

@@ -101,8 +101,16 @@ function uploadImage(body) {
   if (!body.token || !body.data) return out({ ok: false, error: 'Thiếu dữ liệu' });
   const uid = verifyToken(body.token);
   if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn, hãy đăng nhập lại' });
-  const me = getDoc('users/' + uid, body.token);
-  if (!me) return out({ ok: false, error: 'Không đọc được hồ sơ tài khoản' });
+  // Đọc hồ sơ bằng token của người gọi; không được thì đọc bằng quyền của chủ script, và nếu vẫn lỗi thì báo rõ mã lỗi thay vì báo chung chung
+  let me = getDoc('users/' + uid, body.token) || getDocAdmin('users/' + uid, body.token);
+  if (!me) {
+    const rr = UrlFetchApp.fetch(FS + 'users/' + uid, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    const c = rr.getResponseCode();
+    console.error('uploadImage: không đọc được users/' + uid + ' → ' + c + ' ' + rr.getContentText().slice(0, 200));
+    if (c === 429) return out({ ok: false, error: 'Firestore đã hết hạn mức miễn phí trong ngày (mã 429). Hạn mức tự làm mới khoảng 14h00 giờ Việt Nam; hoặc Admin nâng gói Blaze để dùng ngay.' });
+    if (c === 404) return out({ ok: false, error: 'Tài khoản này chưa có hồ sơ trong hệ thống (mã 404). Hãy nhờ Admin kiểm tra ở tab Người dùng.' });
+    return out({ ok: false, error: 'Không đọc được hồ sơ tài khoản (mã ' + c + '). Thử lại sau ít phút.' });
+  }
   if (me.role !== 'admin' && me.role !== 'seller') return out({ ok: false, error: 'Tài khoản không có quyền tải ảnh' });
 
   const mime = String(body.mime || '');

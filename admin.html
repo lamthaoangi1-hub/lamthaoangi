@@ -2,11 +2,16 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Quản trị</title>
 <meta http-equiv="refresh" content="0; url=quanly.html">
 <script>location.replace('quanly.html');</script>
+<script>
+/* Khóa zoom: iOS Safari bỏ qua user-scalable=no nên chặn thêm cử chỉ chụm 2 ngón; double-tap đã tắt bằng touch-action:manipulation */
+['gesturestart','gesturechange','gestureend'].forEach(function(t){document.addEventListener(t,function(e){e.preventDefault();},{passive:false});});
+document.addEventListener('touchmove',function(e){if(e.touches&&e.touches.length>1&&e.cancelable)e.preventDefault();},{passive:false});
+</script>
 </head>
 <body><p style="font-family:sans-serif;padding:20px">Đang chuyển tới <a href="quanly.html">trang đăng nhập chung</a>…</p></body>
 </html>

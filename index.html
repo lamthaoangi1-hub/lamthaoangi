@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#12a150">
   <title>Lâm Thao Ăn Gì? – Đặt đồ ăn online, giao tận nơi tại Lâm Thao, Phú Thọ</title>
   <meta name="description" content="Lâm Thao Ăn Gì? (Lam Thao An Gi) – website đặt món, đặt đồ ăn online và giao hàng tận nơi tại Lâm Thao, Phú Thọ. Phở, cơm, bánh mì, trà sữa… từ các quán ngon gần nhà, thanh toán tiền mặt hoặc chuyển khoản.">
@@ -61,7 +61,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261027c">
+  <link rel="stylesheet" href="style.css?v=20261029e">
+<script>
+/* Khóa zoom: iOS Safari bỏ qua user-scalable=no nên chặn thêm cử chỉ chụm 2 ngón; double-tap đã tắt bằng touch-action:manipulation */
+['gesturestart','gesturechange','gestureend'].forEach(function(t){document.addEventListener(t,function(e){e.preventDefault();},{passive:false});});
+document.addEventListener('touchmove',function(e){if(e.touches&&e.touches.length>1&&e.cancelable)e.preventDefault();},{passive:false});
+</script>
 </head>
 <body>
   <div id="app">
@@ -90,6 +95,6 @@
     <p>Lâm Thao Ăn Gì (Lam Thao An Gi) giúp bạn đặt món từ các quán ăn ngon gần nhà và giao tận nơi tại Lâm Thao, Phú Thọ: phở, cơm tấm, bánh mì, trà sữa và nhiều món khác. Thanh toán tiền mặt khi nhận hàng hoặc chuyển khoản qua mã QR.</p>
     <p>Vui lòng bật JavaScript để xem danh sách quán và đặt món.</p>
   </noscript>
-  <script src="app.js?v=20261027d"></script>
+  <script src="app.js?v=20261029e"></script>
 </body>
 </html>

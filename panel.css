@@ -116,3 +116,6 @@ main{max-width:1180px;padding:24px 18px 70px}
 .oc-money .bankwait{background:var(--ol)}.oc-money .bankwait b{color:#b45f06}
 .oc-warn{margin:0 16px 10px;padding:9px 12px;border-radius:12px;background:var(--ol);color:#b45f06;font-size:13px;font-weight:600}
 .payrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+
+/* Ô nhập >=16px để iPhone không tự phóng to trang khi chạm vào ô */
+@media (max-width:820px){input,select,textarea{font-size:16px !important}}
