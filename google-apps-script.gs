@@ -3,6 +3,8 @@
  * 1) Lưu ảnh lên Google Drive (admin / seller)
  * 2) Thông báo ĐƠN MỚI: gửi Gmail cho Admin + tin Zalo Bot cho Quán và Admin
  * 3) Admin ĐẶT LẠI MẬT KHẨU cho người dùng (cần file appsscript.json đi kèm, xem HUONG-DAN.md)
+ * 4) LƯU TRỮ GOOGLE SHEET: mọi tài khoản đăng ký + mọi đơn hàng (kể cả đổi trạng thái) được ghi vào Google Sheet.
+ *    Admin xem lịch sử đơn / danh sách khách từ Sheet → gần như không tốn lượt đọc Firestore (xem HUONG-DAN-GOOGLE-SHEET.md)
  *
  * Dán toàn bộ file vào https://script.google.com, điền các hằng số bên dưới,
  * rồi Deploy → Manage deployments → Edit → New version (xem HUONG-DAN.md).
@@ -18,6 +20,21 @@ const SITE_ORIGIN = 'https://lamthaoangi.io.vn';        // địa chỉ website 
 
 const ADMIN_EMAIL = 'lamthaoangi1@gmail.com';             // Gmail nhận thông báo đơn mới (có thể ghi nhiều, cách nhau dấu phẩy)
 const SITE_URL = 'https://lamthaoangi.io.vn/quanly.html';  // link trang quản lý (đăng nhập chung) gắn vào email báo đơn
+const QUOTA_MSG = 'Không thể tải lên, vui lòng liên hệ quản trị.';   // hiện cho người dùng khi Firestore hết hạn mức miễn phí trong ngày (mã 429)
+
+// ----- Google Sheet lưu trữ -----
+// Để trống SHEET_ID: lần đầu script tự tạo 1 file Google Sheet mới (trong Drive của tài khoản chủ script) và nhớ ID trong Script properties.
+// Muốn dùng file có sẵn: dán ID file (đoạn giữa /d/ và /edit trong link) vào đây hoặc vào Script property SHEET_ID.
+const SHEET_ID = '';
+const SHEET_USERS = 'NguoiDung', SHEET_ORDERS = 'DonHang';
+const USER_COLS = ['uid', 'name', 'phone', 'role', 'shopId', 'zaloId', 'address', 'createdAt', 'updatedAt'];
+const USER_TEXT = ['uid', 'name', 'phone', 'role', 'shopId', 'zaloId', 'address', 'createdAt', 'updatedAt'];
+const ORDER_COLS = ['id', 'code', 'createdAt', 'updatedAt', 'status', 'type', 'shopId', 'shopName', 'uid', 'customerName', 'customerPhone', 'address', 'note', 'items',
+  'subtotal', 'discount', 'shipFee', 'shopShip', 'nightFee', 'total', 'payment', 'payStatus', 'customerPaid', 'shipperUid', 'shipperName', 'shipperPhone',
+  'lat', 'lng', 'distanceKm', 'codAmount', 'receiverName', 'receiverPhone', 'shopAddress', 'promoCode'];
+const ORDER_TEXT = ['id', 'code', 'createdAt', 'updatedAt', 'status', 'type', 'shopId', 'shopName', 'uid', 'customerName', 'customerPhone', 'address', 'note', 'items',
+  'payment', 'payStatus', 'shipperUid', 'shipperName', 'shipperPhone', 'receiverName', 'receiverPhone', 'shopAddress', 'promoCode'];
+const ORDER_NUM = ['subtotal', 'discount', 'shipFee', 'shopShip', 'nightFee', 'total', 'lat', 'lng', 'distanceKm', 'codAmount'];
 
 /**
  * Script properties (Project Settings → Script properties) – dùng cho Zalo Bot:
@@ -34,12 +51,13 @@ function out(obj) {
 const props = () => PropertiesService.getScriptProperties();
 const FS = 'https://firestore.googleapis.com/v1/projects/' + FIREBASE_PROJECT + '/databases/(default)/documents/';
 
-function verifyToken(token) {
+function verifyTokenInfo(token) {
   const r = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + FIREBASE_API_KEY, {
     method: 'post', contentType: 'application/json', payload: JSON.stringify({ idToken: token }), muteHttpExceptions: true });
   if (r.getResponseCode() !== 200) return null;
-  return JSON.parse(r.getContentText()).users[0].localId;
+  return JSON.parse(r.getContentText()).users[0];
 }
+function verifyToken(token) { const u = verifyTokenInfo(token); return u ? u.localId : null; }
 
 // Đổi định dạng Firestore REST ({stringValue:..}, {mapValue:..}) sang object thường
 function fromFs(v) {
@@ -90,6 +108,9 @@ function doPost(e) {
     if (body.action === 'notifyStatus') return notifyStatus(body);
     if (body.action === 'resetPassword') return resetPassword(body);
     if (body.action === 'createSeller') return createSeller(body);
+    if (body.action === 'syncUser') return syncUser(body);
+    if (body.action === 'syncOrder') return syncOrder(body);
+    if (body.action === 'adminList') return adminList(body);
     return uploadImage(body);
   } catch (err) {
     return out({ ok: false, error: 'Lỗi máy chủ: ' + err });
@@ -107,9 +128,9 @@ function uploadImage(body) {
     const rr = UrlFetchApp.fetch(FS + 'users/' + uid, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
     const c = rr.getResponseCode();
     console.error('uploadImage: không đọc được users/' + uid + ' → ' + c + ' ' + rr.getContentText().slice(0, 200));
-    if (c === 429) return out({ ok: false, error: 'Firestore đã hết hạn mức miễn phí trong ngày (mã 429). Hạn mức tự làm mới khoảng 14h00 giờ Việt Nam; hoặc Admin nâng gói Blaze để dùng ngay.' });
+    if (c === 429) return out({ ok: false, quota: true, error: QUOTA_MSG });   // hạn mức miễn phí tự làm mới khoảng 14h00 giờ Việt Nam
     if (c === 404) return out({ ok: false, error: 'Tài khoản này chưa có hồ sơ trong hệ thống (mã 404). Hãy nhờ Admin kiểm tra ở tab Người dùng.' });
-    return out({ ok: false, error: 'Không đọc được hồ sơ tài khoản (mã ' + c + '). Thử lại sau ít phút.' });
+    return out({ ok: false, error: c >= 500 ? QUOTA_MSG : 'Không đọc được hồ sơ tài khoản (mã ' + c + '). Thử lại sau ít phút.' });
   }
   if (me.role !== 'admin' && me.role !== 'seller') return out({ ok: false, error: 'Tài khoản không có quyền tải ảnh' });
 
@@ -280,6 +301,7 @@ function createSeller(body) {
     if (!adopted) { try { post(':delete', { localId: uid }); } catch (e) {} }   // không để lại tài khoản mồ côi
     return out({ ok: false, error: 'Không ghi được hồ sơ (mã ' + w.getResponseCode() + '): ' + w.getContentText().replace(/\s+/g, ' ').slice(0, 160) });
   }
+  try { upsertUser(uid, { name: String(body.name || shop.name || ''), phone: phone, role: 'seller', shopId: String(body.shopId), zaloId: body.zaloId ? String(body.zaloId).trim() : '', address: '' }, { createdAt: new Date().toISOString() }); } catch (e) { console.error('Sheet user: ' + e); }
   console.log('createSeller: admin ' + adminUid + ' cấp tài khoản chủ quán ' + phone + ' cho quán ' + body.shopId + (adopted ? ' (dùng lại tài khoản sẵn có)' : ''));
   return out({ ok: true, uid: uid, adopted: adopted });
 }
@@ -302,6 +324,8 @@ function notifyOrder(body) {
   // Đọc đơn bằng chính token của khách → luật bảo mật đảm bảo đơn có thật và thuộc về khách này
   const order = getDoc('orders/' + body.orderId, body.token);
   if (!order || order.uid !== uid) return out({ ok: false, error: 'Không tìm thấy đơn' });
+  // Lưu đơn vào Google Sheet trước (ghi đè theo mã đơn nên gọi lại nhiều lần cũng không bị trùng dòng)
+  try { upsertOrder(body.orderId, order); } catch (e) { console.error('Sheet đơn: ' + e); }
   if (order.status !== 'pending') return out({ ok: false, error: 'Đơn không ở trạng thái chờ' });
 
   // Chống gửi trùng (bấm/gọi lại nhiều lần)
@@ -366,6 +390,7 @@ function notifyStatus(body) {
   if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn' });
   const order = getDoc('orders/' + body.orderId, body.token);   // luật bảo mật: chỉ người có quyền xem đơn mới đọc được
   if (!order) return out({ ok: false, error: 'Không tìm thấy đơn' });
+  try { upsertOrder(body.orderId, order); } catch (e) { console.error('Sheet đơn: ' + e); }   // cập nhật trạng thái/thanh toán vào Google Sheet (kể cả khi khách tự hủy)
   if (order.uid === uid) return out({ ok: true, skipped: 'khách tự thao tác' });
   const msg = statusMessage(order, order.status);
   if (!msg) return out({ ok: true, skipped: 'trạng thái ' + order.status });
@@ -413,6 +438,11 @@ function sweepOrderStatus() {
     if (!row.document) return;
     const orderId = row.document.name.split('/').pop();
     const order = docToObj(row.document);
+    // Đồng bộ Google Sheet cho đơn vừa đổi (bỏ qua nếu bản ghi trong Sheet đã đúng trạng thái này)
+    try {
+      const sig = order.status + '|' + order.updatedAt + '|' + order.payStatus + '|' + order.customerPaid, ck = 'sh_' + orderId, cc = CacheService.getScriptCache();
+      if (cc.get(ck) !== sig) { upsertOrder(orderId, order); cc.put(ck, sig, 21600); }
+    } catch (e) { console.error('sweep sheet: ' + e); }
     // 'cancelled' bỏ qua: khách tự hủy cũng đổi sang trạng thái này, không phân biệt được ai hủy → để web báo như cũ
     if (!order.uid || order.status === 'cancelled') return;
     const msg = statusMessage(order, order.status);
@@ -555,6 +585,185 @@ function sendOrderEmail(order, shop) {
   });
 }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+
+// ===================== 4) LƯU TRỮ GOOGLE SHEET =====================
+function getSS() {
+  const id = SHEET_ID || props().getProperty('SHEET_ID');
+  if (id) return SpreadsheetApp.openById(id);   // lỗi tạm thời thì để lỗi nổi lên, TUYỆT ĐỐI không tự tạo file mới (tránh nhân đôi dữ liệu)
+  const ss = SpreadsheetApp.create('Lâm Thao Ăn Gì – Dữ liệu');
+  props().setProperty('SHEET_ID', ss.getId());
+  return ss;
+}
+function sheetOf(name, cols, textCols) {
+  const ss = getSS();
+  let sh = ss.getSheetByName(name);
+  if (sh) return sh;
+  sh = ss.insertSheet(name);
+  sh.getRange(1, 1, 1, cols.length).setValues([cols]).setFontWeight('bold').setBackground('#e8f5e9');
+  sh.setFrozenRows(1);
+  textCols.forEach(c => sh.getRange(1, cols.indexOf(c) + 1, sh.getMaxRows(), 1).setNumberFormat('@'));   // định dạng văn bản: giữ số 0 đầu của SĐT, không bị Sheets tự đổi ISO date
+  const first = ss.getSheets()[0];
+  if (ss.getSheets().length > 1 && /^(Sheet1|Trang tính1|Bảng tính1)$/.test(first.getName()) && first.getLastRow() === 0) { try { ss.deleteSheet(first); } catch (e) {} }
+  return sh;
+}
+const usersSheet = () => sheetOf(SHEET_USERS, USER_COLS, USER_TEXT);
+const ordersSheet = () => sheetOf(SHEET_ORDERS, ORDER_COLS, ORDER_TEXT);
+function findRow(sh, id) {
+  const last = sh.getLastRow(); if (last < 2) return 0;
+  const f = sh.getRange(2, 1, last - 1, 1).createTextFinder(String(id)).matchEntireCell(true).matchCase(true).findNext();
+  return f ? f.getRow() : 0;
+}
+const cellVal = v => v == null ? '' : (v instanceof Date ? v.toISOString() : (typeof v === 'object' ? JSON.stringify(v) : v));
+function rowToObj(cols, row, numCols) {
+  const o = {};
+  cols.forEach((c, i) => {
+    let v = row[i]; if (v instanceof Date) v = v.toISOString();
+    if (v === '' || v == null) return;
+    if (numCols && numCols.indexOf(c) >= 0) v = Number(v);
+    o[c] = v;
+  });
+  return o;
+}
+function orderArr(id, o) { return ORDER_COLS.map(c => c === 'id' ? String(id) : c === 'items' ? JSON.stringify(o.items || []) : cellVal(o[c])); }
+function orderFromRow(row) {
+  const o = rowToObj(ORDER_COLS, row, ORDER_NUM);
+  try { o.items = JSON.parse(o.items || '[]'); } catch (e) { o.items = []; }
+  if ('customerPaid' in o) o.customerPaid = o.customerPaid === true || o.customerPaid === 'true' || o.customerPaid === 'TRUE';
+  return o;
+}
+// Thêm đơn vào Sheet, hoặc ghi đè dòng cũ nếu mã đơn đã có
+function upsertOrder(id, o) {
+  const sh = ordersSheet(), row = orderArr(id, o);
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const r = findRow(sh, id);
+    if (r) sh.getRange(r, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
+  } finally { lock.releaseLock(); }
+}
+// patch: chỉ ghi các trường có giá trị (undefined = giữ nguyên); defaults: chỉ dùng khi thêm dòng mới
+function upsertUser(uid, patch, defaults) {
+  const sh = usersSheet();
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const r = findRow(sh, uid);
+    const old = r ? rowToObj(USER_COLS, sh.getRange(r, 1, 1, USER_COLS.length).getValues()[0]) : Object.assign({}, defaults || {});
+    const cur = Object.assign({}, old);
+    Object.keys(patch || {}).forEach(k => { if (patch[k] !== undefined && patch[k] !== null) cur[k] = patch[k]; });
+    cur.uid = String(uid); cur.updatedAt = new Date().toISOString();
+    if (!cur.createdAt) cur.createdAt = cur.updatedAt;
+    const row = USER_COLS.map(c => cellVal(cur[c]));
+    if (r) sh.getRange(r, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
+  } finally { lock.releaseLock(); }
+}
+function sheetUserRole(uid) {
+  try { const sh = usersSheet(), r = findRow(sh, uid); return r ? String(sh.getRange(r, 4).getValue()) : null; } catch (e) { return null; }
+}
+// Vai trò thật của người gọi: đọc Firestore bằng token của họ; Firestore hết hạn mức thì lấy từ bản sao trong Sheet
+function roleOf(uid, token) {
+  const d = getDoc('users/' + uid, token);
+  return d ? d.role : sheetUserRole(uid);
+}
+
+// Web gọi sau khi khách đăng ký / sửa hồ sơ (không truyền uid), hoặc Admin đổi vai trò / gán quán / Zalo ID của người khác (truyền uid)
+function syncUser(body) {
+  if (!body.token) return out({ ok: false, error: 'Thiếu dữ liệu' });
+  const me = verifyTokenInfo(body.token);
+  if (!me) return out({ ok: false, error: 'Phiên đăng nhập hết hạn' });
+  const clean = v => String(v == null ? '' : v).trim().slice(0, 200);
+  const pick = d => ({ name: d.name, phone: d.phone, role: d.role, shopId: d.shopId, zaloId: d.zaloId, address: d.address, createdAt: d.createdAt });
+  let uid = me.localId;
+  if (body.uid && body.uid !== me.localId) {
+    if (roleOf(me.localId, body.token) !== 'admin') return out({ ok: false, error: 'Chỉ Admin mới đồng bộ hồ sơ người khác' });
+    uid = String(body.uid);
+    const d = getDoc('users/' + uid, body.token);
+    if (!d) return out({ ok: false, error: 'Không đọc được hồ sơ' });
+    upsertUser(uid, pick(d), {});
+    return out({ ok: true });
+  }
+  const d = getDoc('users/' + uid, body.token);   // hồ sơ của chính mình (luật bảo mật cho phép)
+  if (d) upsertUser(uid, pick(d), {});
+  else upsertUser(uid, { name: clean(body.name), phone: String(me.email || '').split('@')[0], address: body.address == null ? undefined : clean(body.address) }, { role: 'customer', createdAt: new Date().toISOString() });
+  return out({ ok: true });
+}
+// Web gọi sau khi đổi thanh toán / ghi chú đơn mà không đổi trạng thái (VD: Admin xác nhận đã nhận tiền, khách báo đã chuyển khoản)
+function syncOrder(body) {
+  if (!body.token || !body.orderId) return out({ ok: false, error: 'Thiếu dữ liệu' });
+  if (!verifyToken(body.token)) return out({ ok: false, error: 'Phiên đăng nhập hết hạn' });
+  const order = getDoc('orders/' + body.orderId, body.token);   // luật bảo mật: chỉ người có quyền xem đơn mới đọc được
+  if (!order) return out({ ok: false, error: 'Không tìm thấy đơn' });
+  upsertOrder(body.orderId, order);
+  return out({ ok: true });
+}
+
+// ----- Admin đọc dữ liệu từ Sheet (thay cho đọc cả bộ sưu tập Firestore) -----
+function adminList(body) {
+  if (!body.token) return out({ ok: false, error: 'Thiếu dữ liệu' });
+  const uid = verifyToken(body.token);
+  if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn, hãy đăng nhập lại' });
+  if (roleOf(uid, body.token) !== 'admin') return out({ ok: false, error: 'Chỉ Admin mới xem được' });
+  const limit = Math.min(Math.max(parseInt(body.limit, 10) || 100, 1), 1000), offset = Math.max(parseInt(body.offset, 10) || 0, 0);
+
+  if (body.what === 'orders') {
+    const sh = ordersSheet(), last = sh.getLastRow(), total = Math.max(0, last - 1);
+    if (!total) return out({ ok: true, rows: [], total: 0, done: true });
+    if (body.mode === 'done') {   // báo cáo doanh thu: chỉ đơn hoàn thành, chỉ các cột cần thiết
+      const vals = sh.getRange(2, 1, total, ORDER_COLS.length).getValues();
+      const keep = ['id', 'shopId', 'status', 'type', 'subtotal', 'discount', 'shopShip', 'createdAt', 'updatedAt'];
+      const rows = vals.filter(r => r[ORDER_COLS.indexOf('status')] === 'done').map(r => { const o = orderFromRow(r), s = {}; keep.forEach(k => { if (o[k] !== undefined) s[k] = o[k]; }); return s; });
+      return out({ ok: true, rows: rows, total: rows.length, done: true });
+    }
+    // Lịch sử đơn: mới nhất trước, phân trang từ cuối Sheet lên
+    const endRow = last - offset, startRow = Math.max(2, endRow - limit + 1);
+    if (endRow < 2) return out({ ok: true, rows: [], total: total, done: true });
+    const vals = sh.getRange(startRow, 1, endRow - startRow + 1, ORDER_COLS.length).getValues().reverse();
+    return out({ ok: true, rows: vals.map(orderFromRow), total: total, done: startRow <= 2 });
+  }
+  if (body.what === 'customers' || body.what === 'staff') {
+    const sh = usersSheet(), last = sh.getLastRow();
+    let all = last < 2 ? [] : sh.getRange(2, 1, last - 1, USER_COLS.length).getValues().map(r => rowToObj(USER_COLS, r));
+    all = body.what === 'staff' ? all.filter(u => u.role && u.role !== 'customer') : all.filter(u => !u.role || u.role === 'customer');
+    all.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    const rows = body.what === 'staff' ? all : all.slice(offset, offset + limit);
+    return out({ ok: true, rows: rows, total: all.length, done: body.what === 'staff' || offset + limit >= all.length });
+  }
+  return out({ ok: false, error: 'Yêu cầu không hợp lệ' });
+}
+
+// ----- Chạy tay trong trình soạn thảo -----
+// 1) setupSheets: cấp quyền Google Sheet, tạo file + 2 tab, in ra link file
+function setupSheets() {
+  usersSheet(); ordersSheet();
+  Logger.log('OK – file Google Sheet lưu trữ: ' + getSS().getUrl());
+}
+// 2) Chuyển dữ liệu CŨ từ Firestore sang Sheet (chỉ chạy 1 lần; tốn lượt đọc Firestore một lần). Hết thời gian thì chạy lại, script tự làm tiếp từ chỗ dừng.
+function backfillUsers() { backfill_('users', usersSheet(), USER_COLS, (id, d) => USER_COLS.map(c => c === 'uid' ? id : cellVal(d[c]))); }
+function backfillOrders() { backfill_('orders', ordersSheet(), ORDER_COLS, (id, d) => orderArr(id, d)); }
+function backfillResetUsers() { props().deleteProperty('BF_users'); Logger.log('Đã đặt lại điểm dừng chuyển người dùng'); }
+function backfillResetOrders() { props().deleteProperty('BF_orders'); Logger.log('Đã đặt lại điểm dừng chuyển đơn hàng'); }
+function backfill_(col, sh, cols, toRow) {
+  const t0 = Date.now(), key = 'BF_' + col;
+  const lastRow = sh.getLastRow();
+  const have = {}; if (lastRow > 1) sh.getRange(2, 1, lastRow - 1, 1).getValues().forEach(r => have[String(r[0])] = 1);
+  let token = props().getProperty(key) || '', added = 0, seen = 0;
+  while (Date.now() - t0 < 240000) {
+    const r = UrlFetchApp.fetch(FS + col + '?pageSize=300' + (token ? '&pageToken=' + encodeURIComponent(token) : ''), { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    if (r.getResponseCode() !== 200) { Logger.log('LỖI ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 300) + (r.getResponseCode() === 429 ? '\n→ Firestore hết hạn mức hôm nay, chạy lại sau 14h00 (giờ VN); script nhớ điểm dừng.' : '')); return; }
+    const j = JSON.parse(r.getContentText()), rows = [];
+    (j.documents || []).forEach(doc => {
+      seen++; const id = doc.name.split('/').pop();
+      if (!have[id]) { have[id] = 1; rows.push(toRow(id, docToObj(doc))); }
+    });
+    if (rows.length) {
+      const start = sh.getLastRow() + 1, need = start + rows.length - 1 - sh.getMaxRows();
+      if (need > 0) sh.insertRowsAfter(sh.getMaxRows(), need);
+      sh.getRange(start, 1, rows.length, cols.length).setValues(rows); added += rows.length;
+    }
+    token = j.nextPageToken || '';
+    if (token) props().setProperty(key, token); else { props().deleteProperty(key); Logger.log('XONG chuyển ' + col + ': đã xét ' + seen + ' bản ghi, thêm mới ' + added + ' dòng.'); return; }
+  }
+  Logger.log('Hết thời gian chạy (đã thêm ' + added + ' dòng). Hãy bấm Run lại hàm này để làm tiếp.');
+}
 
 // ===================== ZALO BOT =====================
 // Gửi tin tới 1 chat_id (người đã nhắn tin cho bot). Trả true nếu gửi được.

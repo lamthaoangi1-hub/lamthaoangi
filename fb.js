@@ -20,7 +20,10 @@ const ERR = {
   'auth/weak-password':'Mật khẩu tối thiểu 6 ký tự', 'auth/too-many-requests':'Thử quá nhiều lần, vui lòng đợi ít phút',
   'auth/network-request-failed':'Không có kết nối mạng', 'permission-denied':'Bạn không có quyền thực hiện thao tác này',
 };
-export const errMsg = e => ERR[e?.code] || e?.message || 'Có lỗi xảy ra';
+/* Firestore hết hạn mức miễn phí trong ngày (đọc/ghi) → báo chung 1 câu, không lộ chi tiết kỹ thuật */
+export const QUOTA_MSG = 'Không thể tải lên, vui lòng liên hệ quản trị.';
+export const isQuota = e => /resource-exhausted/.test(String(e?.code || '')) || /quota|resource.exhausted|\b429\b/i.test(String(e?.message || ''));
+export const errMsg = e => isQuota(e) ? QUOTA_MSG : (ERR[e?.code] || e?.message || 'Có lỗi xảy ra');
 
 export const ts = () => serverTimestamp();
 export const currentUser = () => auth?.currentUser || null;
@@ -45,11 +48,12 @@ export function onAuth(cb) {
 export async function login(phone, pass) { await signInWithEmailAndPassword(auth, toEmail(phone), pass); }
 /* Chờ tối đa ms mili-giây; quá hạn thì báo lỗi thay vì treo mãi (Firestore hết hạn mức / mất mạng sẽ tự thử lại vô hạn) */
 const withTimeout = (p, ms, msg) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
-const SLOW = 'Máy chủ Firestore không phản hồi (có thể đã hết hạn mức đọc/ghi miễn phí trong ngày hoặc mất mạng). Chưa tạo tài khoản, hãy thử lại sau.';
+const SLOW = QUOTA_MSG;   // quá hạn chờ = nhiều khả năng Firestore đã hết hạn mức trong ngày
 export async function register(name, phone, pass) {
   const c = await createUserWithEmailAndPassword(auth, toEmail(phone), pass);
   try { await withTimeout(setDoc(doc(db, 'users', c.user.uid), { name, phone, role:'customer', address:'', createdAt:serverTimestamp() }), 15000, SLOW); }
   catch (e) { try { await c.user.delete(); } catch (e2) {} throw e; }   // ghi hồ sơ lỗi thì xóa luôn tài khoản vừa tạo, tránh để lại tài khoản "mồ côi" (báo đã đăng ký nhưng không có trong danh sách)
+  sheetCall('syncUser', { name });   // lưu tài khoản mới vào Google Sheet (chạy nền, lỗi cũng không ảnh hưởng việc đăng ký)
 }
 export const logout = async () => { try { if (auth.currentUser) await disablePush(auth.currentUser.uid, false); } catch (e) {} return signOut(auth); };   // gỡ máy này khỏi danh sách nhận thông báo của tài khoản trước khi thoát
 
@@ -64,7 +68,18 @@ export async function createSellerAccount({ name, phone, pass, shopId, zaloId = 
   const j = await res.json().catch(() => null);
   if (!j || !j.ok) throw new Error((j && j.error) || 'Không cấp được tài khoản, thử lại sau');
 }
-export const updateMyProfile = (uid, patch) => updateDoc(doc(db, 'users', uid), patch);
+/* Gọi Google Apps Script (lưu / đọc dữ liệu Google Sheet). Chạy nền, trả null nếu lỗi – KHÔNG bao giờ ném lỗi. */
+async function sheetCall(action, extra = {}, timeout = 0) {
+  if (!UPLOAD_URL || !configured || !auth?.currentUser) return null;
+  try {
+    const token = await idToken();
+    const req = fetch(UPLOAD_URL, { method:'POST', keepalive:!timeout, body:JSON.stringify({ action, token, ...extra }) }).then(r => r.json());
+    return await (timeout ? withTimeout(req, timeout, 'Google Apps Script không phản hồi') : req);
+  } catch (e) { console.warn('[Google Sheet]', action, e); return null; }
+}
+export const updateMyProfile = async (uid, patch) => { await updateDoc(doc(db, 'users', uid), patch); sheetCall('syncUser', { name:patch.name, address:patch.address }); };
+/* Admin đổi vai trò / gán quán / Zalo ID: ghi Firestore rồi cập nhật bản sao trong Google Sheet */
+export const patchUser = async (uid, patch) => { await updateDoc(doc(db, 'users', uid), patch); sheetCall('syncUser', { uid }); };
 
 /* ---- đọc realtime ---- */
 const watch = (q, cb) => onSnapshot(q, s => cb(s.docs.map(d => ({ id:d.id, ...d.data() })), null), e => cb([], e));
@@ -78,9 +93,11 @@ export const watchOrdersByStatus = (st, cb) => watch(query(collection(db, 'order
 export const watchOpenOrders = cb => watch(query(collection(db, 'orders'), where('status', 'in', ['pending', 'confirmed', 'preparing', 'ready'])), cb);
 export const watchShipperOrders = (uid, cb) => watch(query(collection(db, 'orders'), where('shipperUid', '==', uid)), cb);
 export const watchAllOrders = cb => watch(collection(db, 'orders'), cb);
+/* Admin: CHỈ đơn đang xử lý (realtime). Đơn đã xong/hủy rời khỏi truy vấn này nên không còn tốn lượt đọc; lịch sử lấy từ Google Sheet (sheetOrders) */
+export const watchActiveOrders = cb => watch(query(collection(db, 'orders'), where('status', 'in', ['pending', 'confirmed', 'preparing', 'ready', 'delivering'])), cb);
 
 /* ---- ghi ---- */
-export const placeOrder = o => addDoc(collection(db, 'orders'), { ...o, createdAt:serverTimestamp(), updatedAt:serverTimestamp() });
+export const placeOrder = o => withTimeout(addDoc(collection(db, 'orders'), { ...o, createdAt:serverTimestamp(), updatedAt:serverTimestamp() }), 30000, QUOTA_MSG);
 /* Báo đơn mới qua Gmail (admin) + Zalo (quán, admin) bằng Google Apps Script. Không chặn việc đặt đơn nếu lỗi. */
 export async function notifyNewOrder(orderId) {
   if (!UPLOAD_URL) return;
@@ -97,7 +114,8 @@ export async function notifyNewOrder(orderId) {
 }
 export async function patchOrder(id, patch) {
   await updateDoc(doc(db, 'orders', id), { ...patch, updatedAt:serverTimestamp() });
-  if (patch && patch.status) notifyStatus(id);   // đổi trạng thái → báo về máy khách (chạy nền, không chặn thao tác)
+  if (patch && patch.status) notifyStatus(id);   // đổi trạng thái → báo về máy khách + cập nhật Google Sheet (chạy nền, không chặn thao tác)
+  else sheetCall('syncOrder', { orderId:id });   // đổi thanh toán / khách báo đã chuyển khoản → cập nhật Google Sheet
 }
 /* Nhờ Apps Script gửi thông báo đẩy "đơn đã đổi trạng thái" tới các máy của khách. Lỗi cũng không ảnh hưởng việc cập nhật đơn. */
 async function notifyStatus(orderId) {
@@ -182,17 +200,44 @@ export const removeShop = id => deleteDoc(doc(db, 'shops', id));
 /* Danh sách người dùng cho Admin: nhân sự (admin/seller/shipper) luôn lấy ĐỦ; khách lấy theo từng trang (mặc định 300) để tiết kiệm lượt đọc, bấm "Tải thêm" để lấy tiếp.
    Trước đây chỉ lấy 300 hồ sơ đầu (thứ tự theo mã ngẫu nhiên) nên chủ quán/shipper mới bị rớt khỏi danh sách. */
 export async function listStaff() {
-  const s = await getDocs(query(collection(db, 'users'), where('role', 'in', ['admin', 'seller', 'shipper'])));
-  return s.docs.map(d => ({ uid:d.id, ...d.data() }));
+  try {
+    const s = await getDocs(query(collection(db, 'users'), where('role', 'in', ['admin', 'seller', 'shipper'])));
+    return s.docs.map(d => ({ uid:d.id, ...d.data() }));
+  } catch (e) {   // Firestore hết hạn mức → lấy bản sao nhân sự trong Google Sheet để Admin vẫn xem được
+    const j = await sheetCall('adminList', { what:'staff' }, 30000);
+    if (j && j.ok) return j.rows;
+    throw e;
+  }
 }
+/* Khách hàng: đọc từ Google Sheet (không tốn lượt đọc Firestore). cursor = số khách đã tải. Chưa cấu hình / script chưa cập nhật thì rơi về đọc Firestore như cũ. */
+const SHEET_PAGE_FAIL = 'Chưa đọc được Google Sheet. Hãy Deploy bản Apps Script mới (xem HUONG-DAN-GOOGLE-SHEET.md).';
+let custTotal = null;
 export async function listCustomers(cursor = null, size = 300) {
+  const offset = typeof cursor === 'number' ? cursor : 0;
+  const j = await sheetCall('adminList', { what:'customers', offset, limit:size }, 40000);
+  if (j && j.ok) { custTotal = j.total; return { list:j.rows.map(u => ({ ...u })), cursor:offset + j.rows.length, done:!!j.done }; }
+  if (typeof cursor === 'number') throw new Error((j && j.error) || SHEET_PAGE_FAIL);
   const q = query(collection(db, 'users'), where('role', '==', 'customer'), orderBy(documentId()), ...(cursor ? [startAfter(cursor)] : []), limit(size));
-  const s = await getDocs(q);
+  const s = await getDocs(q);   // dự phòng (chỉ khi Sheet chưa dùng được)
+  custTotal = null;
   return { list: s.docs.map(d => ({ uid:d.id, ...d.data() })), cursor: s.docs.length ? s.docs[s.docs.length - 1] : cursor, done: s.docs.length < size };
 }
-/* Tổng số khách (đếm phía máy chủ, rất rẻ: 1 lượt đọc cho mỗi 1000 hồ sơ) */
+/* Tổng số khách: lấy từ lần đọc Google Sheet gần nhất (không tốn thêm lượt đọc); chưa có thì đếm bên Firestore (rất rẻ) */
 export async function countCustomers() {
+  if (custTotal != null) return custTotal;
   try { return (await getCountFromServer(query(collection(db, 'users'), where('role', '==', 'customer')))).data().count; } catch (e) { return null; }
+}
+/* Lịch sử đơn từ Google Sheet: mới nhất trước. before = số đơn đã tải. */
+export async function sheetOrders(before = 0, size = 100) {
+  const j = await sheetCall('adminList', { what:'orders', offset:before, limit:size }, 40000);
+  if (!j || !j.ok) throw new Error((j && j.error) || SHEET_PAGE_FAIL);
+  return { rows:j.rows, total:j.total, done:!!j.done };
+}
+/* Đơn đã hoàn thành (cột gọn) cho báo cáo doanh thu */
+export async function sheetDoneOrders() {
+  const j = await sheetCall('adminList', { what:'orders', mode:'done' }, 60000);
+  if (!j || !j.ok) throw new Error((j && j.error) || SHEET_PAGE_FAIL);
+  return j.rows;
 }
 /* Admin đặt lại mật khẩu cho người dùng: gọi Apps Script (script tự kiểm tra người gọi là Admin rồi đổi mật khẩu trong Firebase Auth) */
 export async function resetUserPassword(uid, password) {

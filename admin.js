@@ -1,5 +1,5 @@
 import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261029e';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261029e';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261030a';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -10,15 +10,17 @@ const SAMPLE = [
 ];
 
 export const panel = { key:'admin', title:'Quản trị', roles:['admin'], render(root, me) {
-  let tab = 'orders', shops = [], orders = [], users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all', paste = null, sel = new Set(), bh = { open:'06:00', close:'21:00' };
+  let tab = 'orders', shops = [], orders = [], live = [], hist = [], histDone = false, histBusy = false, histTotal = null, histErr = '', revRows = null, revBusy = false, revAt = 0, revErr = '', users = [], promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all', paste = null, sel = new Set(), bh = { open:'06:00', close:'21:00' };
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
 
   const revenueView = () => {
-    const filtered = revShop === 'all' ? orders : orders.filter(o => o.shopId === revShop);
+    const src = revRows || [];   // đơn hoàn thành lấy từ Google Sheet (không đọc Firestore)
+    const filtered = revShop === 'all' ? src : src.filter(o => o.shopId === revShop);
     const r = report(filtered, period);
-    const rows = shops.map(s => ({ id:s.id, name:s.name, ...report(orders.filter(o => o.shopId === s.id), period) })).filter(x => x.count).sort((a,b) => b.revenue-a.revenue);
-    const archived = report(orders.filter(o => o.shopId && !shops.some(s => s.id === o.shopId)), period);
-    return `<div class="section-heading"><h2>Báo cáo doanh thu hệ thống</h2><p>Theo dõi từng quán và toàn bộ đơn hàng đã hoàn thành</p></div>${periodControl(period)}
+    const rows = shops.map(s => ({ id:s.id, name:s.name, ...report(src.filter(o => o.shopId === s.id), period) })).filter(x => x.count).sort((a,b) => b.revenue-a.revenue);
+    const archived = report(src.filter(o => o.shopId && !shops.some(s => s.id === o.shopId)), period);
+    return `<div class="section-heading"><h2>Báo cáo doanh thu hệ thống</h2><p>Theo dõi từng quán và toàn bộ đơn hàng đã hoàn thành</p></div>
+      <div class="card row sb" style="gap:8px"><span class="muted">${revBusy ? 'Đang tải dữ liệu từ Google Sheet…' : revErr ? `<span style="color:var(--red)">${esc(revErr)}</span>` : revRows ? `Dữ liệu từ Google Sheet · ${revRows.length.toLocaleString('vi-VN')} đơn hoàn thành` : 'Chưa tải dữ liệu'}</span><button class="btn sm o" data-revreload ${revBusy ? 'disabled' : ''}>Tải lại</button></div>${periodControl(period)}
       <div class="card"><label class="f">Xem báo cáo<select id="rev-shop"><option value="all">Toàn bộ cửa hàng</option>${shops.map(s => `<option value="${esc(s.id)}" ${revShop===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label></div>
       ${metrics(r, revShop === 'all' ? 'Tổng doanh thu các quán' : 'Doanh thu cửa hàng')}${note}
       ${revShop === 'all' ? `<div class="card"><h3>Bảng xếp hạng doanh thu theo quán</h3><div class="table-scroll"><table><thead><tr><th>Cửa hàng</th><th>Đơn hoàn thành</th><th>Doanh thu</th><th></th></tr></thead><tbody>${rows.map(s=>`<tr><td><strong>${esc(s.name)}</strong></td><td>${s.count}</td><td><strong>${money(s.revenue)}</strong></td><td><button class="btn sm o" data-revshop="${esc(s.id)}">Chi tiết</button></td></tr>`).join('')}${archived.count ? `<tr><td>Quán đã xóa / không tồn tại</td><td>${archived.count}</td><td>${money(archived.revenue)}</td><td></td></tr>` : ''}${!rows.length&&!archived.count ? '<tr><td colspan="4">Chưa có doanh thu trong kỳ</td></tr>' : ''}</tbody></table></div></div>` : ''}
@@ -27,12 +29,14 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   const ordersView = () => {
     const l = [...orders].sort(newestFirst).filter(o => ofil === 'all' || o.status === ofil);
     return `<div class="row" style="margin-bottom:10px"><select id="ofil" style="width:auto"><option value="all">Tất cả trạng thái</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${ofil === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select><span class="muted">${l.length} đơn (hiển thị 100 đơn gần nhất)</span></div>
-      ${l.length ? l.slice(0, 100).map(o => `<div class="card"><div class="row sb"><b>#${esc(o.code)} · ${esc(o.shopName)}</b><span>${payBadge(o)} ${badge(o.status)}</span></div>
+      ${l.length ? l.map(o => `<div class="card"><div class="row sb"><b>#${esc(o.code)} · ${esc(o.shopName)}</b><span>${payBadge(o)} ${badge(o.status)}</span></div>
       <div class="muted">${fmtTime(o.createdAt)} · ${esc(o.customerName)} ${esc(o.customerPhone)} · ${esc(o.address)}</div>
       <ul class="items">${(o.items || []).map(i => `<li>${i.qty} x ${esc(i.name)}</li>`).join('')}</ul>
       ${o.payment === 'bank' ? `<div class="payrow">${o.payStatus === 'paid' ? `<button class="btn sm o" data-paid="${o.id}:0">Bỏ xác nhận</button>` : `<button class="btn sm" data-paid="${o.id}:1">Xác nhận đã nhận ${money(o.total)}</button><button class="btn sm o" data-tocash="${o.id}">Đổi sang tiền mặt</button>`}<span class="muted">Nội dung CK: <b>${esc(o.code)}</b>${o.customerPaid && o.payStatus !== 'paid' ? ' · khách báo đã chuyển' : ''}</span></div>` : ''}
       <div class="row sb"><span><b class="total">${money(o.total)}</b> <span class="muted">${o.shipperName ? '· Shipper: ' + esc(o.shipperName) + ' ' + esc(o.shipperPhone || '') : ''}</span></span>
-      <select data-ost="${o.id}" style="width:auto">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${o.status === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></div></div>`).join('') : '<div class="empty">Chưa có đơn</div>'}`;
+      <select data-ost="${o.id}" style="width:auto">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${o.status === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></div></div>`).join('') : '<div class="empty">Chưa có đơn</div>'}
+      <div class="card" style="text-align:center"><p class="muted" style="margin:0 0 8px">Đơn <b>đang xử lý</b> cập nhật tức thì. Đơn đã hoàn thành / hủy lấy từ <b>Google Sheet</b> (không tốn lượt đọc Firestore).${histErr ? `<br><span style="color:var(--red)">${esc(histErr)}</span>` : ''}${histTotal != null ? `<br>Đã tải ${hist.length.toLocaleString('vi-VN')} / ${histTotal.toLocaleString('vi-VN')} đơn trong Sheet.` : ''}</p>
+      ${histDone && !histErr ? '' : `<button class="btn sm" data-histmore ${histBusy ? 'disabled' : ''}>${histBusy ? 'Đang tải…' : hist.length ? 'Tải thêm đơn cũ' : 'Tải lịch sử đơn'}</button>`}</div>`;
   };
 
   const byOrder = (a, b) => (a.order ?? 9999) - (b.order ?? 9999) || String(a.name || '').localeCompare(String(b.name || ''), 'vi');
@@ -175,7 +179,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   function draw() {
     const keep = $('#uq')?.value;
     if (sel.size) sel = new Set([...sel].filter(id => shops.some(s => s.id === id)));
-    const pend = orders.filter(o => o.status === 'pending').length;
+    const pend = live.filter(o => o.status === 'pending').length;
     const T = [['revenue', '📊 Doanh thu'], ['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shops', 'Cửa hàng'], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
     root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ revenue:revenueView, orders:ordersView, shops:shopsView, users:usersView, promos:promosView, settings:settingsView }[tab]()}</main>`;
     if (keep && $('#uq')) $('#uq').value = keep;
@@ -193,7 +197,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   let ucur = null, udone = true, utotal = null, umore = false;
   const loadUsers = async () => {
     try {
-      const [staff, c, n] = await Promise.all([fb.listStaff(), fb.listCustomers(null), fb.countCustomers()]);
+      const [staff, c] = await Promise.all([fb.listStaff(), fb.listCustomers(null)]);
+      const n = await fb.countCustomers();   // lấy tổng từ lần đọc Sheet vừa xong, không tốn thêm lượt đọc
       users = [...staff, ...c.list]; ucur = c.cursor; udone = c.done; utotal = n; err = '';
     } catch (e) { err = fb.errMsg(e); }
     draw();
@@ -206,15 +211,32 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     umore = false; draw();
   };
 
-  track(fb.watchShops((l, e) => { shops = l.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi')); if (e) err = fb.errMsg(e); if (orders.length) syncSold(); if (!edit || !$('#f-name')) draw(); }));
-  track(fb.watchAllOrders((l, e) => { orders = l; syncSold(); if (e) err = fb.errMsg(e); if (tab === 'orders' || tab === 'revenue') draw(); }));
+  track(fb.watchShops((l, e) => { shops = l.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi')); if (e) err = fb.errMsg(e); if (revRows) syncSold(); if (!edit || !$('#f-name')) draw(); }));
+  /* orders = đơn đang xử lý (Firestore, realtime) + lịch sử đã tải từ Google Sheet; trùng mã thì ưu tiên bản realtime */
+  const mergeOrders = () => { const ids = new Set(live.map(o => o.id)); orders = [...live, ...hist.filter(o => !ids.has(o.id))]; };
+  const loadHist = async (reset) => {
+    if (histBusy) return; histBusy = true; histErr = ''; if (reset) { hist = []; histDone = false; } if (tab === 'orders') draw();
+    try { const r = await fb.sheetOrders(hist.length, 100); hist = [...hist, ...r.rows]; histTotal = r.total; histDone = r.done; mergeOrders(); }
+    catch (e) { histErr = fb.errMsg(e); }
+    histBusy = false; if (tab === 'orders') draw();
+  };
+  const loadRev = async (force) => {
+    if (revBusy || (!force && revRows && Date.now() - revAt < 60000)) return;
+    revBusy = true; revErr = ''; if (tab === 'revenue') draw();
+    try { revRows = await fb.sheetDoneOrders(); revAt = Date.now(); syncSold(); } catch (e) { revErr = fb.errMsg(e); }
+    revBusy = false; if (tab === 'revenue') draw();
+  };
+  /* sửa bản đã tải từ Sheet ngay trên màn hình (đơn realtime tự cập nhật qua Firestore) */
+  const patchLocal = (id, patch) => { const h = hist.find(o => o.id === id); if (h) { Object.assign(h, patch); mergeOrders(); draw(); } };
+  track(fb.watchActiveOrders((l, e) => { live = l; mergeOrders(); if (e) err = fb.errMsg(e); else err = err === fb.QUOTA_MSG ? '' : err; if (tab === 'orders') draw(); }));
+  loadHist(true);
   track(fb.watchPromos(l => { promos = l; if (tab === 'promos') draw(); }));
   track(fb.watchSettings(s => { settings = s; if (tab === 'settings') draw(); }));
   /* Đếm số đơn đã giao của từng quán và lưu vào quán (trường sold) để khách thấy mục “Bán chạy”. Chạy khi Admin mở trang quản lý. */
   let soldT; const syncSold = () => { clearTimeout(soldT); soldT = setTimeout(() => {
-    if (!shops.length) return; const cnt = {};
-    orders.forEach(o => { if (o.status === 'done' && !o.type && o.shopId) cnt[o.shopId] = (cnt[o.shopId] || 0) + 1; });
-    shops.forEach(s => { const n = cnt[s.id] || 0; if ((s.sold || 0) !== n) fb.patchShop(s.id, { sold:n }).catch(() => {}); });
+    if (!shops.length || !revRows) return; const cnt = {};
+    revRows.forEach(o => { if (o.status === 'done' && !o.type && o.shopId) cnt[o.shopId] = (cnt[o.shopId] || 0) + 1; });
+    shops.forEach(s => { const n = cnt[s.id] || 0; if (n > (s.sold || 0)) fb.patchShop(s.id, { sold:n }).catch(() => {}); });   // chỉ tăng: tránh ghi đè về 0 khi Sheet chưa đủ dữ liệu cũ
   }, 4000); };
   track(() => clearTimeout(soldT));
   loadUsers(); bindMenuEditor(root); bindImgUpload(root);
@@ -246,7 +268,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       if (t.dataset.shopcust !== undefined) { await fb.saveSettings({ shopSeeCustomer:t.checked }); toast(t.checked ? 'Quán đã được xem thông tin khách' : 'Đã ẩn thông tin khách với quán'); return; }
       if (t.id === 'rev-shop') { revShop = t.value; draw(); return; }
       if (t.id === 'bk-bank') { if (t.value && t.value !== 'other') $('#bk-bin').value = t.value; return; }
-      if (t.dataset.ost) await fb.patchOrder(t.dataset.ost, { status:t.value });
+      if (t.dataset.ost) { await fb.patchOrder(t.dataset.ost, { status:t.value }); patchLocal(t.dataset.ost, { status:t.value }); }
       if (t.dataset.urole) { await fb.patchUser(t.dataset.urole, { role:t.value }); users.find(u => u.uid === t.dataset.urole).role = t.value; if (ufil !== 'all') ufil = t.value; await syncNotify(); toast('Đã đổi vai trò' + (t.value === 'seller' ? ' – hãy chọn cửa hàng cho họ' : '')); draw(); }
       if (t.dataset.ushop) { await fb.patchUser(t.dataset.ushop, { shopId:t.value }); users.find(u => u.uid === t.dataset.ushop).shopId = t.value; await syncNotify(); toast('Đã gán cửa hàng'); }
       if (t.dataset.uzalo !== undefined) { const z = t.value.trim(); await fb.patchUser(t.dataset.uzalo, { zaloId:z }); users.find(u => u.uid === t.dataset.uzalo).zaloId = z; await syncNotify(); toast('Đã lưu Zalo ID'); }
@@ -257,7 +279,9 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     const g = s => e.target.closest(s);
     if (g('[data-period]')) { period = g('[data-period]').dataset.period; draw(); return; }
     if (g('[data-revshop]')) { revShop = g('[data-revshop]').dataset.revshop; draw(); return; }
-    if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; rp = null; paste = null; draw(); return; }
+    if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; rp = null; paste = null; draw(); if (tab === 'revenue') loadRev(false); if (tab === 'orders' && !hist.length && !histDone && !histBusy) loadHist(true); return; }
+    if (g('[data-revreload]')) { loadRev(true); return; }
+    if (g('[data-histmore]')) { loadHist(false); return; }
     try {
       if (g('[data-newshop]')) { edit = { menu:[] }; draw(); }
       else if (g('[data-editshop]')) { edit = JSON.parse(JSON.stringify(shops.find(s => s.id === g('[data-editshop]').dataset.editshop))); draw(); }
@@ -367,11 +391,11 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       else if (g('[data-paid]')) {
         const [id, v] = g('[data-paid]').dataset.paid.split(':'), o = orders.find(x => x.id === id), on = v === '1';
         if (on && !confirm('Xác nhận ĐÃ NHẬN ' + money(o && o.total) + ' của đơn #' + (o && o.code) + '? Hãy kiểm tra tiền đã về tài khoản.')) return;
-        await fb.patchOrder(id, on ? { payStatus:'paid', paidAt:fb.ts() } : { payStatus:'unpaid', paidAt:null }); toast(on ? 'Đã xác nhận nhận tiền' : 'Đã bỏ xác nhận');
+        await fb.patchOrder(id, on ? { payStatus:'paid', paidAt:fb.ts() } : { payStatus:'unpaid', paidAt:null }); patchLocal(id, { payStatus:on ? 'paid' : 'unpaid' }); toast(on ? 'Đã xác nhận nhận tiền' : 'Đã bỏ xác nhận');
       }
       else if (g('[data-tocash]')) {
         const o = orders.find(x => x.id === g('[data-tocash]').dataset.tocash);
-        if (confirm('Đổi đơn #' + (o && o.code) + ' sang thanh toán TIỀN MẶT khi nhận hàng? (dùng khi khách không chuyển khoản)')) { await fb.patchOrder(o.id, { payment:'cash', payStatus:null }); toast('Đã đổi sang tiền mặt'); }
+        if (confirm('Đổi đơn #' + (o && o.code) + ' sang thanh toán TIỀN MẶT khi nhận hàng? (dùng khi khách không chuyển khoản)')) { await fb.patchOrder(o.id, { payment:'cash', payStatus:null }); patchLocal(o.id, { payment:'cash', payStatus:'' }); toast('Đã đổi sang tiền mặt'); }
       }
       else if (g('[data-savebank]')) {
         const v = id => $('#' + id).value.trim(), on = $('#bk-on').checked;

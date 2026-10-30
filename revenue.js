@@ -1,6 +1,6 @@
 /* Báo cáo doanh thu: chỉ đơn hoàn thành, không gồm phí giao hàng.
    Dùng updatedAt (thời điểm đơn hoàn thành), theo múi giờ trình duyệt. */
-import { money, esc, toDate } from './panel.js?v=20261029e';
+import { money, esc, toDate } from './panel.js?v=20261030a';
 const dateKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 export const earned = o => o.status === 'done' && !['delivery','errand'].includes(o.type) ? Math.max(0, Number(o.subtotal || 0) - Number(o.discount || 0) - Number(o.shopShip || 0)) : 0;
 export const periodStart = (period, now = new Date()) => {
