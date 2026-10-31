@@ -23,3 +23,6 @@
 - Tab Bù lỗ đọc từ Google Sheet nên đơn vừa giao xong có thể chậm tối đa ~1 phút; bấm *Tải lại*.
 - Ngày tính theo ngày đơn được giao thành công, giờ của máy đang mở trang Admin.
 - Khi dán link quán lên Zalo/Facebook, ảnh xem trước vẫn là ảnh chung của website (trang web tĩnh nên chưa đổi được ảnh theo từng quán).
+
+## 4. Soát lại số bù (cập nhật)
+Tab **💸 Bù lỗ** có thêm bảng **Chi tiết từng đơn được giảm** của ngày đang chọn: giờ giao, mã đơn, quán, tiền món, giảm quán/mã, số bù, phí ship, khách trả, và cột **Kiểm tra** tự tính lại (số bù = (tiền món − giảm quán/mã) × %, khách trả = tiền món − giảm + phí ship). Dòng ⚠ là đơn cần soát. Cần dán lại file Apps Script mới và Deploy bản mới (script thêm cột `platformPct` vào cuối tab DonHang).

@@ -203,6 +203,14 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     if (!subDay) subDay = todayKey();
     const pct = Number(settings.platformPct) || 0, by = subsidyByDay(), dm = by.get(subDay) || new Map(), paidDay = subSet[subDay] || {};
     const rows = [...dm].map(([id, v]) => ({ id, ...v, name:shopName(id), phone:(shops.find(x => x.id === id) || {}).phone || '' })).sort((a, b) => b.amount - a.amount);
+    const dayRows = (revRows || []).filter(o => { const v = subsidyOf(o), d = toDate(o.updatedAt || o.createdAt); return v && d && dayKeyOf(d) === subDay; }).sort((a, b) => (toDate(a.updatedAt || a.createdAt) || 0) - (toDate(b.updatedAt || b.createdAt) || 0));
+    const checkSub = o => {   // soát lại số bù và tổng tiền khách trả của 1 đơn
+      const pOff = Number(o.platformOff || 0), shopDisc = Math.max(0, Number(o.discount || 0) - pOff), p = Number(o.platformPct) || pct;
+      const msgs = [];
+      if (p) { const exp = Math.round((Number(o.subtotal || 0) - shopDisc) * p / 100); if (Math.abs(exp - pOff) > 1) msgs.push(`bù lệch, đúng ra ${money(exp)}`); }
+      if (o.total != null && o.shipFee != null && Math.abs(Number(o.subtotal || 0) - Number(o.discount || 0) + Number(o.shipFee || 0) - Number(o.total)) > 1) msgs.push('tổng tiền không khớp');
+      return { ok:!msgs.length, msg:msgs.join('; '), shopDisc };
+    };
     const total = rows.reduce((a, r) => a + r.amount, 0), orderN = rows.reduce((a, r) => a + r.count, 0);
     const owe = rows.reduce((a, r) => a + payState(paidDay[r.id], r.amount).short, 0);
     const hist = lastDays(7).map(k => { const m = by.get(k) || new Map(), tot = [...m.values()].reduce((a, v) => a + v.amount, 0), pd = subSet[k];
@@ -214,6 +222,10 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       <div class="card"><h3>Chuyển khoản bù theo quán – ${dmy(subDay)}</h3><div class="table-scroll"><table><thead><tr><th>Quán</th><th>Đơn</th><th>Số tiền bù</th><th>Trạng thái</th><th></th></tr></thead><tbody>
         ${rows.map(r => { const st = payState(paidDay[r.id], r.amount); return `<tr><td><b>${esc(r.name)}</b>${r.phone ? `<br><span class="muted">${esc(r.phone)}</span>` : ''}</td><td>${r.count}</td><td><b>${money(r.amount)}</b></td><td><span class="badge ${st.cls}">${esc(st.text)}</span></td><td style="text-align:right">${st.done ? `<button class="btn sm o" data-subpay="${esc(r.id)}:0">Bỏ đánh dấu</button>` : `<button class="btn sm" data-subpay="${esc(r.id)}:1">Đã chuyển khoản bù</button>`}</td></tr>`; }).join('') || '<tr><td colspan="5">Chưa có đơn nào được giảm trong ngày này</td></tr>'}
       </tbody></table></div><p class="muted" style="margin-top:8px">Chuyển khoản xong cho quán thì bấm “Đã chuyển khoản bù”. Nếu sau đó phát sinh thêm đơn trong ngày, hệ thống tự báo phần còn thiếu.</p></div>
+      <div class="card"><h3>Chi tiết từng đơn được giảm – ${dmy(subDay)}</h3><p class="muted" style="margin:2px 0 8px">Cột “Kiểm tra” tự tính lại: số bù đúng = (tiền món − giảm giá quán/mã) × ${pct || 'mức %'}%, và Khách trả = tiền món − giảm + phí ship. Dòng ⚠ là đơn cần soát lại.</p>
+        <div class="table-scroll"><table><thead><tr><th>Giờ giao</th><th>Mã đơn</th><th>Quán</th><th>Tiền món</th><th>Giảm quán/mã</th><th>Bù (LTAG chịu)</th><th>Phí ship</th><th>Khách trả</th><th>Kiểm tra</th></tr></thead><tbody>
+        ${dayRows.map(o => { const c = checkSub(o); return `<tr${c.ok ? '' : ' style="background:#fff7ed"'}><td style="white-space:nowrap">${esc(fmtTime(o.updatedAt || o.createdAt))}</td><td><b>#${esc(o.code || o.id)}</b><br><span class="muted">${esc(o.customerName || '')}</span></td><td>${esc(shopName(o.shopId))}</td><td>${money(o.subtotal)}</td><td>${c.shopDisc ? '-' + money(c.shopDisc) : '—'}</td><td><b>${money(o.platformOff)}</b>${o.platformPct || pct ? `<br><span class="muted">${o.platformPct || pct}%</span>` : ''}</td><td>${o.shipFee != null ? money(o.shipFee) : '—'}</td><td>${o.total != null ? money(o.total) : '—'}</td><td>${c.ok ? '<span class="badge ok">✓ Đúng</span>' : `<span class="badge warn">⚠ ${esc(c.msg)}</span>`}</td></tr>`; }).join('') || '<tr><td colspan="9">Không có đơn</td></tr>'}
+        </tbody>${dayRows.length ? `<tfoot><tr><td colspan="3"><b>Tổng ${dayRows.length} đơn</b></td><td><b>${money(dayRows.reduce((a, o) => a + Number(o.subtotal || 0), 0))}</b></td><td></td><td><b>${money(total)}</b></td><td></td><td></td><td></td></tr></tfoot>` : ''}</table></div></div>
       <div class="card"><h3>7 ngày gần nhất</h3><div class="table-scroll"><table><thead><tr><th>Ngày</th><th>Đơn được giảm</th><th>Tổng bù</th><th>Còn phải chuyển</th><th></th></tr></thead><tbody>
         ${hist.map(h => `<tr><td>${dmy(h.k)}</td><td>${h.n}</td><td><b>${money(h.tot)}</b></td><td>${h.tot ? (h.left == null ? '<span class="muted">…</span>' : h.left ? `<b style="color:var(--red)">${money(h.left)}</b>` : '<span class="badge ok">Đã bù đủ</span>') : '—'}</td><td><button class="btn sm o" data-subgo="${h.k}">Xem</button></td></tr>`).join('')}
       </tbody></table></div></div>`;
