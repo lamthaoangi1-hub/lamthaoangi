@@ -283,3 +283,10 @@ export const removePromo = id => deleteDoc(doc(db, 'promos', id));
 /* Danh sách Zalo ID nhận báo đơn mới: { shops:{ shopId:[id...] }, shippers:[id...] } – Admin ghi, Apps Script đọc */
 export const saveNotify = d => setDoc(doc(db, 'settings', 'notify'), d);
 export const saveSettings = d => setDoc(doc(db, 'settings', 'app'), d, { merge:true });
+/* Bù lỗ giảm giá nền tảng: settlements/{yyyy-mm-dd} = { paid: { shopId: { at, amount } } } – Admin đánh dấu đã chuyển khoản bù cho quán */
+export async function getSettlements(dayKeys) {
+  const out = {};
+  await Promise.all(dayKeys.map(async k => { const d = await getDoc(doc(db, 'settlements', k)); out[k] = d.exists() ? (d.data().paid || {}) : {}; }));
+  return out;
+}
+export const setSettlement = (dayKey, shopId, info) => setDoc(doc(db, 'settlements', dayKey), { paid:{ [shopId]:info } }, { merge:true });

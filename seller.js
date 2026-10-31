@@ -1,6 +1,7 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261029e';
+import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261031a';
 import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261023a';
-import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261030c';
+import { shopLink, copyText } from './shoplink.js?v=20261031a';
+import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261031a';
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
@@ -16,13 +17,13 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
     return `<div class="card"><div class="row sb"><b>#${esc(o.code)}</b>${badge(o.status)}</div>${cust}
       <ul class="items">${items}</ul>${o.note ? `<p class="muted">Ghi chú: ${esc(o.note)}</p>` : ''}
       <div class="row sb"><span>Tổng: <b class="total">${money(o.total)}</b> <span class="muted">· ${payText(o)}${o.shipperName ? ' · Shipper: ' + esc(o.shipperName) : ''}</span></span>
-      <span class="muted">${showC ? 'Quán xem đơn và giao theo thông tin khách' : 'Quán chỉ xem đơn – shipper nhận và giao'}</span></div>${o.shopShip ? `<div class="muted" style="margin-top:6px">Quán hỗ trợ phí ship (freeship): <b>-${money(o.shopShip)}</b> · Quán thực nhận: <b>${money(Math.max(0, (o.subtotal || 0) - (o.discount || 0) - o.shopShip))}</b></div>` : ''}</div>`;
+      <span class="muted">${showC ? 'Quán xem đơn và giao theo thông tin khách' : 'Quán chỉ xem đơn – shipper nhận và giao'}</span></div>${o.platformOff ? `<div class="muted" style="margin-top:6px">🎁 Lâm Thao Ăn Gì giảm ${o.platformPct ? o.platformPct + '% ' : ''}cho khách: <b>${money(o.platformOff)}</b> – <b>quán vẫn nhận đủ</b>, Admin sẽ chuyển khoản bù cuối ngày.</div>` : ''}${o.shopShip ? `<div class="muted" style="margin-top:6px">Quán hỗ trợ phí ship (freeship): <b>-${money(o.shopShip)}</b> · Quán thực nhận: <b>${money(Math.max(0, (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0) - o.shopShip))}</b></div>` : ''}</div>`;
   }
   function ordersTab() {
     const act = o => ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(o.status);
     const list = [...orders].sort(newestFirst).filter(o => fil === 'active' ? act(o) : !act(o)).slice(0, 80);
     const today = orders.filter(o => o.status === 'done' && sameDay(o.updatedAt));
-    return `<div class="stat"><div class="card"><b>${orders.filter(o => o.status === 'pending').length}</b><span class="muted">Chờ xác nhận</span></div><div class="card"><b>${today.length}</b><span class="muted">Đơn xong hôm nay</span></div><div class="card"><b>${money(today.reduce((a, o) => a + (o.subtotal || 0) - (o.discount || 0), 0))}</b><span class="muted">Doanh thu hôm nay</span></div></div>
+    return `<div class="stat"><div class="card"><b>${orders.filter(o => o.status === 'pending').length}</b><span class="muted">Chờ xác nhận</span></div><div class="card"><b>${today.length}</b><span class="muted">Đơn xong hôm nay</span></div><div class="card"><b>${money(today.reduce((a, o) => a + (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0), 0))}</b><span class="muted">Doanh thu hôm nay</span></div></div>
       <div class="row" style="margin-bottom:10px"><button class="btn sm ${fil === 'active' ? '' : 'o'}" data-fil="active">Đang xử lý</button><button class="btn sm ${fil === 'past' ? '' : 'o'}" data-fil="past">Đã xong / hủy</button></div>
       ${list.length ? list.map(orderCard).join('') : '<div class="empty">Chưa có đơn</div>'}`;
   }
@@ -36,7 +37,9 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
     const locCard = `<div class="card"><h3>Vị trí quán trên bản đồ</h3>
       <p class="muted" style="margin:4px 0 10px">${has ? `Đã lưu vị trí quán${shop.locAcc ? ` (sai số khoảng ${shop.locAcc} m)` : ''}. Shipper sẽ thấy nút chỉ đường tới quán. <a href="${mapLink(shop.lat, shop.lng)}" target="_blank" rel="noopener">Xem trên bản đồ</a>. Muốn đổi vị trí, hãy nhờ Admin đặt lại.` : 'Hãy đứng tại quán, bật GPS rồi bấm nút bên dưới. Chỉ bấm được 1 lần: sau khi lưu nút sẽ bị khóa.'}</p>
       <button class="btn" data-shareloc ${has ? 'disabled' : ''}>${has ? '✓ Đã chia sẻ vị trí quán' : '📍 Chia sẻ vị trí quán'}</button></div>`;
-    return locCard + `<div class="card"><h3>${esc(shop.name)}</h3>
+    const linkCard = `<div class="card"><h3>🔗 Link đặt món của quán</h3><p class="muted" style="margin:4px 0 8px">Gửi link này cho khách (Zalo, Facebook, tin nhắn…): khách bấm vào là thấy ngay thực đơn của quán bạn để đặt món.</p>
+      <input type="text" id="s-link" readonly value="${esc(shopLink({ id:me.shopId, name:shop.name }, [{ id:me.shopId, name:shop.name }]))}" onclick="this.select()"><button class="btn" style="margin-top:10px" data-copylink>Sao chép link</button></div>`;
+    return linkCard + locCard + `<div class="card"><h3>${esc(shop.name)}</h3>
       <p class="muted" style="margin:4px 0 8px">Trạng thái hiện tại: ${shop.open === false ? '<b>Đang đóng (tắt thủ công)</b>' : isOpenNow(shop) ? '<b>Đang mở cửa</b>' : '<b>Ngoài giờ mở cửa – quán đang tự đóng</b>'}${hoursText(shop) ? ` · giờ mở cửa ${hoursText(shop)}` : ''}</p>
       ${hoursFormHtml(shop, 's')}
       <label class="sw"><input type="checkbox" id="s-open" ${shop.open === false ? '' : 'checked'}>Đang mở cửa (công tắc tổng – tắt là đóng cả ngày, không nhận đơn)</label>
@@ -65,6 +68,7 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
     const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; draw(); return; }
     const periodBtn = e.target.closest('[data-period]'); if (periodBtn) { period = periodBtn.dataset.period; draw(); return; }
     const f = e.target.closest('[data-fil]'); if (f) { fil = f.dataset.fil; draw(); return; }
+    if (e.target.closest('[data-copylink]')) { if (await copyText($('#s-link').value)) toast('Đã sao chép link quán'); return; }
     try {
       const sl = e.target.closest('[data-shareloc]');
       if (sl) {

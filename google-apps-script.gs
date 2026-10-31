@@ -31,10 +31,10 @@ const USER_COLS = ['uid', 'name', 'phone', 'role', 'shopId', 'zaloId', 'address'
 const USER_TEXT = ['uid', 'name', 'phone', 'role', 'shopId', 'zaloId', 'address', 'createdAt', 'updatedAt'];
 const ORDER_COLS = ['id', 'code', 'createdAt', 'updatedAt', 'status', 'type', 'shopId', 'shopName', 'uid', 'customerName', 'customerPhone', 'address', 'note', 'items',
   'subtotal', 'discount', 'shipFee', 'shopShip', 'nightFee', 'total', 'payment', 'payStatus', 'customerPaid', 'shipperUid', 'shipperName', 'shipperPhone',
-  'lat', 'lng', 'distanceKm', 'codAmount', 'receiverName', 'receiverPhone', 'shopAddress', 'promoCode'];
+  'lat', 'lng', 'distanceKm', 'codAmount', 'receiverName', 'receiverPhone', 'shopAddress', 'promoCode', 'platformOff'];   // platformOff: LUÔN để cuối cột, để dữ liệu cũ không bị lệch
 const ORDER_TEXT = ['id', 'code', 'createdAt', 'updatedAt', 'status', 'type', 'shopId', 'shopName', 'uid', 'customerName', 'customerPhone', 'address', 'note', 'items',
   'payment', 'payStatus', 'shipperUid', 'shipperName', 'shipperPhone', 'receiverName', 'receiverPhone', 'shopAddress', 'promoCode'];
-const ORDER_NUM = ['subtotal', 'discount', 'shipFee', 'shopShip', 'nightFee', 'total', 'lat', 'lng', 'distanceKm', 'codAmount'];
+const ORDER_NUM = ['subtotal', 'discount', 'shipFee', 'shopShip', 'nightFee', 'total', 'lat', 'lng', 'distanceKm', 'codAmount', 'platformOff'];
 
 /**
  * Script properties (Project Settings → Script properties) – dùng cho Zalo Bot:
@@ -528,7 +528,7 @@ function priceWarning(order, shop) {
   const sub = (order.items || []).reduce((a, i) => a + Number(i.price) * Number(i.qty), 0);
   if (bad.length || sub !== Number(order.subtotal)) return '⚠️ GIÁ KHÔNG KHỚP THỰC ĐƠN – hãy kiểm tra trước khi giao: ' + bad.map(i => i.name).join(', ');
   const maxOff = Math.round(order.subtotal * (Number(shop.sale) || 0) / 100);
-  if (Number(order.discount) > maxOff + 100000) return '⚠️ GIẢM GIÁ BẤT THƯỜNG (' + money(order.discount) + ') – hãy kiểm tra mã giảm giá.';
+  if (Number(order.discount) > maxOff + Number(order.platformOff || 0) + 100000) return '⚠️ GIẢM GIÁ BẤT THƯỜNG (' + money(order.discount) + ') – hãy kiểm tra mã giảm giá.';
   return '';
 }
 function itemsLines(order) {
@@ -558,6 +558,7 @@ function zaloText(order, shop, footer, hideCustomer) {
     + itemsLines(order) + '\n'
     + 'Phí ship: ' + money(order.shipFee) + (order.nightFee ? ' (gồm phụ phí đêm ' + money(order.nightFee) + ')' : '') + (order.shopShip ? ' | Quán hỗ trợ ship: ' + money(order.shopShip) : '') + (order.discount ? ' | Giảm: -' + money(order.discount) : '') + '\n'
     + 'TỔNG: ' + money(order.total) + ' (' + payLabel(order) + ')\n'
+    + (order.platformOff ? '🎁 Lâm Thao Ăn Gì giảm cho khách ' + money(order.platformOff) + ' – quán VẪN NHẬN ĐỦ, Admin bù lại cuối ngày\n' : '')
     + (hideCustomer ? '' : 'Khách: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
     + 'Giao đến: ' + (order.address || '') + '\n')
     + (order.note ? 'Ghi chú: ' + order.note + '\n' : '')
@@ -576,6 +577,7 @@ function sendOrderEmail(order, shop) {
     + '<table style="border-collapse:collapse;width:100%;border:1px solid #e5e7eb">' + rows
     + '<tr><td style="padding:4px 8px">Phí giao hàng' + (order.nightFee ? ' (gồm phụ phí đêm ' + money(order.nightFee) + ')' : '') + '</td><td style="padding:4px 8px;text-align:right">' + money(order.shipFee) + '</td></tr>'
     + (order.discount ? '<tr><td style="padding:4px 8px">Giảm giá</td><td style="padding:4px 8px;text-align:right">-' + money(order.discount) + '</td></tr>' : '')
+    + (order.platformOff ? '<tr><td style="padding:4px 8px">🎁 Trong đó Lâm Thao Ăn Gì chịu (bù cho quán)</td><td style="padding:4px 8px;text-align:right">' + money(order.platformOff) + '</td></tr>' : '')
     + '<tr><td style="padding:4px 8px"><b>' + (order.type ? 'Phí' : 'Tổng') + '</b></td><td style="padding:4px 8px;text-align:right"><b>' + money(order.total) + '</b></td></tr></table>'
     + '<p><b>Khách:</b> ' + esc(order.customerName) + ' · <a href="tel:' + esc(order.customerPhone) + '">' + esc(order.customerPhone) + '</a><br>'
     + '<b>Giao đến:</b> ' + esc(order.address) + '<br>'
@@ -614,7 +616,12 @@ function sheetOf(name, cols, textCols) {
   return sh;
 }
 const usersSheet = () => sheetOf(SHEET_USERS, USER_COLS, USER_TEXT);
-const ordersSheet = () => sheetOf(SHEET_ORDERS, ORDER_COLS, ORDER_TEXT);
+// Tự thêm tiêu đề cột mới (VD: platformOff) vào Sheet đã có từ trước, không đụng tới dữ liệu cũ
+const ordersSheet = () => {
+  const sh = sheetOf(SHEET_ORDERS, ORDER_COLS, ORDER_TEXT), have = sh.getLastColumn();
+  if (have > 0 && have < ORDER_COLS.length) sh.getRange(1, have + 1, 1, ORDER_COLS.length - have).setValues([ORDER_COLS.slice(have)]).setFontWeight('bold').setBackground('#e8f5e9');
+  return sh;
+};
 function findRow(sh, id) {
   const last = sh.getLastRow(); if (last < 2) return 0;
   const f = sh.getRange(2, 1, last - 1, 1).createTextFinder(String(id)).matchEntireCell(true).matchCase(true).findNext();
@@ -715,7 +722,7 @@ function adminList(body) {
     if (!total) return out({ ok: true, rows: [], total: 0, done: true });
     if (body.mode === 'done') {   // báo cáo doanh thu: chỉ đơn hoàn thành, chỉ các cột cần thiết
       const vals = sh.getRange(2, 1, total, ORDER_COLS.length).getValues();
-      const keep = ['id', 'shopId', 'status', 'type', 'subtotal', 'discount', 'shopShip', 'createdAt', 'updatedAt'];
+      const keep = ['id', 'shopId', 'status', 'type', 'subtotal', 'discount', 'shopShip', 'platformOff', 'createdAt', 'updatedAt'];
       const rows = vals.filter(r => r[ORDER_COLS.indexOf('status')] === 'done').map(r => { const o = orderFromRow(r), s = {}; keep.forEach(k => { if (o[k] !== undefined) s[k] = o[k]; }); return s; });
       return out({ ok: true, rows: rows, total: rows.length, done: true });
     }

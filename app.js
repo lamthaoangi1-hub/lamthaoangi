@@ -124,6 +124,20 @@
   const GHOST = {};
   let shopsLoaded = false;
   const CART = { shop:null, q:{}, promo:'', note:'', address:null, loc:null, pay:'cash' };
+  /* Giảm giá do Lâm Thao Ăn Gì chịu (Admin bật ở Liên hệ → settings/app.platformPct). Khách thấy giảm, quán vẫn nhận đủ tiền, Admin bù lại cho quán cuối ngày. */
+  const PLAT = { pct:0 };
+  /* Link riêng từng quán: https://lamthaoangi.io.vn/?quan=<tên-quán-không-dấu> (hoặc ?quan=<mã quán>) */
+  const slugOf = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  let DEEP = (() => { try { return (new URLSearchParams(location.search).get('quan') || '').trim(); } catch (e) { return ''; } })();
+  const findShopByLink = key => { const k = slugOf(key); return SHOPS.find(x => x.id === key) || SHOPS.find(x => slugOf(x._d && x._d.name) === k); };
+  function openDeepLink() {
+    if (!DEEP || !shopsLoaded) return;
+    const key = DEEP; DEEP = '';
+    const sh = findShopByLink(key);
+    if (!sh) return toast('Không tìm thấy quán này, bạn xem các quán khác nhé');
+    if (S.tab !== 'home') go('home', false);
+    openShopPage(sh);
+  }
   const SP = { id:null, cat:'Tất cả' };
   let shopPageOpen = false;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -230,7 +244,7 @@
   const locBtn = () => `<button class="loc" data-act="area">${fx.pinF}<span>${esc(S.area)}</span>${ic('chevDown')}</button>`;
   const logo = (size = '') => `<span class="logo-wrap"><span class="logo ${size}"><span class="l1">Lâm Thao</span><span class="l2">Ăn Gì?</span></span><span class="logo-fork" style="${size === 'sm' ? 'width:28px;height:42px;right:-24px' : ''}">${fx.fork}</span></span>`;
 
-  const shopTags = s => `<div class="tags">${s.open === false ? `<span class="tag sale">${closedNote(s)}</span>` : ''}${s.featured ? '<span class="tag feat">⭐ Nổi bật</span>' : ''}${s.hot ? '<span class="tag hot">🔥 Bán chạy</span>' : ''}${s.isNew ? '<span class="tag new">Quán mới</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}</div>`;
+  const shopTags = s => `<div class="tags">${s.open === false ? `<span class="tag sale">${closedNote(s)}</span>` : ''}${s.featured ? '<span class="tag feat">⭐ Nổi bật</span>' : ''}${s.hot ? '<span class="tag hot">🔥 Bán chạy</span>' : ''}${s.isNew ? '<span class="tag new">Quán mới</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}${PLAT.pct > 0 && s.open !== false ? `<span class="tag ship">🎁 Giảm thêm ${PLAT.pct}% cho đơn đặt online</span>` : ''}</div>`;
   const shopMeta = s => `<div class="meta"><span class="rate">${fx.star}${s.rate ? s.rate.toFixed(1) + (s.rc ? ' (' + s.rc + ')' : '') : 'Mới'}</span><span class="sep"></span><span class="eta">${ic('truck')}${s.eta}</span></div>`;
 
   /* ---------------- HOME ---------------- */
@@ -662,6 +676,7 @@
     const disc = Math.round(sub * (s.sale || 0) / 100);
     const promo = findPromo(code, sub);
     const promoOff = promo ? Math.min(promo.off || 0, sub - disc) : 0;
+    const platOff = PLAT.pct > 0 ? Math.max(0, Math.round((sub - disc - promoOff) * PLAT.pct / 100)) : 0;   // do Lâm Thao Ăn Gì chịu, quán vẫn nhận đủ
     const q = shipQuote(s, CART.loc);
     // đơn đạt mức miễn phí ship: chỉ miễn phần phí cơ bản, khách vẫn trả phần km vượt
     // Admin cài riêng từng quán: freeShipMin = mức đơn được freeship; freeShipAll = miễn TOÀN BỘ phí giao (không thì chỉ miễn phần cơ bản)
@@ -671,7 +686,7 @@
     const ship = shipBase + night;                       // khách trả
     const shipFull = q.mode === 'need-loc' ? 0 : q.fee + night;   // tiền ship thật shipper nhận
     const shopShip = Math.max(0, shipFull - ship);       // quán hỗ trợ (freeship): quán trả cho shipper, khách không thấy
-    return { sub, disc, promo, promoOff, ship, shipBase, night, shipFull, shopShip, shipMode:q.mode, km:q.km, extraKm:q.extraKm, freeBase:hit, freeAll:hit && !!s.freeShipAll, toFree:(s.freeShipMin && !hit) ? s.freeShipMin - sub : 0, freeAllShop:!!s.freeShipAll, total:sub - disc - promoOff + ship };
+    return { sub, disc, promo, promoOff, platOff, ship, shipBase, night, shipFull, shopShip, shipMode:q.mode, km:q.km, extraKm:q.extraKm, freeBase:hit, freeAll:hit && !!s.freeShipAll, toFree:(s.freeShipMin && !hit) ? s.freeShipMin - sub : 0, freeAllShop:!!s.freeShipAll, total:sub - disc - promoOff - platOff + ship };
   }
   function updateCartUI() {
     const bar = $('#cart-bar'), { s, lines } = cartData(); if (!bar || !s) return;
@@ -737,6 +752,7 @@
         <div class="co-row"><span>Tạm tính</span><b>${money(c.sub)}</b></div>
         ${c.disc ? `<div class="co-row off"><span>Giảm giá quán (${s.sale}%)</span><b>-${money(c.disc)}</b></div>` : ''}
         ${c.promoOff ? `<div class="co-row off"><span>Mã ${esc(c.promo.code)}</span><b>-${money(c.promoOff)}</b></div>` : ''}
+        ${c.platOff ? `<div class="co-row off"><span>🎁 Ưu đãi Lâm Thao Ăn Gì (${PLAT.pct}%)</span><b>-${money(c.platOff)}</b></div>` : ''}
         ${c.shipMode === 'need-loc' ? `<div class="co-row"><span>Phí giao hàng</span><b style="color:var(--orange)">Chia sẻ vị trí để tính</b></div>`
           : `<div class="co-row"><span>Phí giao hàng${c.shipMode === 'km' ? ` <small>· ${String(c.km).replace('.', ',')} km</small>` : ''}</span><b>${c.shipBase ? money(c.shipBase) : 'Miễn phí'}</b></div>`}
         ${c.night ? `<div class="co-row"><span>Phụ phí ship đêm <small>· ${NIGHT.from}h - ${NIGHT.to}h</small></span><b>${money(c.night)}</b></div>` : ''}
@@ -767,7 +783,7 @@
       const data = {
         code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone,
         address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '', shopLat:s.lat ?? null, shopLng:s.lng ?? null, lat:CART.loc.lat, lng:CART.loc.lng, locAcc:CART.loc.acc,
-        items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff, promoCode:c.promo ? c.promo.code : '',
+        items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff + c.platOff, ...(c.platOff ? { platformOff:c.platOff, platformPct:PLAT.pct } : {}), promoCode:c.promo ? c.promo.code : '',
         shipFee:c.ship, shipFull:c.shipFull, ...(c.shopShip ? { shopShip:c.shopShip } : {}), ...(c.night ? { nightFee:c.night } : {}), distanceKm:c.km, total:c.total, payment:pay, ...(pay === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending',
       };
       const ref = await FB.placeOrder(data);
@@ -1366,7 +1382,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261030c').then(m => {
+    import('./fb.js?v=20261031a').then(m => {
       FB = m;
       let RAWSHOPS = [], openSig = '';
       const applyShops = () => {
@@ -1380,7 +1396,7 @@
       };
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
-        shopsLoaded = true; RAWSHOPS = l; applyShops();
+        shopsLoaded = true; RAWSHOPS = l; applyShops(); openDeepLink();
       });
       /* Quán tự đóng/mở theo giờ: mỗi 30 giây kiểm tra, có quán đổi trạng thái thì vẽ lại danh sách */
       setInterval(() => { if (SHOPS.length && SHOPS.map(x => x.open ? 1 : 0).join('') !== openSig) applyShops(); }, 30000);
@@ -1388,6 +1404,8 @@
       FB.watchSettings(c => { ['base', 'baseKm', 'perKm', 'road'].forEach(k => { const v = Number(c['ship' + k[0].toUpperCase() + k.slice(1)]); if (v > 0) SHIPCFG[k] = v; });
         [['w2', 'shipW2'], ['w3', 'shipW3'], ['errand', 'errandFee']].forEach(([k, f]) => { if (c[f] != null && c[f] !== '' && Number(c[f]) >= 0) SVCCFG[k] = Number(c[f]); }); CONTACT = { ...CONTACT, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v)) };
         const bin = String(c.bankBin || '').replace(/\D/g, ''), acc = String(c.bankAccount || '').replace(/\s/g, '');
+        const pp = Number(c.platformPct); const np = pp > 0 && pp <= 50 ? pp : 0;
+        if (np !== PLAT.pct) { PLAT.pct = np; if (shopsLoaded) applyShops(); }
         BANK = c.bankEnabled === true && bin && acc ? { bin, acc, holder:String(c.bankHolder || ''), name:String(c.bankName || '') } : null;   // chưa bật / chưa nhập đủ thì khách chỉ thấy tiền mặt
         if (!BANK) { CART.pay = 'cash'; SV.pay = 'cash'; } });
       permAskOnVisit();

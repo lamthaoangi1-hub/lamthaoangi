@@ -54,6 +54,8 @@ service cloud.firestore {
     }
 
     match /promos/{id} { allow read: if true; allow write: if isAdmin(); }
+    // Đánh dấu Admin đã chuyển khoản bù giảm giá cho quán theo ngày (settlements/{yyyy-mm-dd}): chỉ Admin đọc/ghi
+    match /settlements/{id} { allow read, write: if isAdmin(); }
     // settings/notify chứa Zalo ID nhận báo đơn: CHỈ Admin đọc (Apps Script đọc bằng quyền riêng của chủ script)
     match /settings/{id} { allow read: if id != 'notify' || isAdmin(); allow write: if isAdmin(); }
 
@@ -83,6 +85,12 @@ service cloud.firestore {
             || get(/databases/$(database)/documents/settings/app).data.get('bankEnabled', false) == true)
         && request.resource.data.get('payStatus', 'unpaid') == 'unpaid'
         && !('paidAt' in request.resource.data) && !('customerPaid' in request.resource.data)
+        // giảm giá do Lâm Thao Ăn Gì chịu (platformOff): không âm, nằm trong discount, và không vượt mức % Admin đang bật (settings/app.platformPct)
+        && request.resource.data.get('platformOff', 0) is number
+        && request.resource.data.get('platformOff', 0) >= 0
+        && request.resource.data.get('platformOff', 0) <= request.resource.data.discount
+        && (request.resource.data.get('platformOff', 0) == 0
+            || request.resource.data.get('platformOff', 0) <= request.resource.data.subtotal * get(/databases/$(database)/documents/settings/app).data.get('platformPct', 0) / 100 + 1)
         // tổng tiền phải khớp: tạm tính - giảm giá + phí ship; quán phải tồn tại
         && request.resource.data.total == request.resource.data.subtotal - request.resource.data.discount + request.resource.data.shipFee
         // đơn đồ ăn: quán phải tồn tại + tạm tính > 0. Đơn Giao hàng / Mua hộ (type): không thuộc quán nào, không có tiền hàng, chỉ có phí ship

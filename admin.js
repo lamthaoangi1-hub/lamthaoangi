@@ -1,5 +1,6 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261029e';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261030c';
+import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261031a';
+import { shopLink, copyText } from './shoplink.js?v=20261031a';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261031a';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -10,7 +11,7 @@ const SAMPLE = [
 ];
 
 export const panel = { key:'admin', title:'Quản trị', roles:['admin'], render(root, me) {
-  let tab = 'orders', shops = [], orders = [], live = [], hist = [], histDone = false, histBusy = false, histTotal = null, histErr = '', revRows = null, revBusy = false, revAt = 0, revErr = '', users = [], sync = {}, syncBusy = '', syncMsg = '', promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all', paste = null, sel = new Set(), bh = { open:'06:00', close:'21:00' };
+  let tab = 'orders', shops = [], orders = [], live = [], hist = [], histDone = false, histBusy = false, histTotal = null, histErr = '', revRows = null, revBusy = false, revAt = 0, revErr = '', users = [], sync = {}, syncBusy = '', syncMsg = '', promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all', paste = null, sel = new Set(), bh = { open:'06:00', close:'21:00' }, subSet = {}, subBusy = false, subErr = '', subDay = '';
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
 
   const revenueView = () => {
@@ -53,7 +54,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     <div class="grid" style="margin-top:8px"><label class="f">Giờ mở cửa<input type="time" id="bh-open" value="${esc(bh.open)}"></label><label class="f">Giờ đóng cửa<input type="time" id="bh-close" value="${esc(bh.close)}"></label></div>
     <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:8px"><button class="btn sm" data-bhapply>⏰ Áp dụng giờ &amp; bật tự đóng cửa</button><button class="btn sm o" data-bhoff>Tắt tự đóng cửa</button><button class="btn sm o" data-bhopen>Mở cửa</button><button class="btn sm r" data-bhclose>Đóng cửa</button><button class="btn sm gray" data-bhclear>Bỏ chọn</button></div></div>` : '';
   const shopsView = () => edit ? shopForm() : mk ? mkForm() : paste ? pasteView() : imp ? importView() : `<div class="row sb" style="margin-bottom:10px"><b>${shops.length} cửa hàng</b><span class="row" style="flex-wrap:wrap;gap:6px"><input type="file" id="imp-file" accept=".xlsx,.xls,.csv" hidden><button class="btn sm o" data-pasteshop>📋 Dán danh sách quán</button><button class="btn sm o" data-impfile>⬆ Nhập quán từ Excel</button><button class="btn sm gray" data-tplshop>⬇ File Excel mẫu</button><button class="btn sm o" data-seed>+ Thêm 2 quán mẫu</button><button class="btn sm" data-newshop>+ Thêm cửa hàng</button></span></div>
-    ${shops.length ? `<p class="muted" style="margin:0 0 8px">Dùng ▲ ▼ để đổi vị trí quán trên trang chủ. Quán bật <b>⭐ Nổi bật</b> hoặc có <b>Giảm giá</b> sẽ hiện trên banner đầu trang.</p>${bulkBar()}<div class="card" style="overflow-x:auto"><table><tr><th><input type="checkbox" data-selall title="Chọn tất cả" ${sel.size && sel.size === shops.length ? 'checked' : ''}></th><th>Thứ tự</th><th>Quán</th><th>Món</th><th>⭐ Nổi bật</th><th>Bán chạy</th><th>Quán mới</th><th>Giảm %</th><th>Trạng thái</th><th></th></tr>${[...shops].sort(byOrder).map((s, i, arr) => `<tr><td><input type="checkbox" data-sel="${s.id}" ${sel.has(s.id) ? 'checked' : ''}></td><td style="white-space:nowrap"><button class="btn sm o" data-mv="up" data-id="${s.id}" ${i === 0 ? 'disabled' : ''}>▲</button> <button class="btn sm o" data-mv="down" data-id="${s.id}" ${i === arr.length - 1 ? 'disabled' : ''}>▼</button></td><td><b>${esc(s.name)}</b><br><span class="muted">${esc(s.cat || '')}</span><br><span class="muted">${sellersOf(s.id) ? '🔑 TK bán hàng: ' + esc(sellersOf(s.id)) : '⚠ Chưa có tài khoản bán hàng'}</span></td><td>${(s.menu || []).length}</td><td><label class="sw" style="margin:0"><input type="checkbox" data-feat="${s.id}" ${s.featured ? 'checked' : ''}></label></td><td><label class="sw" style="margin:0"><input type="checkbox" data-hot="${s.id}" ${s.hot ? 'checked' : ''}></label><br><span class="muted">${s.sold || 0} đơn</span></td><td><label class="sw" style="margin:0"><input type="checkbox" data-isnew="${s.id}" ${s.isNew ? 'checked' : ''}></label>${(toDate(s.createdAt)?.getTime() || 0) > Date.now() - 30 * 864e5 ? '<br><span class="muted">tự động</span>' : ''}</td><td><input type="number" data-sale="${s.id}" min="0" max="90" value="${s.sale || 0}" style="width:64px"></td><td>${stBadge(s)}${hrsLine(s)}</td><td style="text-align:right"><button class="btn sm" data-mkseller="${s.id}">Cấp TK</button> <button class="btn sm o" data-editshop="${s.id}">Sửa</button> <button class="btn sm r" data-delshop="${s.id}">Xóa</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Chưa có cửa hàng. Bấm “Thêm cửa hàng”.</div>'}`;
+    ${shops.length ? `<p class="muted" style="margin:0 0 8px">Dùng ▲ ▼ để đổi vị trí quán trên trang chủ. Quán bật <b>⭐ Nổi bật</b> hoặc có <b>Giảm giá</b> sẽ hiện trên banner đầu trang.</p>${bulkBar()}<div class="card" style="overflow-x:auto"><table><tr><th><input type="checkbox" data-selall title="Chọn tất cả" ${sel.size && sel.size === shops.length ? 'checked' : ''}></th><th>Thứ tự</th><th>Quán</th><th>Món</th><th>⭐ Nổi bật</th><th>Bán chạy</th><th>Quán mới</th><th>Giảm %</th><th>Trạng thái</th><th></th></tr>${[...shops].sort(byOrder).map((s, i, arr) => `<tr><td><input type="checkbox" data-sel="${s.id}" ${sel.has(s.id) ? 'checked' : ''}></td><td style="white-space:nowrap"><button class="btn sm o" data-mv="up" data-id="${s.id}" ${i === 0 ? 'disabled' : ''}>▲</button> <button class="btn sm o" data-mv="down" data-id="${s.id}" ${i === arr.length - 1 ? 'disabled' : ''}>▼</button></td><td><b>${esc(s.name)}</b><br><span class="muted">${esc(s.cat || '')}</span><br><span class="muted">${sellersOf(s.id) ? '🔑 TK bán hàng: ' + esc(sellersOf(s.id)) : '⚠ Chưa có tài khoản bán hàng'}</span></td><td>${(s.menu || []).length}</td><td><label class="sw" style="margin:0"><input type="checkbox" data-feat="${s.id}" ${s.featured ? 'checked' : ''}></label></td><td><label class="sw" style="margin:0"><input type="checkbox" data-hot="${s.id}" ${s.hot ? 'checked' : ''}></label><br><span class="muted">${s.sold || 0} đơn</span></td><td><label class="sw" style="margin:0"><input type="checkbox" data-isnew="${s.id}" ${s.isNew ? 'checked' : ''}></label>${(toDate(s.createdAt)?.getTime() || 0) > Date.now() - 30 * 864e5 ? '<br><span class="muted">tự động</span>' : ''}</td><td><input type="number" data-sale="${s.id}" min="0" max="90" value="${s.sale || 0}" style="width:64px"></td><td>${stBadge(s)}${hrsLine(s)}</td><td style="text-align:right"><button class="btn sm o" data-copylink="${s.id}" title="Sao chép link đặt món riêng của quán này">🔗 Link</button> <button class="btn sm" data-mkseller="${s.id}">Cấp TK</button> <button class="btn sm o" data-editshop="${s.id}">Sửa</button> <button class="btn sm r" data-delshop="${s.id}">Xóa</button></td></tr>`).join('')}</table></div>` : '<div class="empty">Chưa có cửa hàng. Bấm “Thêm cửa hàng”.</div>'}`;
 
   /* Form cấp tài khoản nhà bán hàng: admin tự nhập tài khoản + mật khẩu rồi gửi cho chủ quán */
   const sellerUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'quanly.html';
@@ -174,14 +175,68 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       <button class="btn" style="margin-top:12px" data-savebank>Lưu thông tin ngân hàng</button>
       ${prev ? `<p class="muted" style="margin-top:12px">Mã QR thử (10.000đ). Hãy quét thử bằng app ngân hàng để chắc chắn đúng tài khoản trước khi bật:</p><img src="${prev}" alt="QR thử" style="width:100%;max-width:260px;border-radius:12px;border:1px solid var(--line)" onerror="this.outerHTML='<p class=muted>Không tạo được mã QR. Kiểm tra lại mã BIN và số tài khoản.</p>'">` : ''}</div>`;
   };
-  const settingsView = () => custView() + contactView() + bankView() + shipCfgView();
+
+  /* ===== Giảm giá do Lâm Thao Ăn Gì chịu: Admin bù lại cho quán cuối ngày ===== */
+  const pad2 = n => String(n).padStart(2, '0');
+  const dayKeyOf = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const todayKey = () => dayKeyOf(new Date());
+  const lastDays = n => Array.from({ length:n }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - i); return dayKeyOf(d); });
+  const dmy = k => k.split('-').reverse().join('/');
+  const subsidyByDay = () => {   // dayKey → Map(shopId → { count, amount, name })
+    const m = new Map();
+    (revRows || []).forEach(o => {
+      const v = subsidyOf(o); if (!v) return;
+      const d = toDate(o.updatedAt || o.createdAt); if (!d) return;
+      const k = dayKeyOf(d); if (!m.has(k)) m.set(k, new Map());
+      const dm = m.get(k), cur = dm.get(o.shopId) || { count:0, amount:0 };
+      cur.count++; cur.amount += v; dm.set(o.shopId, cur);
+    });
+    return m;
+  };
+  const payState = (paid, amount) => {
+    const p = paid && paid.at ? paid : null;
+    if (!p) return { cls:'warn', text:'Chưa bù', done:false, short:amount };
+    if (Number(p.amount) >= amount) return { cls:'ok', text:'Đã bù ' + fmtTime(p.at), done:true, short:0 };
+    return { cls:'warn', text:`Đã bù ${money(p.amount)}, còn thiếu ${money(amount - Number(p.amount))}`, done:false, short:amount - Number(p.amount) };
+  };
+  const subsidyView = () => {
+    if (!subDay) subDay = todayKey();
+    const pct = Number(settings.platformPct) || 0, by = subsidyByDay(), dm = by.get(subDay) || new Map(), paidDay = subSet[subDay] || {};
+    const rows = [...dm].map(([id, v]) => ({ id, ...v, name:shopName(id), phone:(shops.find(x => x.id === id) || {}).phone || '' })).sort((a, b) => b.amount - a.amount);
+    const total = rows.reduce((a, r) => a + r.amount, 0), orderN = rows.reduce((a, r) => a + r.count, 0);
+    const owe = rows.reduce((a, r) => a + payState(paidDay[r.id], r.amount).short, 0);
+    const hist = lastDays(7).map(k => { const m = by.get(k) || new Map(), tot = [...m.values()].reduce((a, v) => a + v.amount, 0), pd = subSet[k];
+      const left = pd ? [...m].reduce((a, [id, v]) => a + payState(pd[id], v.amount).short, 0) : null; return { k, tot, left, n:[...m.values()].reduce((a, v) => a + v.count, 0) }; });
+    return `<div class="section-heading"><h2>Bù lỗ giảm giá cho quán</h2><p>${pct ? `Đang giảm <b>${pct}%</b> tiền món cho khách. ` : '<b>Đang TẮT giảm giá</b> (bật ở tab Liên hệ). '}Khách trả ít hơn, quán vẫn nhận đủ tiền món; phần chênh lệch dưới đây là số bạn chuyển khoản bù cho từng quán.</p></div>
+      <div class="card row sb" style="gap:8px"><span class="muted">${revBusy ? 'Đang tải dữ liệu từ Google Sheet…' : revErr ? `<span style="color:var(--red)">${esc(revErr)}</span>` : subErr ? `<span style="color:var(--red)">${esc(subErr)}</span>` : revRows ? 'Chỉ tính đơn đã giao thành công · dữ liệu từ Google Sheet' : 'Chưa tải dữ liệu'}</span><button class="btn sm o" data-revreload ${revBusy ? 'disabled' : ''}>Tải lại</button></div>
+      <div class="card"><label class="f">Chọn ngày (theo ngày giao thành công)<input type="date" id="sub-day" value="${esc(subDay)}" max="${todayKey()}"></label></div>
+      <div class="stat revenue-stats"><div class="card"><span class="metric-icon">💸</span><span class="muted">Tổng bù ngày ${dmy(subDay)}</span><b>${money(total)}</b></div><div class="card"><span class="metric-icon">⏳</span><span class="muted">Còn phải chuyển</span><b>${money(owe)}</b></div><div class="card"><span class="metric-icon">🧾</span><span class="muted">Đơn được giảm</span><b>${orderN.toLocaleString('vi-VN')}</b></div></div>
+      <div class="card"><h3>Chuyển khoản bù theo quán – ${dmy(subDay)}</h3><div class="table-scroll"><table><thead><tr><th>Quán</th><th>Đơn</th><th>Số tiền bù</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+        ${rows.map(r => { const st = payState(paidDay[r.id], r.amount); return `<tr><td><b>${esc(r.name)}</b>${r.phone ? `<br><span class="muted">${esc(r.phone)}</span>` : ''}</td><td>${r.count}</td><td><b>${money(r.amount)}</b></td><td><span class="badge ${st.cls}">${esc(st.text)}</span></td><td style="text-align:right">${st.done ? `<button class="btn sm o" data-subpay="${esc(r.id)}:0">Bỏ đánh dấu</button>` : `<button class="btn sm" data-subpay="${esc(r.id)}:1">Đã chuyển khoản bù</button>`}</td></tr>`; }).join('') || '<tr><td colspan="5">Chưa có đơn nào được giảm trong ngày này</td></tr>'}
+      </tbody></table></div><p class="muted" style="margin-top:8px">Chuyển khoản xong cho quán thì bấm “Đã chuyển khoản bù”. Nếu sau đó phát sinh thêm đơn trong ngày, hệ thống tự báo phần còn thiếu.</p></div>
+      <div class="card"><h3>7 ngày gần nhất</h3><div class="table-scroll"><table><thead><tr><th>Ngày</th><th>Đơn được giảm</th><th>Tổng bù</th><th>Còn phải chuyển</th><th></th></tr></thead><tbody>
+        ${hist.map(h => `<tr><td>${dmy(h.k)}</td><td>${h.n}</td><td><b>${money(h.tot)}</b></td><td>${h.tot ? (h.left == null ? '<span class="muted">…</span>' : h.left ? `<b style="color:var(--red)">${money(h.left)}</b>` : '<span class="badge ok">Đã bù đủ</span>') : '—'}</td><td><button class="btn sm o" data-subgo="${h.k}">Xem</button></td></tr>`).join('')}
+      </tbody></table></div></div>`;
+  };
+  const loadSub = async () => {
+    if (!subDay) subDay = todayKey();
+    const need = [...new Set([subDay, ...lastDays(7)])].filter(k => !(k in subSet));
+    if (!need.length) return;
+    subBusy = true; subErr = '';
+    try { Object.assign(subSet, await fb.getSettlements(need)); } catch (e) { subErr = fb.errMsg(e); }
+    subBusy = false; if (tab === 'subsidy') draw();
+  };
+  const platformView = () => `<div class="card" style="margin-top:12px"><h3>🎁 Giảm giá do Lâm Thao Ăn Gì chịu</h3><p class="muted">Khách được giảm % trên <b>tiền món</b> (sau giảm giá quán và mã giảm giá, không tính phí ship) và thấy dòng “Ưu đãi Lâm Thao Ăn Gì” khi đặt đơn. <b>Quán vẫn nhận đủ tiền món</b>; phần giảm này bạn chịu và bù cho quán cuối ngày ở tab <b>💸 Bù lỗ</b>. Chỉ áp dụng cho đơn đặt từ lúc bạn lưu; nhập 0 để tắt.</p>
+    <div class="grid"><label class="f">Mức giảm (%)<input type="number" id="plat-pct" min="0" max="50" step="0.5" value="${Number(settings.platformPct) || 0}"></label></div>
+    <button class="btn" style="margin-top:12px" data-saveplat>Lưu mức giảm</button></div>`;
+  const settingsView = () => platformView() + custView() + contactView() + bankView() + shipCfgView();
 
   function draw() {
     const keep = $('#uq')?.value;
     if (sel.size) sel = new Set([...sel].filter(id => shops.some(s => s.id === id)));
     const pend = live.filter(o => o.status === 'pending').length;
-    const T = [['revenue', '📊 Doanh thu'], ['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shops', 'Cửa hàng'], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
-    root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ revenue:revenueView, orders:ordersView, shops:shopsView, users:usersView, promos:promosView, settings:settingsView }[tab]()}</main>`;
+    const T = [['revenue', '📊 Doanh thu'], ['subsidy', '💸 Bù lỗ'], ['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shops', 'Cửa hàng'], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
+    root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ revenue:revenueView, subsidy:subsidyView, orders:ordersView, shops:shopsView, users:usersView, promos:promosView, settings:settingsView }[tab]()}</main>`;
     if (keep && $('#uq')) $('#uq').value = keep;
   }
   /* Ghi danh sách Zalo ID (chủ quán theo từng quán + shipper) để Apps Script biết gửi báo đơn cho ai */
@@ -232,9 +287,9 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   };
   const loadRev = async (force) => {
     if (revBusy || (!force && revRows && Date.now() - revAt < 60000)) return;
-    revBusy = true; revErr = ''; if (tab === 'revenue') draw();
+    revBusy = true; revErr = ''; if (tab === 'revenue' || tab === 'subsidy') draw();
     try { revRows = await fb.sheetDoneOrders(); revAt = Date.now(); syncSold(); } catch (e) { revErr = fb.errMsg(e); }
-    revBusy = false; if (tab === 'revenue') draw();
+    revBusy = false; if (tab === 'revenue' || tab === 'subsidy') draw();
   };
   /* sửa bản đã tải từ Sheet ngay trên màn hình (đơn realtime tự cập nhật qua Firestore) */
   const patchLocal = (id, patch) => { const h = hist.find(o => o.id === id); if (h) { Object.assign(h, patch); mergeOrders(); draw(); } };
@@ -277,6 +332,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       }
       if (t.dataset.shopcust !== undefined) { await fb.saveSettings({ shopSeeCustomer:t.checked }); toast(t.checked ? 'Quán đã được xem thông tin khách' : 'Đã ẩn thông tin khách với quán'); return; }
       if (t.id === 'rev-shop') { revShop = t.value; draw(); return; }
+      if (t.id === 'sub-day') { subDay = t.value || todayKey(); draw(); loadSub(); return; }
       if (t.id === 'bk-bank') { if (t.value && t.value !== 'other') $('#bk-bin').value = t.value; return; }
       if (t.dataset.ost) { await fb.patchOrder(t.dataset.ost, { status:t.value }); patchLocal(t.dataset.ost, { status:t.value }); }
       if (t.dataset.urole) { await fb.patchUser(t.dataset.urole, { role:t.value }); users.find(u => u.uid === t.dataset.urole).role = t.value; if (ufil !== 'all') ufil = t.value; await syncNotify(); toast('Đã đổi vai trò' + (t.value === 'seller' ? ' – hãy chọn cửa hàng cho họ' : '')); draw(); }
@@ -289,7 +345,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     const g = s => e.target.closest(s);
     if (g('[data-period]')) { period = g('[data-period]').dataset.period; draw(); return; }
     if (g('[data-revshop]')) { revShop = g('[data-revshop]').dataset.revshop; draw(); return; }
-    if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; rp = null; paste = null; draw(); if (tab === 'revenue') loadRev(false); if (tab === 'orders' && !hist.length && !histDone && !histBusy) loadHist(true); return; }
+    if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; rp = null; paste = null; draw(); if (tab === 'revenue' || tab === 'subsidy') loadRev(false); if (tab === 'subsidy') loadSub(); if (tab === 'orders' && !hist.length && !histDone && !histBusy) loadHist(true); return; }
     if (g('[data-revreload]')) { loadRev(true); return; }
     if (g('[data-histmore]')) { loadHist(false); return; }
     if (g('[data-histall]')) { (async () => { while (!histDone && !histErr) { const n = hist.length; await loadHist(false); if (hist.length === n) break; } })(); return; }
@@ -303,7 +359,20 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       syncBusy = ''; syncMsg = ''; draw(); return;
     }
     try {
-      if (g('[data-newshop]')) { edit = { menu:[] }; draw(); }
+      if (g('[data-copylink]')) { const sh = shops.find(x => x.id === g('[data-copylink]').dataset.copylink); if (sh && await copyText(shopLink(sh, shops))) toast('Đã sao chép link của ' + sh.name + '. Dán gửi khách là xong.'); }
+      else if (g('[data-subgo]')) { subDay = g('[data-subgo]').dataset.subgo; draw(); loadSub(); }
+      else if (g('[data-subpay]')) {
+        const [id, v] = g('[data-subpay]').dataset.subpay.split(':'), on = v === '1', amt = (subsidyByDay().get(subDay) || new Map()).get(id)?.amount || 0;
+        if (on && !confirm(`Xác nhận ĐÃ chuyển khoản bù ${money(amt)} cho “${shopName(id)}” (ngày ${dmy(subDay)})?`)) return;
+        const info = on ? { at:Date.now(), amount:amt } : null;
+        await fb.setSettlement(subDay, id, info); subSet[subDay] = { ...(subSet[subDay] || {}), [id]:info }; toast(on ? 'Đã đánh dấu đã bù' : 'Đã bỏ đánh dấu'); draw();
+      }
+      else if (g('[data-saveplat]')) {
+        const v = parseFloat($('#plat-pct').value), pct = isNaN(v) ? 0 : Math.min(50, Math.max(0, Math.round(v * 10) / 10));
+        if (pct !== (Number(settings.platformPct) || 0) && !confirm(pct ? `Bật giảm ${pct}% tiền món cho MỌI quán, bạn chịu phần giảm này?` : 'Tắt giảm giá do Lâm Thao Ăn Gì chịu?')) return;
+        await fb.saveSettings({ platformPct:pct }); toast(pct ? `Đã bật giảm ${pct}% (bạn chịu)` : 'Đã tắt giảm giá');
+      }
+      else if (g('[data-newshop]')) { edit = { menu:[] }; draw(); }
       else if (g('[data-editshop]')) { edit = JSON.parse(JSON.stringify(shops.find(s => s.id === g('[data-editshop]').dataset.editshop))); draw(); }
       else if (g('[data-resetloc]')) { if (confirm('Đặt lại vị trí quán? Chủ quán sẽ chia sẻ lại được 1 lần.')) { await fb.patchShop(edit.id, { lat:null, lng:null, locAcc:null, locAt:null }); edit.lat = null; edit.lng = null; toast('Đã đặt lại vị trí'); draw(); } }
       else if (g('[data-cancel]')) { edit = null; draw(); }
