@@ -26,3 +26,6 @@
 
 ## 4. Soát lại số bù (cập nhật)
 Tab **💸 Bù lỗ** có thêm bảng **Chi tiết từng đơn được giảm** của ngày đang chọn: giờ giao, mã đơn, quán, tiền món, giảm quán/mã, số bù, phí ship, khách trả, và cột **Kiểm tra** tự tính lại (số bù = (tiền món − giảm quán/mã) × %, khách trả = tiền món − giảm + phí ship). Dòng ⚠ là đơn cần soát. Cần dán lại file Apps Script mới và Deploy bản mới (script thêm cột `platformPct` vào cuối tab DonHang).
+
+## 5. Chủ quán xem được số tiền được bù (cập nhật)
+Trang chủ quán (tab Đơn hàng) có khung **🎁 Lâm Thao Ăn Gì bù cho quán**: số tiền bù hôm nay, số đơn, và trạng thái Chưa chuyển / Đã chuyển (kèm giờ). Ngày cũ chưa bù cũng hiện nhắc. Tab Doanh thu có bảng bù theo ngày. Trạng thái "Đã chuyển" lấy từ nút **Đã chuyển khoản bù** của Admin. **Phải Publish lại `firestore.rules`** (có thêm luật `shopSettlements`). Ngày nào Admin đã bấm "Đã chuyển khoản bù" từ bản trước, hãy bấm "Bỏ đánh dấu" rồi bấm lại để quán thấy.

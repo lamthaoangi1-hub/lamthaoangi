@@ -289,4 +289,13 @@ export async function getSettlements(dayKeys) {
   await Promise.all(dayKeys.map(async k => { const d = await getDoc(doc(db, 'settlements', k)); out[k] = d.exists() ? (d.data().paid || {}) : {}; }));
   return out;
 }
-export const setSettlement = (dayKey, shopId, info) => setDoc(doc(db, 'settlements', dayKey), { paid:{ [shopId]:info } }, { merge:true });
+export const setSettlement = (dayKey, shopId, info) => Promise.all([
+  setDoc(doc(db, 'settlements', dayKey), { paid:{ [shopId]:info } }, { merge:true }),
+  setDoc(doc(db, 'shopSettlements', dayKey + '_' + shopId), { shopId, day:dayKey, at:info ? info.at : null, amount:info ? info.amount : 0 })   // bản để chủ quán xem mình đã được bù chưa
+]);
+/* Chủ quán: xem Admin đã chuyển khoản bù chưa, theo từng ngày → { 'yyyy-mm-dd': { at, amount } | null } */
+export async function getShopSettlements(shopId, dayKeys) {
+  const out = {};
+  await Promise.all(dayKeys.map(async k => { const d = await getDoc(doc(db, 'shopSettlements', k + '_' + shopId)); const v = d.exists() ? d.data() : null; out[k] = v && v.at ? { at:v.at, amount:Number(v.amount) || 0 } : null; }));
+  return out;
+}

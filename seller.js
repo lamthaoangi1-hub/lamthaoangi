@@ -1,11 +1,37 @@
-import { report, periodControl, metrics, note, dailyView } from './revenue.js?v=20261031a';
+import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261031c';
 import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261023a';
-import { shopLink, copyText } from './shoplink.js?v=20261031a';
-import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261031a';
+import { shopLink, copyText } from './shoplink.js?v=20261031c';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261031c';
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
-  let tab = 'orders', shop = null, settings = {}, orders = [], err = '', fil = 'active', period = 'month';
+  let tab = 'orders', shop = null, settings = {}, orders = [], err = '', fil = 'active', period = 'month', subPaid = {};
+  /* Tiền Lâm Thao Ăn Gì bù cho quán (phần giảm giá khách được hưởng do Admin chịu), theo ngày giao thành công */
+  const pad2 = n => String(n).padStart(2, '0');
+  const dayKeyOf = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const dmy = k => k.split('-').reverse().join('/');
+  const subByDay = () => { const m = new Map(); orders.forEach(o => { const v = subsidyOf(o), d = toDate(o.updatedAt || o.createdAt); if (!v || !d) return; const k = dayKeyOf(d), c = m.get(k) || { count:0, amount:0 }; c.count++; c.amount += v; m.set(k, c); }); return m; };
+  const recentKeys = n => Array.from({ length:n }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - i); return dayKeyOf(d); });
+  const subState = (k, amt) => { const p = subPaid[k]; if (!(k in subPaid)) return { cls:'', text:'…', done:false }; if (!p) return { cls:'warn', text:'Chưa chuyển', done:false }; if (p.amount >= amt) return { cls:'ok', text:'Đã chuyển ' + fmtTime(p.at), done:true }; return { cls:'warn', text:`Đã nhận ${money(p.amount)}, còn thiếu ${money(amt - p.amount)}`, done:false }; };
+  let subBusy = false;
+  const loadSubPaid = async () => {
+    if (subBusy || !me.shopId) return;
+    const by = subByDay(), need = recentKeys(7).filter(k => by.has(k) && !(k in subPaid)); if (!need.length) return;
+    subBusy = true;
+    try { Object.assign(subPaid, await fb.getShopSettlements(me.shopId, need)); } catch (e) { /* chưa đọc được thì giữ trạng thái "…" */ }
+    subBusy = false; if (tab === 'orders' || tab === 'revenue') draw();
+  };
+  const subCard = () => {
+    const by = subByDay(), t = by.get(dayKeyOf(new Date())), past = recentKeys(7).slice(1).filter(k => by.has(k) && !subState(k, by.get(k).amount).done);
+    if (!t && !past.length && !by.size) return '';
+    const st = t ? subState(dayKeyOf(new Date()), t.amount) : null;
+    return `<div class="card" style="background:#f0fbf4;border:1px solid #b7e4c7"><h3>🎁 Lâm Thao Ăn Gì bù cho quán</h3>
+      <p class="muted" style="margin:2px 0 6px">Khách được giảm giá khi đặt món, <b>quán vẫn nhận đủ tiền món</b>. Phần giảm do Lâm Thao Ăn Gì chịu và chuyển khoản bù cho quán cuối ngày (chỉ tính đơn đã giao thành công).</p>
+      <div class="row sb"><span>Hôm nay: <b class="total">${money(t ? t.amount : 0)}</b> <span class="muted">· ${t ? t.count : 0} đơn</span></span>${st ? `<span class="badge ${st.cls}">${esc(st.text)}</span>` : '<span class="muted">chưa có đơn</span>'}</div>
+      ${past.map(k => { const s2 = subState(k, by.get(k).amount); return `<div class="row sb" style="margin-top:6px"><span class="muted">Ngày ${dmy(k)}: <b>${money(by.get(k).amount)}</b> (${by.get(k).count} đơn)</span><span class="badge ${s2.cls}">${esc(s2.text)}</span></div>`; }).join('')}</div>`;
+  };
+  const subTable = () => { const by = [...subByDay()].sort((a, b) => b[0].localeCompare(a[0])).slice(0, 30); if (!by.length) return '';
+    return `<div class="card"><h3>Tiền Lâm Thao Ăn Gì bù theo ngày</h3><div class="table-scroll"><table><thead><tr><th>Ngày</th><th>Đơn</th><th>Số tiền bù</th><th>Trạng thái</th></tr></thead><tbody>${by.map(([k, v]) => { const st = subState(k, v.amount); return `<tr><td>${dmy(k)}</td><td>${v.count}</td><td><b>${money(v.amount)}</b></td><td><span class="badge ${st.cls}">${esc(st.text)}</span></td></tr>`; }).join('')}</tbody></table></div><p class="muted" style="margin-top:6px">Chỉ hiện trạng thái cho 7 ngày gần nhất.</p></div>`; };
 
   function orderCard(o) {
     const items = (o.items || []).map(i => `<li>${i.qty} x ${esc(i.name)} <span class="muted">${money(i.price * i.qty)}</span></li>`).join('');
@@ -23,11 +49,11 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
     const act = o => ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(o.status);
     const list = [...orders].sort(newestFirst).filter(o => fil === 'active' ? act(o) : !act(o)).slice(0, 80);
     const today = orders.filter(o => o.status === 'done' && sameDay(o.updatedAt));
-    return `<div class="stat"><div class="card"><b>${orders.filter(o => o.status === 'pending').length}</b><span class="muted">Chờ xác nhận</span></div><div class="card"><b>${today.length}</b><span class="muted">Đơn xong hôm nay</span></div><div class="card"><b>${money(today.reduce((a, o) => a + (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0), 0))}</b><span class="muted">Doanh thu hôm nay</span></div></div>
+    return subCard() + `<div class="stat"><div class="card"><b>${orders.filter(o => o.status === 'pending').length}</b><span class="muted">Chờ xác nhận</span></div><div class="card"><b>${today.length}</b><span class="muted">Đơn xong hôm nay</span></div><div class="card"><b>${money(today.reduce((a, o) => a + (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0), 0))}</b><span class="muted">Doanh thu hôm nay</span></div></div>
       <div class="row" style="margin-bottom:10px"><button class="btn sm ${fil === 'active' ? '' : 'o'}" data-fil="active">Đang xử lý</button><button class="btn sm ${fil === 'past' ? '' : 'o'}" data-fil="past">Đã xong / hủy</button></div>
       ${list.length ? list.map(orderCard).join('') : '<div class="empty">Chưa có đơn</div>'}`;
   }
-  function revenueTab() { const r = report(orders, period); return `<div class="section-heading"><h2>Doanh thu cửa hàng</h2><p>Chi tiết hoạt động kinh doanh của ${esc(shop.name)}</p></div>${periodControl(period)}${metrics(r)}${note}${dailyView(r)}`; }
+  function revenueTab() { const r = report(orders, period); return `<div class="section-heading"><h2>Doanh thu cửa hàng</h2><p>Chi tiết hoạt động kinh doanh của ${esc(shop.name)}</p></div>${periodControl(period)}${metrics(r)}${note}${dailyView(r)}${subTable()}`; }
   function menuTab() {
     return `<div class="card"><h3>Thực đơn</h3><p class="muted">Sửa tên, giá, tắt món hết hàng rồi bấm Lưu.</p>${menuEditorHtml(shop.menu)}<button class="btn" style="margin-top:14px" data-savemenu>Lưu thực đơn</button></div>`;
   }
@@ -61,6 +87,7 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
     if (e) err = fb.errMsg(e);
     if (!first && l.filter(o => o.status === 'pending').length > orders.filter(o => o.status === 'pending').length) { beep(); toast('Có đơn mới!'); }
     orders = l; first = false; if (tab === 'orders' || tab === 'revenue') draw();
+    loadSubPaid();
   }));
   track(fb.watchSettings(s => { settings = s; if (tab === 'orders') draw(); }));
   bindMenuEditor(root); bindImgUpload(root);

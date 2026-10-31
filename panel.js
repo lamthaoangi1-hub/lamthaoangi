@@ -1,5 +1,5 @@
 /* Khung dùng chung cho 3 trang quản lý: đăng nhập, kiểm tra quyền, tiện ích hiển thị */
-import * as fb from './fb.js?v=20261031a';
+import * as fb from './fb.js?v=20261031c';
 export { fb };
 import { parseMenuText, parseMenuSheets, readSheets, downloadMenuTemplate } from './bulk.js?v=20261023a';
 export const $ = (s, r = document) => r.querySelector(s);

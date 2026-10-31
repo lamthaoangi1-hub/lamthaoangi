@@ -56,6 +56,8 @@ service cloud.firestore {
     match /promos/{id} { allow read: if true; allow write: if isAdmin(); }
     // Đánh dấu Admin đã chuyển khoản bù giảm giá cho quán theo ngày (settlements/{yyyy-mm-dd}): chỉ Admin đọc/ghi
     match /settlements/{id} { allow read, write: if isAdmin(); }
+    // Bản riêng từng quán (id = yyyy-mm-dd_shopId): Admin ghi; chủ quán chỉ đọc được của quán mình để biết đã được bù chưa
+    match /shopSettlements/{id} { allow read: if isAdmin() || (isSeller() && id.split('_')[1] == me().shopId); allow write: if isAdmin(); }
     // settings/notify chứa Zalo ID nhận báo đơn: CHỈ Admin đọc (Apps Script đọc bằng quyền riêng của chủ script)
     match /settings/{id} { allow read: if id != 'notify' || isAdmin(); allow write: if isAdmin(); }
 
