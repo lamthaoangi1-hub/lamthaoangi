@@ -296,6 +296,10 @@ export const savePromo = (id, d) => id ? setDoc(doc(db, 'promos', id), d) : addD
 export const removePromo = id => deleteDoc(doc(db, 'promos', id));
 /* Danh sách Zalo ID nhận báo đơn mới: { shops:{ shopId:[id...] }, shippers:[id...] } – Admin ghi, Apps Script đọc */
 export const saveNotify = d => setDoc(doc(db, 'settings', 'notify'), d);
+/* Trạng thái ONLINE của shipper: presence/{uid} = { uid, name, phone, online, since, lastSeen }. Shipper tự ghi; Admin xem; Apps Script chỉ báo Zalo cho shipper đang online */
+export const setPresence = (uid, d) => setDoc(doc(db, 'presence', uid), { uid, ...d }, { merge:true });
+export const watchMyPresence = (uid, cb) => onSnapshot(doc(db, 'presence', uid), s => cb(s.exists() ? s.data() : null), () => cb(null));
+export const watchPresence = cb => watch(collection(db, 'presence'), cb);
 export const saveSettings = d => setDoc(doc(db, 'settings', 'app'), d, { merge:true });
 /* Bù lỗ giảm giá nền tảng: settlements/{yyyy-mm-dd} = { paid: { shopId: { at, amount } } } – Admin đánh dấu đã chuyển khoản bù cho quán */
 export async function getSettlements(dayKeys) {

@@ -1,7 +1,10 @@
-import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payText, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261102b';
+import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payText, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261102c';
 
 export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
   let tab = 'open', open = [], mine = [], err = '';
+  /* ONLINE / OFFLINE: chỉ shipper đang ONLINE mới được báo đơn mới về Zalo (admin xem được ai đang online) */
+  const canToggle = me.role === 'shipper';
+  let online = false, presBusy = false, lastBeat = 0;
   /* Vị trí thật của shipper (GPS) → tính khoảng cách đường thẳng tới quán */
   let pos = null, posErr = '';
   const km = (a, b) => {
@@ -59,6 +62,7 @@ export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'
       ${kind === 'open' ? `<div class="oc-foot"><button class="oc-go" data-claim="${o.id}">Nhận đơn này</button></div>` : o.status === 'delivering' ? `<div class="oc-foot"><button class="oc-go done" data-done="${o.id}">Đã giao xong</button></div>` : ''}
     </article>`;
   }
+  const presBar = () => !canToggle ? '' : `<div class="pres ${online ? 'on' : ''}"><div><b>${online ? '🟢 Bạn đang ONLINE' : '⚪ Bạn đang OFFLINE'}</b><small>${online ? 'Có đơn mới sẽ báo về Zalo để bạn đi nhận.' : 'Bật ONLINE để nhận báo đơn mới qua Zalo. Đang tắt thì sẽ không có tin Zalo.'}</small>${me.zaloId ? '' : '<small class="warn">⚠️ Chưa có Zalo ID – nhờ Admin nhập Zalo ID cho bạn thì mới nhận được tin Zalo.</small>'}</div><button class="pres-btn" data-online="${online ? '0' : '1'}" ${presBusy ? 'disabled' : ''}>${online ? 'Tắt online' : 'Bật online'}</button></div>`;
   function draw() {
     const active = mine.filter(o => o.status === 'delivering').sort(newestFirst);
     const hist = mine.filter(o => o.status === 'done').sort(newestFirst);
@@ -67,13 +71,28 @@ export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'
       : tab === 'mine' ? (active.length ? active.map(o => card(o)).join('') : '<div class="empty">Bạn chưa nhận đơn nào</div>')
       : `<div class="stat"><div class="card"><b>${today.length}</b><span class="muted">Đơn hôm nay</span></div><div class="card"><b>${money(today.reduce((a, o) => a + shipEarn(o), 0))}</b><span class="muted">Phí ship hôm nay</span></div><div class="card"><b>${hist.length}</b><span class="muted">Tổng đơn đã giao</span></div></div>` + (hist.length ? hist.slice(0, 60).map(o => card(o)).join('') : '<div class="empty">Chưa có lịch sử</div>');
     root.innerHTML = `<div class="tabs"><button class="${tab === 'open' ? 'on' : ''}" data-t="open">Đơn chờ nhận${open.length ? `<span class="n">${open.length}</span>` : ''}</button><button class="${tab === 'mine' ? 'on' : ''}" data-t="mine">Đang giao${active.length ? `<span class="n">${active.length}</span>` : ''}</button><button class="${tab === 'hist' ? 'on' : ''}" data-t="hist">Lịch sử</button></div>
-      <main><div class="section-heading"><h2>${tab === 'open' ? 'Đơn đang chờ shipper' : tab === 'mine' ? 'Đơn giao của tôi' : 'Thống kê giao hàng'}</h2><p>${tab === 'hist' ? 'Phí giao hàng và lịch sử hoàn thành' : 'Theo dõi trạng thái đơn hàng nhanh chóng'}</p></div>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${body}</main>`;
+      <main>${presBar()}<div class="section-heading"><h2>${tab === 'open' ? 'Đơn đang chờ shipper' : tab === 'mine' ? 'Đơn giao của tôi' : 'Thống kê giao hàng'}</h2><p>${tab === 'hist' ? 'Phí giao hàng và lịch sử hoàn thành' : 'Theo dõi trạng thái đơn hàng nhanh chóng'}</p></div>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${body}</main>`;
   }
+  /* Heartbeat: khi đang ONLINE và đang mở trang, ghi "lastSeen" mỗi 5 phút để Admin biết còn hoạt động (tiết kiệm lượt ghi Firestore) */
+  const beat = force => { if (!online || !canToggle || document.visibilityState !== 'visible') return; if (!force && Date.now() - lastBeat < 120000) return; lastBeat = Date.now(); fb.setPresence(me.uid, { lastSeen:fb.ts() }).catch(() => {}); };
+  const hb = setInterval(() => beat(false), 300000), onVis = () => beat(false);
+  document.addEventListener('visibilitychange', onVis);
+  track(() => { clearInterval(hb); document.removeEventListener('visibilitychange', onVis); });
+  if (canToggle) { let firstP = true; track(fb.watchMyPresence(me.uid, p => { online = !!(p && p.online === true); if (firstP && online) beat(true); firstP = false; draw(); })); }
   let first = true;
   track(fb.watchOpenOrders( (l, e) => { err = e ? fb.errMsg(e) : ''; if (!first && l.length > open.length) { refreshPos(); beep(); toast('Có đơn mới chờ giao!'); } open = l; first = false; draw(); }));
   track(fb.watchShipperOrders(me.uid, (l, e) => { if (e) err = fb.errMsg(e); mine = l; draw(); }));
   root.addEventListener('click', async e => {
     const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; draw(); return; }
+    const po = e.target.closest('[data-online]');
+    if (po) {
+      if (presBusy) return; const on = po.dataset.online === '1'; presBusy = true; draw();
+      try {
+        await fb.setPresence(me.uid, on ? { name:me.name || '', phone:me.phone || '', online:true, since:fb.ts(), lastSeen:fb.ts() } : { online:false, lastSeen:fb.ts() });
+        lastBeat = Date.now(); toast(on ? 'Đã bật ONLINE – đơn mới sẽ báo về Zalo' : 'Đã tắt ONLINE – sẽ không báo đơn qua Zalo');
+      } catch (er) { toast(fb.errMsg(er)); }
+      presBusy = false; draw(); return;
+    }
     const c = e.target.closest('[data-claim]'), d = e.target.closest('[data-done]');
     try {
       if (c) { c.disabled = true; await fb.patchOrder(c.dataset.claim, { status:'delivering', shipperUid:me.uid, shipperName:me.name || '', shipperPhone:me.phone || '' }); toast('Đã nhận đơn'); tab = 'mine'; draw(); }

@@ -106,6 +106,7 @@ function doPost(e) {
     const body = JSON.parse(e.postData.contents);
     if (body.action === 'notifyOrder') return notifyOrder(body);
     if (body.action === 'notifyStatus') return notifyStatus(body);
+    if (body.action === 'rateShop') return rateShop(body);
     if (body.action === 'resetPassword') return resetPassword(body);
     if (body.action === 'createSeller') return createSeller(body);
     if (body.action === 'syncUser') return syncUser(body);
@@ -355,7 +356,7 @@ function notifyOrder(body) {
   const list = v => (Array.isArray(v) ? v : String(v || '').split(',')).map(x => String(x).trim()).filter(Boolean);
   const adminIds = list(props().getProperty('ZALO_ADMIN_IDS'));
   const shopIds = order.type ? [] : list(((notify.shops || {})[order.shopId] || []).concat(list(shop.zaloId)));   // shop.zaloId: cách nhập cũ, vẫn đọc để không mất
-  const shipperIds = list(notify.shippers);
+  const shipperIds = onlineShipperZaloIds();   // CHỈ shipper đang bật ONLINE (presence) mới nhận tin Zalo; settings/notify.shippers không còn dùng để gửi
   console.log('notifyOrder: đơn ' + order.code + ' | admin ' + adminIds.length + ' | quán ' + shopIds.length + ' | shipper ' + shipperIds.length);
 
   // Mỗi người chỉ nhận 1 tin dù có nhiều vai trò (ưu tiên: admin → quán → shipper)
@@ -367,10 +368,77 @@ function notifyOrder(body) {
   push(adminIds, 'admin', zaloText(order, shop, 'Vui lòng mở lamthaoangi.io.vn/quanly.html để theo dõi đơn.'));
   const appSet = getDoc('settings/app', body.token) || {};   // Admin tắt "Cho quán xem thông tin khách" → tin gửi quán không kèm tên/SĐT/địa chỉ khách
   const shopSeeCustomer = appSet.shopSeeCustomer !== false;
-  push(shopIds, 'shop', zaloText(order, shop, 'Vui lòng mở lamthaoangi.io.vn/quanly.html để xem đơn.', !shopSeeCustomer));
-  push(shipperIds, 'shipper', '🛎 Có đơn mới! Mở lamthaoangi.io.vn/quanly.html để xem và nhận đơn.');
+  push(shopIds, 'shop', zaloText(order, shop, 'Vui lòng mở lamthaoangi.io.vn/quanly.html để xem đơn.', !shopSeeCustomer, true));
+  const fee = order.shipFull != null ? order.shipFull : order.shipFee;
+  push(shipperIds, 'shipper', '🛎 Có đơn mới #' + order.code + (order.shopName ? ' – ' + order.shopName : (order.type === 'errand' ? ' – Mua hộ' : order.type === 'delivery' ? ' – Giao hàng' : '')) + (fee != null ? '\nPhí ship bạn nhận: ' + money(fee) : '') + '\nMở lamthaoangi.io.vn/quanly.html để xem và nhận đơn.');
   if (!result.email && !result.admin && !result.shop && !result.shipper && !result.customer) { try { CacheService.getScriptCache().remove('notified_' + body.orderId); } catch (e) {} return out({ ok: false, error: 'Chưa gửi được thông báo nào', result: result }); }
   return out({ ok: true, result: result });
+}
+
+// ===================== SHIPPER ONLINE → NHẬN BÁO ĐƠN QUA ZALO =====================
+// Shipper bật/tắt nút ONLINE trên web → ghi presence/{uid} = { online, since, lastSeen } vào Firestore.
+// Hàm này lấy Zalo ID (trong hồ sơ users/{uid}.zaloId, Admin nhập ở tab Người dùng) của các shipper đang ONLINE.
+// Shipper tắt online → không có trong danh sách → không nhận tin Zalo. Bật mà quá 12 giờ không hoạt động thì bỏ qua (quên tắt / hết pin).
+const SHIPPER_ONLINE_MAX_MS = 12 * 3600 * 1000;
+function onlineShipperZaloIds() {
+  const ids = [];
+  try {
+    const r = UrlFetchApp.fetch(FS.replace(/\/documents\/$/, '/documents') + ':runQuery', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      payload: JSON.stringify({ structuredQuery: {
+        from: [{ collectionId: 'presence' }],
+        where: { fieldFilter: { field: { fieldPath: 'online' }, op: 'EQUAL', value: { booleanValue: true } } },
+        limit: 200 } }) });
+    if (r.getResponseCode() !== 200) { console.error('presence lỗi ' + r.getResponseCode() + ': ' + r.getContentText().slice(0, 300)); return ids; }
+    JSON.parse(r.getContentText()).forEach(row => {
+      if (!row.document) return;
+      const uid = row.document.name.split('/').pop(), p = docToObj(row.document);
+      const last = Date.parse(p.lastSeen || p.since || '');
+      if (last && Date.now() - last > SHIPPER_ONLINE_MAX_MS) return;
+      const u = getDocAdmin('users/' + uid, '');
+      if (!u || u.role !== 'shipper') return;
+      String(u.zaloId || '').split(',').map(x => x.trim()).filter(Boolean).forEach(z => { if (ids.indexOf(z) < 0) ids.push(z); });
+    });
+  } catch (e) { console.error('onlineShipperZaloIds: ' + e); }
+  return ids;
+}
+// Chạy tay để kiểm tra: in ra Zalo ID của các shipper đang online
+function testOnlineShippers() { Logger.log(JSON.stringify(onlineShipperZaloIds())); }
+
+// ===================== ĐÁNH GIÁ QUÁN (1-5 sao, mỗi đơn 1 lần) =====================
+// Khách đánh giá → web ghi rating vào đơn (luật Firestore chỉ cho ghi 1 lần). Hàm này cộng vào điểm của quán (shops.rateSum / rateCount / rate / rc)
+// bằng quyền chủ script. Gọi lại nhiều lần vẫn an toàn: mỗi đơn chỉ được cộng 1 lần nhờ cờ ratingCounted.
+function rateShop(body) {
+  if (!body.token || !body.orderId) return out({ ok: false, error: 'Thiếu dữ liệu' });
+  const uid = verifyToken(body.token);
+  if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn' });
+  const order = getDoc('orders/' + body.orderId, body.token);   // đọc bằng token của khách → đúng chủ đơn mới đọc được
+  if (!order || order.uid !== uid) return out({ ok: false, error: 'Không tìm thấy đơn' });
+  const stars = Number(order.rating);
+  if (order.status !== 'done' || order.type || !(stars >= 1 && stars <= 5)) return out({ ok: false, error: 'Đơn chưa có đánh giá hợp lệ' });
+  if (order.ratingCounted === true) return out({ ok: true, duplicate: true });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    const again = getDocAdmin('orders/' + body.orderId, body.token);
+    if (again && again.ratingCounted === true) return out({ ok: true, duplicate: true });
+    const shop = getDocAdmin('shops/' + order.shopId, body.token);
+    if (!shop) return out({ ok: false, error: 'Không tìm thấy quán' });
+    // Mốc cộng dồn: nếu Admin đã chỉnh tay (rateSum/rateCount) hoặc chỉ nhập rate + rc ở trang Admin thì cộng tiếp lên đó, không quay về số thật
+    let baseCnt = shop.rateCount != null ? Number(shop.rateCount) : (Number(shop.rate) > 0 ? (parseInt(shop.rc, 10) || 10) : 0);
+    let baseSum = shop.rateSum != null ? Number(shop.rateSum) : Math.round(Number(shop.rate || 0) * baseCnt);
+    const sum = baseSum + stars, cnt = baseCnt + 1;
+    const hdr = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+    const s = UrlFetchApp.fetch(FS + 'shops/' + order.shopId + '?updateMask.fieldPaths=rateSum&updateMask.fieldPaths=rateCount&updateMask.fieldPaths=rate&updateMask.fieldPaths=rc',
+      { method: 'patch', contentType: 'application/json', muteHttpExceptions: true, headers: hdr,
+        payload: JSON.stringify({ fields: { rateSum: { integerValue: String(sum) }, rateCount: { integerValue: String(cnt) },
+          rate: { doubleValue: Math.round(sum / cnt * 10) / 10 }, rc: { stringValue: String(cnt) } } }) });
+    if (s.getResponseCode() !== 200) return out({ ok: false, error: 'Không ghi được điểm quán (' + s.getResponseCode() + ')' });
+    UrlFetchApp.fetch(FS + 'orders/' + body.orderId + '?updateMask.fieldPaths=ratingCounted',
+      { method: 'patch', contentType: 'application/json', muteHttpExceptions: true, headers: hdr, payload: JSON.stringify({ fields: { ratingCounted: { booleanValue: true } } }) });
+    return out({ ok: true, rate: Math.round(sum / cnt * 10) / 10, count: cnt });
+  } finally { lock.releaseLock(); }
 }
 
 // ===================== 3) THÔNG BÁO ĐẨY VỀ MÁY KHÁCH (Firebase Cloud Messaging) =====================
@@ -543,7 +611,7 @@ function svcLines(o) {
   return [];
 }
 
-function zaloText(order, shop, footer, hideCustomer) {
+function zaloText(order, shop, footer, hideCustomer, forShop) {
   const w = order._warn ? order._warn + '\n' : '';
   if (order.type) return w + '🛎 ĐƠN ' + (order.type === 'errand' ? 'MUA HỘ' : 'GIAO HÀNG') + ' MỚI #' + order.code + '\n'
     + svcLines(order).join('\n') + '\n'
@@ -556,8 +624,13 @@ function zaloText(order, shop, footer, hideCustomer) {
   return w + '🛎 ĐƠN MỚI #' + order.code + '\n'
     + 'Quán: ' + (order.shopName || shop.name || '') + '\n'
     + itemsLines(order) + '\n'
-    + 'Phí ship: ' + money(order.shipFee) + (order.nightFee ? ' (gồm phụ phí đêm ' + money(order.nightFee) + ')' : '') + (order.shopShip ? ' | Quán hỗ trợ ship: ' + money(order.shopShip) : '') + (order.discount ? ' | Giảm: -' + money(order.discount) : '') + '\n'
-    + 'TỔNG: ' + money(order.total) + ' (' + payLabel(order) + ')\n'
+    + (forShop
+      // Tin gửi QUÁN: chỉ nói tiền món quán nhận, KHÔNG có phí ship / tổng khách trả (tránh quán hiểu nhầm)
+      ? 'TIỀN MÓN QUÁN NHẬN: ' + money(Math.max(0, Number(order.subtotal || 0) - Number(order.discount || 0) + Number(order.platformOff || 0))) + (order.discount ? ' (đã trừ giảm giá ' + money(order.discount) + ')' : '') + '\n'
+        + (order.shopShip ? 'Quán hỗ trợ ship (freeship): -' + money(order.shopShip) + ' → quán thực nhận ' + money(Math.max(0, Number(order.subtotal || 0) - Number(order.discount || 0) + Number(order.platformOff || 0) - Number(order.shopShip || 0))) + '\n' : '')
+        + 'Phí ship khách trả cho shipper, không tính vào quán.\n'
+      : 'Phí ship: ' + money(order.shipFee) + (order.nightFee ? ' (gồm phụ phí đêm ' + money(order.nightFee) + ')' : '') + (order.shopShip ? ' | Quán hỗ trợ ship: ' + money(order.shopShip) : '') + (order.discount ? ' | Giảm: -' + money(order.discount) : '') + '\n'
+        + 'TỔNG: ' + money(order.total) + ' (' + payLabel(order) + ')\n')
     + (order.platformOff ? '🎁 Lâm Thao Ăn Gì giảm cho khách ' + money(order.platformOff) + ' – quán VẪN NHẬN ĐỦ, Admin bù lại cuối ngày\n' : '')
     + (hideCustomer ? '' : 'Khách: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
     + 'Giao đến: ' + (order.address || '') + '\n')

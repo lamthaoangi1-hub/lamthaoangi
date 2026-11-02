@@ -41,6 +41,18 @@ service cloud.firestore {
         && request.resource.data.token.size() < 600;
     }
 
+    // Trạng thái ONLINE của shipper (presence/{uid}): shipper chỉ ghi/đọc của chính mình; Admin xem tất cả để biết ai đang online.
+    // Apps Script đọc bằng quyền riêng của chủ script để chỉ báo đơn mới qua Zalo cho shipper đang online
+    match /presence/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if signedIn() && request.auth.uid == uid && (isShipper() || isAdmin())
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'phone', 'online', 'since', 'lastSeen'])
+        && request.resource.data.online is bool;
+      allow delete: if isAdmin();
+    }
+
     // Cửa hàng: ai cũng xem được; admin sửa tất cả; nhà bán hàng chỉ sửa cửa hàng của mình
     match /shops/{shopId} {
       allow read: if true;
@@ -115,6 +127,13 @@ service cloud.firestore {
         || (resource.data.uid == request.auth.uid && resource.data.get('payment', 'cash') == 'bank'
             && resource.data.status in ['pending', 'confirmed', 'preparing', 'ready', 'delivering']
             && request.resource.data.customerPaid == true && changedOnly(['customerPaid', 'customerPaidAt', 'updatedAt']))
+        // khách đánh giá quán 1-5 sao sau khi đơn giao thành công: CHỈ 1 LẦN (đã có rating thì không sửa được nữa), không đụng updatedAt để không lệch doanh thu theo ngày
+        || (resource.data.uid == request.auth.uid && resource.data.status == 'done'
+            && resource.data.get('type', 'food') == 'food'
+            && !('rating' in resource.data)
+            && request.resource.data.rating is int && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+            && request.resource.data.ratedAt == request.time
+            && changedOnly(['rating', 'ratedAt']))
         // shipper nhận đơn ngay khi khách đặt (quán không được đổi trạng thái đơn)
         || (isShipper() && resource.data.status in ['pending', 'confirmed', 'preparing', 'ready'] && request.resource.data.status == 'delivering'
             && request.resource.data.shipperUid == request.auth.uid

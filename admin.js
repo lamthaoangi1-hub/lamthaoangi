@@ -1,6 +1,6 @@
-import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261102b';
-import { shopLink, copyText } from './shoplink.js?v=20261102b';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261102b';
+import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261102c';
+import { shopLink, copyText } from './shoplink.js?v=20261102c';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261102c';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -13,6 +13,23 @@ const SAMPLE = [
 export const panel = { key:'admin', title:'Quản trị', roles:['admin'], render(root, me) {
   let tab = 'orders', shops = [], orders = [], live = [], hist = [], histDone = false, histBusy = false, histTotal = null, histErr = '', revRows = null, revBusy = false, revAt = 0, revErr = '', users = [], sync = {}, syncBusy = '', syncMsg = '', promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all', paste = null, sel = new Set(), bh = { open:'06:00', close:'21:00' }, subSet = {}, subBusy = false, subErr = '', subDay = '';
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
+
+  /* ===== Shipper ONLINE (presence/{uid}, shipper tự bật/tắt; realtime) ===== */
+  let presence = [];
+  const PRES_MAX = 12 * 3600 * 1000;   // bật online mà 12 giờ không hoạt động thì coi như đã offline (khớp với Apps Script)
+  const presT = p => toDate(p.lastSeen)?.getTime() ?? Date.now();
+  const presOn = p => p.online === true && Date.now() - presT(p) < PRES_MAX;
+  const ago = t => { const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? 'vừa xong' : m < 60 ? m + ' phút trước' : m < 1440 ? Math.floor(m / 60) + ' giờ trước' : Math.floor(m / 1440) + ' ngày trước'; };
+  const onlineView = () => {
+    const on = presence.filter(presOn).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'));
+    const off = presence.filter(p => !presOn(p)).sort((a, b) => presT(b) - presT(a));
+    const zalo = p => { const u = users.find(x => x.uid === (p.uid || p.id)); return u ? (String(u.zaloId || '').trim() ? '<span class="badge ok">Có Zalo ID</span>' : '<span class="badge warn">Chưa có Zalo ID</span>') : ''; };
+    const row = (p, isOn) => `<tr><td><strong>${esc(p.name || '(chưa có tên)')}</strong></td><td>${p.phone ? `<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>` : ''}</td><td>${isOn ? '<span class="badge ok">🟢 Online</span>' : '<span class="badge">⚪ Offline</span>'}</td><td>${isOn && p.since ? fmtTime(p.since) : ''}</td><td>${ago(presT(p))}</td><td>${zalo(p)}</td></tr>`;
+    const tbl = (list, isOn, empty) => list.length ? `<div class="table-scroll"><table><thead><tr><th>Shipper</th><th>SĐT</th><th>Trạng thái</th><th>Bật online lúc</th><th>Hoạt động gần nhất</th><th>Zalo</th></tr></thead><tbody>${list.map(p => row(p, isOn)).join('')}</tbody></table></div>` : `<p class="muted" style="margin-top:8px">${empty}</p>`;
+    return `<div class="section-heading"><h2>Shipper đang online</h2><p>Chỉ shipper bật ONLINE mới được báo đơn mới qua Zalo</p></div>
+      <div class="card"><h3>🟢 Đang online (${on.length})</h3>${tbl(on, true, 'Hiện chưa có shipper nào bật online – đơn mới sẽ KHÔNG báo qua Zalo cho shipper.')}</div>
+      <div class="card"><h3>⚪ Đang offline (${off.length})</h3>${tbl(off, false, 'Chưa có shipper nào từng bật online.')}</div>`;
+  };
 
   const revenueView = () => {
     const src = revRows || [];   // đơn hoàn thành lấy từ Google Sheet (không đọc Firestore)
@@ -247,8 +264,9 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     const keep = $('#uq')?.value;
     if (sel.size) sel = new Set([...sel].filter(id => shops.some(s => s.id === id)));
     const pend = live.filter(o => o.status === 'pending').length;
-    const T = [['revenue', '📊 Doanh thu'], ['subsidy', '💸 Bù lỗ'], ['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shops', 'Cửa hàng'], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
-    root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ revenue:revenueView, subsidy:subsidyView, orders:ordersView, shops:shopsView, users:usersView, promos:promosView, settings:settingsView }[tab]()}</main>`;
+    const pn = presence.filter(presOn).length;
+    const T = [['revenue', '📊 Doanh thu'], ['subsidy', '💸 Bù lỗ'], ['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shops', 'Cửa hàng'], ['online', `🟢 Shipper online<span class="n" id="pres-n" style="background:var(--g);${pn ? '' : 'display:none'}">${pn}</span>`], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
+    root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ revenue:revenueView, subsidy:subsidyView, orders:ordersView, shops:shopsView, users:usersView, online:onlineView, promos:promosView, settings:settingsView }[tab]()}</main>`;
     if (keep && $('#uq')) $('#uq').value = keep;
   }
   /* Ghi danh sách Zalo ID (chủ quán theo từng quán + shipper) để Apps Script biết gửi báo đơn cho ai */
@@ -307,6 +325,9 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   const patchLocal = (id, patch) => { const h = hist.find(o => o.id === id); if (h) { Object.assign(h, patch); mergeOrders(); draw(); } };
   track(fb.watchActiveOrders((l, e) => { live = l; mergeOrders(); if (e) err = fb.errMsg(e); else err = err === fb.QUOTA_MSG ? '' : err; if (tab === 'orders') draw(); }));
   loadHist(true);
+  track(fb.watchPresence((l, e) => { presence = l; if (tab === 'online') draw(); else { const b = $('#pres-n'); const n = l.filter(presOn).length; if (b) { b.textContent = n; b.style.display = n ? '' : 'none'; } } }));
+  const presClock = setInterval(() => { if (tab === 'online') draw(); }, 60000);   // làm mới nhãn "x phút trước"
+  track(() => clearInterval(presClock));
   track(fb.watchPromos(l => { promos = l; if (tab === 'promos') draw(); }));
   track(fb.watchSettings(s => { settings = s; if (tab === 'settings') draw(); }));
   /* Đếm số đơn đã giao của từng quán và lưu vào quán (trường sold) để khách thấy mục “Bán chạy”. Chạy khi Admin mở trang quản lý. */

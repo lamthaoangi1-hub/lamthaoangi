@@ -1,7 +1,7 @@
-import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261102b';
+import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261102c';
 import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261023a';
-import { shopLink, copyText } from './shoplink.js?v=20261102b';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261102b';
+import { shopLink, copyText } from './shoplink.js?v=20261102c';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261102c';
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }

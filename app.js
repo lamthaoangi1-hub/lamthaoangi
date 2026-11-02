@@ -1419,7 +1419,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261102b').then(m => {
+    import('./fb.js?v=20261102c').then(m => {
       FB = m;
       let RAWSHOPS = [], openSig = '';
       const applyShops = () => {
