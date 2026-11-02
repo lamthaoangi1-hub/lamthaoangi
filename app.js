@@ -354,7 +354,7 @@
         <div class="row"><img class="img" src="${s.img}" alt="${s.name}" loading="lazy">
           <div class="body"><span class="status ${st.cls}">${st.icon}${o.label || st.label}</span>
             <h3>${s.name}</h3><div class="code">Mã đơn: #${o.code}</div>
-            <div class="items">${o.items.join('<br>')}</div>${payTag(o.raw || {})}<div class="price">${money(o.total)}</div>${o.status === 'delivering' && o.shipperName ? `<div class="shipper-line">🛵 Tài xế <b>${o.shipperName}</b> đã nhận đơn${o.shipperPhone ? ` · <a href="tel:${o.shipperPhone.replace(/\s/g, '')}">Gọi ${o.shipperPhone}</a>` : ''}</div>` : ''}
+            <div class="items">${o.items.join('<br>')}</div>${payTag(o.raw || {})}<div class="price">${money(o.total)}</div>${rateLine(o)}${o.status === 'delivering' && o.shipperName ? `<div class="shipper-line">🛵 Tài xế <b>${o.shipperName}</b> đã nhận đơn${o.shipperPhone ? ` · <a href="tel:${o.shipperPhone.replace(/\s/g, '')}">Gọi ${o.shipperPhone}</a>` : ''}</div>` : ''}
             <div class="foot"><span>${ic('shop')}${s.group[0]} • Lâm Thao</span><span>${ic('clock')}${o.when}</span>${o.st === 'ship' ? `<span>${ic('truck')}Dự kiến 15 - 25 phút</span>` : ''}</div></div></div>
         <div class="actions"><button class="btn-soft" data-detail="${o.code}">${ic('list')}Xem chi tiết</button>${second}</div></article>`;
     }).join('');
@@ -373,6 +373,32 @@
     if (q) { q.addEventListener('input', e => { S.orders.q = e.target.value; $('#orders-list').innerHTML = ordersListHtml(); }); }
   }
   const orderByCode = c => ORDERS.find(o => o.code === c);
+  /* ---- Đánh giá quán sau khi giao thành công (1-5 sao, mỗi đơn 1 lần) ---- */
+  const canRate = o => o.status === 'done' && !(o.raw && o.raw.type);
+  const starsTxt = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+  const rateLine = o => !canRate(o) ? '' : (o.raw && o.raw.rating)
+    ? `<div class="rated-line"><span class="stars">${starsTxt(o.raw.rating)}</span> Bạn đã đánh giá ${o.raw.rating}/5 sao</div>`
+    : `<button type="button" class="rate-btn" data-rate="${o.code}">⭐ Đánh giá quán</button>`;
+  let RATE = { n:0 };
+  function rateSheet(o) {
+    if (!o || !canRate(o)) return;
+    if (o.raw && o.raw.rating) return toast('Bạn đã đánh giá đơn này rồi');
+    RATE = { n:0 };
+    openSheet(`<h3>Đánh giá ${shopBy(o.shop).name}</h3><div class="sub">Đơn #${o.code} • Chỉ đánh giá được 1 lần, không sửa lại sau khi gửi</div>
+      <div class="star-pick" id="star-pick">${[1, 2, 3, 4, 5].map(i => `<button type="button" data-star="${i}" aria-label="${i} sao">★</button>`).join('')}</div>
+      <div class="star-hint" id="star-hint">Chạm vào sao để chọn</div>
+      <button class="sheet-btn" id="rate-ok" data-rateok="${o.code}" disabled>Gửi đánh giá</button>
+      <button class="sheet-btn" style="background:#f5f6f7;color:#2b3038" onclick="document.getElementById('sheet-backdrop').click()">Để sau</button>`);
+  }
+  const STAR_TXT = ['', 'Rất tệ', 'Chưa tốt', 'Bình thường', 'Tốt', 'Tuyệt vời'];
+  function pickStar(n) {
+    RATE.n = n;
+    document.querySelectorAll('#star-pick button').forEach(b => b.classList.toggle('on', +b.dataset.star <= n));
+    const h = document.getElementById('star-hint'); if (h) h.textContent = n + '/5 – ' + STAR_TXT[n];
+    const ok = document.getElementById('rate-ok'); if (ok) ok.disabled = false;
+  }
+  const SYNCED = new Set();   // đơn đã đánh giá nhưng chưa cộng vào điểm quán (lần gửi trước lỗi) → tự gửi lại 1 lần mỗi phiên
+  const syncRatings = () => RAW.forEach(r => { if (r.status === 'done' && !r.type && r.rating && r.ratingCounted !== true && !SYNCED.has(r.id)) { SYNCED.add(r.id); FB.rateShopSync(r.id); } });
   function orderDetail(o) {
     const s = shopBy(o.shop);
     openSheet(`<h3>Chi tiết đơn #${o.code}</h3><div class="sub">${s.name} • ${o.when}</div>
@@ -382,6 +408,7 @@
       <div class="row-kv"><span>Tổng thanh toán</span><b style="color:var(--green-d)">${money(o.total)}</b></div>
       <div class="row-kv"><span>Thanh toán</span><b>${o.raw ? payLabel(o.raw) : 'Tiền mặt'}</b></div>
       <div class="row-kv"><span>Địa chỉ</span><b>${o.address || S.area}</b></div></div>
+      ${canRate(o) ? `<div style="margin-top:10px">${rateLine(o)}</div>` : ''}
       ${o.shipperName || o.shipperPhone ? `<div class="shipper-box"><div><b>🛵 Shipper đã nhận đơn</b><div class="sub" style="margin-top:2px">${o.shipperName ? 'Tài xế ' + o.shipperName : 'Tài xế'}${o.shipperPhone ? ' · ' + o.shipperPhone : ''}</div></div>${o.shipperPhone ? `<a class="shipper-call" href="tel:${o.shipperPhone.replace(/\s/g, '')}">📞 Gọi</a>` : ''}</div>` : ''}
       ${o.raw && o.raw.payment === 'bank' && o.raw.payStatus !== 'paid' && !['done', 'cancelled'].includes(o.raw.status) ? `<button class="sheet-btn" data-paybank="${esc(o.raw.id)}">Xem mã QR chuyển khoản</button>` : ''}
       <button class="sheet-btn" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`);
@@ -1119,6 +1146,15 @@
     }
     const otab = t.closest('[data-otab]'); if (otab) { S.orders.tab = otab.dataset.otab; renderOrders(); return; }
     const ntab = t.closest('[data-ntab]'); if (ntab) { S.noti.tab = ntab.dataset.ntab; renderNotifications(); return; }
+    const rt = t.closest('[data-rate]'); if (rt) { rateSheet(orderByCode(rt.dataset.rate)); return; }
+    const sp = t.closest('[data-star]'); if (sp) { pickStar(+sp.dataset.star); return; }
+    const rok = t.closest('[data-rateok]');
+    if (rok) {
+      const o = orderByCode(rok.dataset.rateok); if (!o || !RATE.n) return;
+      rok.disabled = true; rok.textContent = 'Đang gửi…';
+      FB.rateOrder(o.id, RATE.n).then(() => { toast('Cảm ơn bạn đã đánh giá ' + RATE.n + ' sao ⭐'); closeSheet(); }).catch(e => { rok.disabled = false; rok.textContent = 'Gửi đánh giá'; toast(e && e.code === 'permission-denied' ? 'Đơn này đã được đánh giá rồi' : FB.errMsg(e)); });
+      return;
+    }
     const det = t.closest('[data-detail]'); if (det) return orderDetail(orderByCode(det.dataset.detail));
     const trk = t.closest('[data-track]'); if (trk) return trackSheet(orderByCode(trk.dataset.track));
     const pp = t.closest('[data-paypick]');
@@ -1372,6 +1408,7 @@
   function rebuildOrders() {
     ORDERS = RAW.map(mapOrder).sort((a, b) => b.t - a.t);
     S.points = Math.floor(ORDERS.filter(o => o.status === 'done').reduce((a, o) => a + o.total, 0) / 1000);
+    syncRatings();
     rebuildNotices();
     if (S.tab === 'orders') { if (S.orders.search && document.activeElement && document.activeElement.id === 'orders-q') $('#orders-list').innerHTML = ordersListHtml(); else renderOrders(); }
     if (S.tab === 'profile') renderProfile();
@@ -1382,7 +1419,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261031c').then(m => {
+    import('./fb.js?v=20261102a').then(m => {
       FB = m;
       let RAWSHOPS = [], openSig = '';
       const applyShops = () => {

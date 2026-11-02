@@ -695,3 +695,15 @@ body{font-size:13px}
 .shipper-line a{color:var(--green-d,#0b6a33);font-weight:700;text-decoration:underline}
 .shipper-box{margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--green-l,#e7f7ee);border-radius:16px;padding:12px 14px}
 .shipper-call{flex:none;background:var(--green,#12a150);color:#fff;font-weight:700;border-radius:999px;padding:10px 16px;text-decoration:none;font-size:14px}
+
+
+/* Đánh giá quán sau khi giao thành công */
+.rate-btn{margin-top:8px;padding:7px 14px;border-radius:999px;background:#fff7e0;color:#9a6700;border:1px solid #f5d27a;font-weight:700;font-size:13px;font-family:var(--font-h)}
+.rate-btn:active{transform:scale(.97)}
+.rated-line{margin-top:8px;font-size:13px;color:#6b7280}
+.rated-line .stars{color:#f5a623;letter-spacing:1px;font-size:15px}
+.star-pick{display:flex;justify-content:center;gap:6px;margin:18px 0 6px}
+.star-pick button{font-size:44px;line-height:1;color:#d6d9de;background:none;border:0;padding:2px 4px;transition:.12s}
+.star-pick button.on{color:#f5a623;transform:scale(1.08)}
+.star-hint{text-align:center;color:#6b7280;font-size:14px;margin-bottom:14px;min-height:20px}
+.sheet-btn:disabled{opacity:.5}

@@ -117,6 +117,20 @@ export async function patchOrder(id, patch) {
   if (patch && patch.status) notifyStatus(id);   // đổi trạng thái → báo về máy khách + cập nhật Google Sheet (chạy nền, không chặn thao tác)
   else sheetCall('syncOrder', { orderId:id });   // đổi thanh toán / khách báo đã chuyển khoản → cập nhật Google Sheet
 }
+/* Khách đánh giá quán 1-5 sao sau khi đơn giao thành công. Mỗi đơn chỉ 1 lần: luật Firestore chặn ghi lại khi đơn đã có rating.
+   Không dùng patchOrder vì patchOrder đổi updatedAt (đang dùng làm ngày hoàn thành để tính doanh thu). */
+export async function rateOrder(id, stars) {
+  await updateDoc(doc(db, 'orders', id), { rating:Math.round(stars), ratedAt:serverTimestamp() });
+  rateShopSync(id);   // cộng vào điểm của quán (chạy nền; nếu lỗi sẽ tự thử lại lần mở web sau)
+}
+export async function rateShopSync(orderId) {
+  for (let i = 0; i < 2; i++) {
+    const j = await sheetCall('rateShop', { orderId }, 20000);
+    if (j && j.ok) return true;
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  return false;
+}
 /* Nhờ Apps Script gửi thông báo đẩy "đơn đã đổi trạng thái" tới các máy của khách. Lỗi cũng không ảnh hưởng việc cập nhật đơn. */
 async function notifyStatus(orderId) {
   if (!UPLOAD_URL) return;

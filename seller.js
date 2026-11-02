@@ -1,7 +1,7 @@
-import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261031c';
+import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261102a';
 import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261023a';
-import { shopLink, copyText } from './shoplink.js?v=20261031c';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261031c';
+import { shopLink, copyText } from './shoplink.js?v=20261102a';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261102a';
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
@@ -40,9 +40,9 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
       ? `<div class="muted">${fmtTime(o.createdAt)} · ${esc(o.customerName)} · <a href="tel:${esc(o.customerPhone)}">${esc(o.customerPhone)}</a></div>
         <div class="muted">Giao đến: <b>${esc(o.address)}</b>${o.lat != null && o.lng != null ? ` · <a href="${mapLink(o.lat, o.lng)}" target="_blank" rel="noopener">Xem bản đồ</a>` : ''}</div>`
       : `<div class="muted">${fmtTime(o.createdAt)} · Thông tin khách do shipper phụ trách</div>`;
-    return `<div class="card"><div class="row sb"><b>#${esc(o.code)}</b>${badge(o.status)}</div>${cust}
+    return `<div class="card"><div class="row sb"><b>#${esc(o.code)}</b>${badge(o.status)}</div>${cust}${o.rating ? `<div style="margin-top:4px;color:#f5a623">${'★'.repeat(o.rating)}${'☆'.repeat(5 - o.rating)} <span class="muted">Khách đánh giá ${o.rating}/5 sao</span></div>` : ''}
       <ul class="items">${items}</ul>${o.note ? `<p class="muted">Ghi chú: ${esc(o.note)}</p>` : ''}
-      <div class="row sb"><span>Tổng: <b class="total">${money(o.total)}</b> <span class="muted">· ${payText(o)}${o.shipperName ? ' · Shipper: ' + esc(o.shipperName) : ''}</span></span>
+      <div class="row sb"><span>Tiền món quán nhận: <b class="total">${money(Math.max(0, (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0)))}</b> <span class="muted">· phí ship khách trả cho shipper, không tính vào quán${o.shipperName ? ' · Shipper: ' + esc(o.shipperName) : ''}</span></span>
       <span class="muted">${showC ? 'Quán xem đơn và giao theo thông tin khách' : 'Quán chỉ xem đơn – shipper nhận và giao'}</span></div>${o.platformOff ? `<div class="muted" style="margin-top:6px">🎁 Lâm Thao Ăn Gì giảm ${o.platformPct ? o.platformPct + '% ' : ''}cho khách: <b>${money(o.platformOff)}</b> – <b>quán vẫn nhận đủ</b>, Admin sẽ chuyển khoản bù cuối ngày.</div>` : ''}${o.shopShip ? `<div class="muted" style="margin-top:6px">Quán hỗ trợ phí ship (freeship): <b>-${money(o.shopShip)}</b> · Quán thực nhận: <b>${money(Math.max(0, (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0) - o.shopShip))}</b></div>` : ''}</div>`;
   }
   function ordersTab() {
