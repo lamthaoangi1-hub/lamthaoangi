@@ -1,6 +1,6 @@
-import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261102a';
-import { shopLink, copyText } from './shoplink.js?v=20261102a';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261102a';
+import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261102b';
+import { shopLink, copyText } from './shoplink.js?v=20261102b';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261102b';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -92,8 +92,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       <div class="f"><span>Chọn nhanh mức freeship cho quán này</span><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${[100000, 150000, 200000, 300000].map(v => `<button type="button" class="btn sm o" data-freeset="${v}">Từ ${v / 1000}K</button>`).join('')}<button type="button" class="btn sm o" data-freeset="0">Tắt freeship</button></div></div>
       <label class="sw"><input type="checkbox" id="f-freeall" ${s.freeShipAll ? 'checked' : ''}>Miễn phí TOÀN BỘ phí giao khi đạt mức trên (bỏ chọn = chỉ miễn phần phí cơ bản, khách vẫn trả km vượt)</label>
       <div class="grid">
-      <label class="f">Giảm giá (%)<input type="number" id="f-sale" min="0" max="90" value="${s.sale ?? 0}"></label><label class="f">Điểm đánh giá (0–5, để 0 nếu quán mới)<input type="number" id="f-rate" min="0" max="5" step="0.1" value="${s.rate ?? 0}"></label>
-      <label class="f">Số lượt đánh giá (VD: 120+)<input type="text" id="f-rc" value="${n('rc')}"></label></div>
+      <label class="f">Giảm giá (%)<input type="number" id="f-sale" min="0" max="90" value="${s.sale ?? 0}"></label><label class="f">Điểm đánh giá (0–5, để 0 nếu quán mới) – khách đánh giá sau sẽ cộng dồn tiếp trên số này<input type="number" id="f-rate" min="0" max="5" step="0.1" value="${s.rate ?? 0}"></label>
+      <label class="f">Số lượt đánh giá (nhập SỐ, VD: 120)<input type="text" id="f-rc" value="${n('rc')}"></label></div>
       <label class="f">Ảnh / logo quán</label>${imgUpHtml(s.img || '', 'f-img')}
       <label class="f">Mô tả<textarea id="f-desc">${n('desc')}</textarea></label>
       ${s.id ? `<p class="muted" style="margin-top:10px">Vị trí bản đồ: ${s.lat != null ? `đã lưu · <a href="${mapLink(s.lat, s.lng)}" target="_blank" rel="noopener">xem</a> · <button type="button" class="btn sm r" data-resetloc>Đặt lại vị trí</button>` : 'chưa có (chủ quán tự chia sẻ ở trang Nhà bán hàng)'}</p>` : ''}
@@ -472,6 +472,12 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
         if (!v('f-name')) return toast('Nhập tên quán');
         const hr = readHours('f', root); if (hr.error) return toast(hr.error);
         const d = { name:v('f-name'), cat:v('f-cat'), group:v('f-group').split(',').map(x => x.trim()).filter(Boolean), phone:v('f-phone'), address:v('f-address'), eta:v('f-eta'), shipFee:Math.max(0, +v('f-ship') || 0), freeShipMin:Math.max(0, +v('f-free') || 0), freeShipAll:$('#f-freeall').checked, sale:Math.min(90, Math.max(0, +v('f-sale') || 0)), rate:Math.min(5, Math.max(0, +v('f-rate') || 0)), rc:v('f-rc'), img:v('f-img'), desc:v('f-desc'), open:$('#f-open').checked, featured:$('#f-feat').checked, menu:readMenu(root), ...hr.fields };
+        /* Admin chỉnh điểm / số lượt đánh giá → đặt lại mốc cộng dồn (rateSum, rateCount). Khách đánh giá sau đó sẽ cộng tiếp trên mốc này, không quay về số thật. */
+        if (!edit.id || d.rate !== (+edit.rate || 0) || d.rc !== (edit.rc || '')) {
+          const cnt = parseInt(d.rc, 10) || (d.rate > 0 ? 10 : 0);   // chưa nhập số lượt mà có điểm → coi như 10 lượt
+          d.rateCount = cnt; d.rateSum = Math.round(d.rate * cnt);
+          if (d.rate > 0 && !parseInt(d.rc, 10)) d.rc = String(cnt);
+        }
         if (edit.id) await fb.patchShop(edit.id, d); else await fb.createShop(d);
         edit = null; toast('Đã lưu cửa hàng'); draw();
       }
