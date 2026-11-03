@@ -1,5 +1,5 @@
 /* Khung dùng chung cho 3 trang quản lý: đăng nhập, kiểm tra quyền, tiện ích hiển thị */
-import * as fb from './fb.js?v=20261103b';
+import * as fb from './fb.js?v=20261103c';
 export { fb };
 import { parseMenuText, parseMenuSheets, readSheets, downloadMenuTemplate } from './bulk.js?v=20261023a';
 export const $ = (s, r = document) => r.querySelector(s);
@@ -134,7 +134,7 @@ export function startPortal(panels) {
 }
 
 /* ---- Trình sửa thực đơn dùng chung (Admin + Nhà bán hàng) ---- */
-export const menuRowHtml = (m = {}) => `<div class="mitem" data-mrow><div class="mrow"><input type="text" placeholder="Tên món" value="${esc(m.name || '')}" data-k="name"><input type="number" min="0" step="1000" placeholder="Giá (đ)" value="${m.price ?? ''}" data-k="price"><label class="sw" style="margin:0"><input type="checkbox" data-k="available" ${m.available === false ? '' : 'checked'}>Còn</label><button type="button" class="btn sm r" data-mdel title="Xóa món">×</button></div><div class="mrow2"><input type="text" placeholder="Nhóm món (VD: Đồ ăn nhanh)" value="${esc(m.cat || '')}" data-k="cat">${imgUpHtml(m.img || '')}</div></div>`;
+export const menuRowHtml = (m = {}) => `<div class="mitem" data-mrow><div class="mrow"><input type="text" placeholder="Tên món" value="${esc(m.name || '')}" data-k="name"><input type="number" min="0" step="1000" placeholder="Giá (đ)" value="${m.price ?? ''}" data-k="price"><label class="sw" style="margin:0"><input type="checkbox" data-k="available" ${m.available === false ? '' : 'checked'}>Còn</label><button type="button" class="btn sm r" data-mdel title="Xóa món">×</button></div><div class="mrow2"><input type="text" placeholder="Nhóm món (VD: Đồ ăn nhanh)" value="${esc(m.cat || '')}" data-k="cat">${imgUpHtml(m.img || '')}</div><div class="mrow3"><input type="text" placeholder="Thông tin / mô tả (VD: size S-M-L, màu đỏ, chất liệu cotton; hoặc nội dung gói dịch vụ)" value="${esc(m.desc || '')}" data-k="desc" maxlength="300"></div></div>`;
 export const menuEditorHtml = menu => `<div class="mrow hd"><span>Tên món</span><span>Giá</span><span>Còn bán</span><span></span></div><div id="menu-rows">${(menu || []).map(menuRowHtml).join('')}</div>
   <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px"><button type="button" class="btn sm o" data-madd>+ Thêm món</button><button type="button" class="btn sm o" data-mpaste>📋 Dán danh sách món</button><button type="button" class="btn sm o" data-mxl>⬆ Nhập từ Excel</button><button type="button" class="btn sm gray" data-mtpl>⬇ File Excel mẫu</button><input type="file" accept=".xlsx,.xls,.csv" data-mxfile hidden></div>
   <div class="card" data-mpastebox hidden style="margin-top:10px;background:#f6faf7"><p class="muted" style="margin:0 0 6px">Mỗi dòng 1 món, ví dụ:<br><code>Phở bò tái | 55000 | Món chính</code> &nbsp; <code>Trà đá - 10k</code> &nbsp; <code>Cơm sườn 45.000</code><br>Copy nhiều dòng từ Excel (cột Món, Giá, Nhóm) rồi dán vào đây cũng được. Món trùng tên sẽ được cập nhật giá.</p>
@@ -177,7 +177,7 @@ export function bindMenuEditor(root) {
 }
 export const readMenu = root => $$('[data-mrow]', root).map(r => ({
   name: $('[data-k=name]', r).value.trim(), price: Math.max(0, Math.round(Number($('[data-k=price]', r).value) || 0)), available: $('[data-k=available]', r).checked,
-  cat: $('[data-k=cat]', r).value.trim(), img: $('[data-k=img]', r).value.trim(),
+  cat: $('[data-k=cat]', r).value.trim(), img: $('[data-k=img]', r).value.trim(), desc: ($('[data-k=desc]', r)?.value || '').trim(),
 })).filter(m => m.name);
 
 /* ---- Vị trí (GPS) ---- */

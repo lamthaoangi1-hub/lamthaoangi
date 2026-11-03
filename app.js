@@ -76,6 +76,9 @@
     svcScooter:'<svg viewBox="0 0 48 48" fill="#fff"><circle cx="24" cy="9" r="4.500"/><path d="M19 15l-4 8h5l3-3 4 4v7h4v-9l-4-5 2-2 4 2 1.500-3-6-3.500z"/><circle cx="12" cy="37" r="5" fill="none" stroke="#fff" stroke-width="3"/><circle cx="37" cy="37" r="5" fill="none" stroke="#fff" stroke-width="3"/><path d="M12 37h15l5-10" stroke="#fff" stroke-width="3" fill="none" stroke-linejoin="round"/><rect x="5" y="22" width="10" height="9" rx="1.500"/></svg>',
     svcMotorbike:'<svg viewBox="0 0 48 48" fill="none"><circle cx="11" cy="36" r="6" fill="#fff" stroke="#0d6c31" stroke-width="3"/><circle cx="37" cy="36" r="6" fill="#fff" stroke="#0d6c31" stroke-width="3"/><circle cx="24" cy="10" r="4" fill="#1fa24d"/><path d="M20 9a4 4 0 0 1 8 0z" fill="#ffc928"/><path d="M21 16l-5 9h8l4 5h5l-6-10 3-2 5 3 2-3-9-5z" fill="#1fa24d"/><path d="M10 36h15l7-12h3l2 12M8 25h10" stroke="#1fa24d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     svcBasket:'<svg viewBox="0 0 48 48"><circle cx="19" cy="12" r="5" fill="#2e9c3d"/><circle cx="29" cy="9" r="4" fill="#d9362b"/><path d="M33 8l8 3-3 5z" fill="#ffc928"/><path d="M8 20h32l-4 22H12z" fill="#2fa84a"/><rect x="5" y="17" width="38" height="6" rx="2" fill="#27923f"/><path d="M17 26v12M24 26v12M31 26v12" stroke="#a8e0b4" stroke-width="3" stroke-linecap="round"/></svg>',
+    svcFresh:'<svg viewBox="0 0 48 48"><ellipse cx="22" cy="24" rx="15" ry="10" fill="#f4a259"/><path d="M36 24l9-9v18z" fill="#e5833a"/><circle cx="14" cy="22" r="2" fill="#fff"/><circle cx="14" cy="22" r="1" fill="#333"/><path d="M22 15c3 5 3 13 0 18" stroke="#fff" stroke-width="1.5" fill="none" opacity=".7"/></svg>',
+    svcFashion:'<svg viewBox="0 0 48 48"><path d="M17 7l-11 6 4 9 5-2v21h18V20l5 2 4-9-11-6c-1 4-4 6-7 6s-6-2-7-6z" fill="#e8629a"/><path d="M17 7c1 4 4 6 7 6s6-2 7-6" stroke="#fff" stroke-width="1.5" fill="none" opacity=".8"/></svg>',
+    svcOther:'<svg viewBox="0 0 48 48"><rect x="5" y="14" width="38" height="25" rx="5" fill="#5b8def"/><path d="M16 14l3-5h10l3 5z" fill="#3f6fd1"/><circle cx="24" cy="26" r="8" fill="#fff"/><circle cx="24" cy="26" r="5" fill="#3f6fd1"/><circle cx="37" cy="19" r="2" fill="#ffc928"/></svg>',
     svcBox:'<svg viewBox="0 0 48 48"><path d="M24 6L6 14v22l18 8 18-8V14z" fill="#e2a24c"/><path d="M24 6l18 8-18 8-18-8z" fill="#f2bd6b"/><path d="M24 22v22l-18-8V14z" fill="#d18b36"/><path d="M15 10l18 8v7l-4-1.500v-4L11 12z" fill="#fff" opacity=".85"/></svg>',
     svcCar:'<svg viewBox="0 0 48 48"><path d="M5 30c0-4 2-6 4-7l4-8c1-2 3-3 5-3h12c2 0 4 1 5 3l4 8c2 1 4 3 4 7v5H5z" fill="#1fa24d"/><path d="M15 16h18l3.500 7H11.500z" fill="#c9eed4"/><circle cx="14" cy="36" r="5" fill="#0d6c31"/><circle cx="34" cy="36" r="5" fill="#0d6c31"/><circle cx="14" cy="36" r="2" fill="#dff"/><circle cx="34" cy="36" r="2" fill="#dff"/></svg>',
     svcMore:'<svg viewBox="0 0 48 48" fill="#5b616b"><circle cx="15" cy="15" r="6.500"/><circle cx="33" cy="15" r="6.500"/><circle cx="15" cy="33" r="6.500"/><circle cx="33" cy="33" r="6.500"/></svg>',
@@ -164,7 +167,7 @@
     user:store.get('user', { name:DEMO.name, phone:DEMO.phone }),
     users:store.get('users', [DEMO]),
     notices:store.get('notices', NOTICES.map(n => ({ id:n.id, unread:!!n.unread }))),
-    home:{ cat:'Tất cả', q:'', sort:'default', slide:0 },
+    home:{ cat:'Tất cả', q:'', sort:'default', slide:0, sector:'food' },
     orders:{ tab:'proc', q:'', search:false },
     fav:{ cat:'Tất cả', q:'', sort:'recent' },
     noti:{ tab:'all' },
@@ -244,17 +247,19 @@
   const locBtn = () => `<button class="loc" data-act="area">${fx.pinF}<span>${esc(S.area)}</span>${ic('chevDown')}</button>`;
   const logo = (size = '') => `<span class="logo-wrap"><span class="logo ${size}"><span class="l1">Lâm Thao</span><span class="l2">Ăn Gì?</span></span><span class="logo-fork" style="${size === 'sm' ? 'width:28px;height:42px;right:-24px' : ''}">${fx.fork}</span></span>`;
 
-  const shopTags = s => `<div class="tags">${s.open === false ? `<span class="tag sale">${closedNote(s)}</span>` : ''}${s.featured ? '<span class="tag feat">⭐ Nổi bật</span>' : ''}${s.hot ? '<span class="tag hot">🔥 Bán chạy</span>' : ''}${s.isNew ? '<span class="tag new">Quán mới</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}${PLAT.pct > 0 && s.open !== false ? `<span class="tag ship">🎁 Giảm thêm ${PLAT.pct}% cho đơn đặt online</span>` : ''}</div>`;
-  const shopMeta = s => `<div class="meta"><span class="rate">${fx.star}${s.rate ? s.rate.toFixed(1) + (s.rc ? ' (' + s.rc + ')' : '') : 'Mới'}</span><span class="sep"></span><span class="eta">${ic('truck')}${s.eta}</span></div>`;
+  const shopTags = s => `<div class="tags">${s.open === false ? `<span class="tag sale">${closedNote(s)}</span>` : ''}${s.featured ? '<span class="tag feat">⭐ Nổi bật</span>' : ''}${s.hot ? '<span class="tag hot">🔥 Bán chạy</span>' : ''}${s.isNew ? '<span class="tag new">Quán mới</span>' : ''}${s.ship ? `<span class="tag ship">${fx.shieldTag.replace('<svg','<svg width="16" height="16"')}Freeship từ ${s.ship}</span>` : ''}${s.sale ? `<span class="tag sale">${fx.flame.replace('<svg','<svg width="16" height="16"')}Giảm ${s.sale}%</span>` : ''}${PLAT.pct > 0 && s.open !== false && sectorOf(s) !== 'service' ? `<span class="tag ship">🎁 Giảm thêm ${PLAT.pct}% cho đơn đặt online</span>` : ''}</div>`;
+  const shopMeta = s => sectorOf(s) === 'service' ? `<div class="meta"><span class="rate">${fx.star}${s.rate ? s.rate.toFixed(1) + (s.rc ? ' (' + s.rc + ')' : '') : 'Mới'}</span><span class="sep"></span><span class="eta">${ic('mapPin')}${s.address ? s.address : 'Liên hệ để đặt lịch'}</span></div>` : `<div class="meta"><span class="rate">${fx.star}${s.rate ? s.rate.toFixed(1) + (s.rc ? ' (' + s.rc + ')' : '') : 'Mới'}</span><span class="sep"></span><span class="eta">${ic('truck')}${s.eta}</span></div>`;
 
   /* ---------------- HOME ---------------- */
-  const HOME_CATS = ['Tất cả','Nổi bật','Bán chạy','Quán mới','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'];
-  const SERVICES = [
-    { k:'food', t:'Đồ ăn', svg:'svcScooter', active:true },
-    { k:'ride', t:'Xe ôm', svg:'svcMotorbike', tint:true },
-    { k:'ship', t:'Giao hàng', svg:'svcBox' },
-    { k:'market', t:'Mua hộ', svg:'svcBasket', tint:true },
-  ];
+  /* Các mục trên trang chủ. Mỗi cửa hàng có trường sector (Admin chọn khi thêm / sửa quán): food | fresh | fashion | service. Không có = food. */
+  const SECTORS = {
+    food:    { t:'Đồ ăn', svg:'svcScooter', ph:'Bạn muốn ăn gì hôm nay?', head:'Quán ngon gần bạn', cats:['Tất cả','Nổi bật','Bán chạy','Quán mới','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'], empty:'Các quán sẽ sớm có mặt ở đây.' },
+    fresh:   { t:'Thực phẩm sống', svg:'svcFresh', ph:'Bạn muốn mua gì hôm nay?', head:'Thực phẩm tươi sống', cats:['Tất cả','Nổi bật','Bán chạy','Quán mới','Thịt','Cá','Hải sản','Rau củ','Trứng'], empty:'Mục Thực phẩm sống sẽ sớm ra mắt.' },
+    fashion: { t:'Thời trang', svg:'svcFashion', ph:'Bạn muốn tìm cửa hàng nào?', head:'Cửa hàng thời trang', cats:['Tất cả','Nổi bật','Quán mới','Nữ','Nam','Trẻ em','Phụ kiện'], empty:'Mục Thời trang sẽ sớm ra mắt.' },
+    service: { t:'Dịch vụ khác', svg:'svcOther', ph:'Bạn cần dịch vụ gì?', head:'Dịch vụ tại Lâm Thao', cats:['Tất cả','Nổi bật','Quán mới','Chụp ảnh','Makeup','Cúng - Lễ','Khác'], empty:'Các dịch vụ sẽ sớm có mặt ở đây.' },
+  };
+  const sectorOf = s => (s && SECTORS[s.sector] ? s.sector : 'food');
+  const SERVICES = Object.keys(SECTORS).map((k, i) => ({ k, t:SECTORS[k].t, svg:SECTORS[k].svg, tint:i % 2 === 1 }));
   const SLIDES = [
     ['Món ngon quê mình','Giao nhanh tận nơi'],
     ['Ưu đãi mỗi ngày','Freeship từ 20K'],
@@ -264,7 +269,7 @@
 
   /* Banner trang chủ: slide chào mừng + các quán Nổi bật / đang Giảm giá (admin chọn) */
   const bannerSlides = () => {
-    const promo = SHOPS.filter(s => s.open !== false && (s.featured || s.sale))
+    const promo = SHOPS.filter(s => sectorOf(s) === 'food' && s.open !== false && (s.featured || s.sale))
       .sort((a, b) => (b.featured - a.featured) || (a.order - b.order))
       .slice(0, 6)
       .map(s => ({ shop:s.id, img:s.img, off:s.sale, l1:s.name, l2:s.sale ? `Giảm ${s.sale}% toàn thực đơn` : (s.ship ? `Freeship từ ${s.ship}` : (s.homeCat || 'Quán nổi bật')) }));
@@ -281,7 +286,7 @@
 
   function filteredShops() {
     const hc = S.home.cat;
-    let list = SHOPS.filter(s => hc === 'Tất cả' || (hc === 'Nổi bật' ? s.featured : hc === 'Bán chạy' ? s.hot : hc === 'Quán mới' ? s.isNew : (s.group.includes(hc) || norm(s.cat).includes(norm(hc)))));
+    let list = SHOPS.filter(s => sectorOf(s) === S.home.sector).filter(s => hc === 'Tất cả' || (hc === 'Nổi bật' ? s.featured : hc === 'Bán chạy' ? s.hot : hc === 'Quán mới' ? s.isNew : (s.group.includes(hc) || norm(s.cat).includes(norm(hc)))));
     if (hc === 'Bán chạy') list = [...list].sort((a, b) => (b.sold - a.sold) || (b.hotFlag - a.hotFlag));
     if (hc === 'Quán mới') list = [...list].sort((a, b) => b.created - a.created);
     const q = norm(S.home.q.trim());
@@ -301,6 +306,7 @@
   function shopListHtml() {
     const l = filteredShops();
     if (LIVE && !SHOPS.length) return `<div class="empty"><b>${shopsLoaded ? 'Chưa có quán nào' : 'Đang tải danh sách quán…'}</b>${shopsLoaded ? 'Các quán sẽ sớm có mặt ở đây.' : ''}</div>`;
+    if (LIVE && shopsLoaded && !SHOPS.some(x => sectorOf(x) === S.home.sector)) return `<div class="empty"><b>Sắp ra mắt</b>${SECTORS[S.home.sector].empty}</div>`;
     return l.length ? l.map(shopCard).join('') : `<div class="empty"><b>Chưa tìm thấy quán phù hợp</b>Hãy thử từ khoá hoặc danh mục khác nhé.</div>`;
   }
   function renderHome() {
@@ -313,11 +319,11 @@
         <div style="margin-top:8px">${logo('sm')}</div>
         <p class="tagline">Đặt món dễ dàng – Ngon gần nhà</p>
       </div>
-      <div class="search-float"><label class="search">${ic('search')}<input id="home-q" type="search" placeholder="Bạn muốn ăn gì hôm nay?" value="${S.home.q.replace(/"/g, '&quot;')}" autocomplete="off"><button class="filter-btn" data-act="filter" aria-label="Bộ lọc">${ic('sliders')}</button></label></div>
-      <div class="services">${SERVICES.map(s => `<button class="service ${s.active ? 'active' : ''} ${s.tint ? 'tint' : ''}" data-svc="${s.k}"><span class="ic">${fx[s.svg]}</span>${s.t}</button>`).join('')}</div>
-      <div class="banner-wrap"><div class="banner" id="banner">${bannerInner()}</div></div>
-      <div class="section-head" id="shops-anchor"><h2>Quán ngon gần bạn</h2><button class="see-all" data-act="see-all">Xem tất cả ${ic('chevRight')}</button></div>
-      <div class="chips" id="home-chips">${HOME_CATS.map(c => `<button class="chip ${c === S.home.cat ? 'on' : ''}" data-cat="${c}">${c === 'Bán chạy' ? '🔥 ' : ''}${c}</button>`).join('')}</div>
+      <div class="search-float"><label class="search">${ic('search')}<input id="home-q" type="search" placeholder="${SECTORS[S.home.sector].ph}" value="${S.home.q.replace(/"/g, '&quot;')}" autocomplete="off"><button class="filter-btn" data-act="filter" aria-label="Bộ lọc">${ic('sliders')}</button></label></div>
+      <div class="services">${SERVICES.map(s => `<button class="service ${s.k === S.home.sector ? 'active' : ''} ${s.tint ? 'tint' : ''}" data-svc="${s.k}"><span class="ic">${fx[s.svg]}</span>${s.t}</button>`).join('')}</div>
+      ${S.home.sector === 'food' ? `<div class="banner-wrap"><div class="banner" id="banner">${bannerInner()}</div></div>` : ''}
+      <div class="section-head" id="shops-anchor"><h2>${SECTORS[S.home.sector].head}</h2><button class="see-all" data-act="see-all">Xem tất cả ${ic('chevRight')}</button></div>
+      <div class="chips" id="home-chips">${SECTORS[S.home.sector].cats.map(c => `<button class="chip ${c === S.home.cat ? 'on' : ''}" data-cat="${c}">${c === 'Bán chạy' ? '🔥 ' : ''}${c}</button>`).join('')}</div>
       <div class="shop-list" id="home-list">${shopListHtml()}</div>`;
     el.scrollTop = scroll;
     const q = $('#home-q');
@@ -634,30 +640,46 @@
   function spItem(s, i) {
     const m = s.menu[i];
     return `<div class="sp-item ${m[2] === false ? 'off' : ''}">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy">` : `<div class="ph">${(m[0] || '?').trim().charAt(0).toUpperCase()}</div>`}
-      <div class="in"><b>${m[0]}</b><span>${money(m[1])}</span></div><div id="ctl-${i}">${spCtl(s, i)}</div></div>`;
+      <div class="in"><b>${m[0]}</b>${m[5] ? `<em>${m[5]}</em>` : ''}<span>${money(m[1])}</span></div><div id="ctl-${i}">${spCtl(s, i)}</div></div>`;
+  }
+  /* Thời trang: sản phẩm hiện dạng thẻ lớn, 2 thẻ / 1 hàng, đủ ảnh + tên + thông tin sản phẩm */
+  function spProduct(s, i) {
+    const m = s.menu[i];
+    return `<div class="pg-card ${m[2] === false ? 'off' : ''}">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy">` : `<div class="ph">${(m[0] || '?').trim().charAt(0).toUpperCase()}</div>`}
+      <div class="pg-in"><b>${m[0]}</b>${m[5] ? `<p>${m[5]}</p>` : ''}<div class="pg-foot"><span>${money(m[1])}</span><div id="ctl-${i}">${spCtl(s, i)}</div></div></div></div>`;
+  }
+  /* Dịch vụ khác: gói dịch vụ + nút Gọi / Zalo (không có giỏ hàng, khách liên hệ trực tiếp) */
+  function spService(s, i) {
+    const m = s.menu[i];
+    return `<div class="sv-card">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy">` : ''}<div class="sv-in"><b>${m[0]}</b>${m[5] ? `<p>${m[5]}</p>` : ''}<span>${m[1] ? 'Từ ' + money(m[1]) : 'Liên hệ báo giá'}</span></div></div>`;
   }
   function renderShopPage() {
     const s = SHOPS.find(x => x.id === SP.id), page = $('#shop-page'); if (!s) return;
-    const sc = page.scrollTop, groups = menuGroups(s), names = [...groups.keys()];
+    const sc = page.scrollTop, groups = menuGroups(s), names = [...groups.keys()], sec = sectorOf(s);
     if (SP.cat !== 'Tất cả' && !groups.has(SP.cat)) SP.cat = 'Tất cả';
     const shown = names.filter(n => SP.cat === 'Tất cả' || n === SP.cat);
-    page.innerHTML = `<div class="sp-top"><button class="sp-back" data-shopback>${ic('chevLeft')}Tất cả quán</button>
+    const tel = String(s.phone || '').replace(/\D/g, '');
+    const rowHtml = n => sec === 'fashion' ? `<div class="pg-wrap"><h3 class="pg-h">${n}<small>(${groups.get(n).length})</small></h3><div class="pg-grid">${groups.get(n).map(i => spProduct(s, i)).join('')}</div></div>`
+      : sec === 'service' ? `<div class="sp-group"><h3>${n}<small>(${groups.get(n).length})</small></h3>${groups.get(n).map(i => spService(s, i)).join('')}</div>`
+      : `<div class="sp-group"><h3>${n}<small>(${groups.get(n).length})</small></h3>${groups.get(n).map(i => spItem(s, i)).join('')}</div>`;
+    page.innerHTML = `<div class="sp-top"><button class="sp-back" data-shopback>${ic('chevLeft')}Quay lại</button>
         <button class="heart ${isFav(s.id) ? 'on' : ''}" data-heart="${s.id}" data-sheet="1" aria-label="Yêu thích">${ic('heart')}</button></div>
       <div class="sp-card"><div class="sp-head"><img class="sp-logo" src="${s.img}" alt="${s.name}">
         <div><h2>${s.name}${s.open === false ? `<span class="sp-closed">${closedNote(s)}</span>` : ''}</h2><div class="sp-cat">${s.cat}</div>${hoursNote(s)}
         ${s.address ? `<div class="sp-addr">${ic('mapPin')}<span>${s.address}</span></div>` : ''}</div></div>
-        <div class="sp-info">${s.rate ? `<div class="sp-rate">${fx.star}Đánh giá quán (${s.rate.toFixed(1)}${s.rc ? ' · ' + s.rc + ' lượt' : ''})</div>` : ''}
+        <div class="sp-info">${s.rate ? `<div class="sp-rate">${fx.star}Đánh giá (${s.rate.toFixed(1)}${s.rc ? ' · ' + s.rc + ' lượt' : ''})</div>` : ''}
           ${shopMeta(s)}${shopTags(s)}${s.desc ? `<p class="sp-desc">${s.desc}</p>` : ''}</div></div>
       ${names.length > 1 ? `<div class="sp-chips">${['Tất cả', ...names].map(n => `<button class="${n === SP.cat ? 'on' : ''}" data-spcat="${n}">${n}</button>`).join('')}</div>` : ''}
-      ${shown.map(n => `<div class="sp-group"><h3>${n}<small>(${groups.get(n).length})</small></h3>${groups.get(n).map(i => spItem(s, i)).join('')}</div>`).join('') || '<div class="empty">Quán chưa cập nhật thực đơn</div>'}
+      ${shown.map(rowHtml).join('') || `<div class="empty">${sec === 'service' ? 'Chưa cập nhật dịch vụ' : sec === 'fashion' ? 'Chưa cập nhật sản phẩm' : 'Quán chưa cập nhật thực đơn'}</div>`}
       <div class="sp-spacer"></div>
-      <button class="sp-cartbar empty" id="cart-bar" data-cart><span id="cb-l">Giỏ hàng (0 món)</span><b id="cb-t">0đ</b></button>`;
+      ${sec === 'service' ? (tel ? `<div class="sv-bar"><a class="sv-call" href="tel:${tel}">📞 Gọi ngay</a><a class="sv-zalo" href="https://zalo.me/${tel}" target="_blank" rel="noopener">💬 Nhắn Zalo</a></div>` : '')
+        : `<button class="sp-cartbar empty" id="cart-bar" data-cart><span id="cb-l">Giỏ hàng (0 ${sec === 'fashion' ? 'sản phẩm' : 'món'})</span><b id="cb-t">0đ</b></button>`}`;
     page.scrollTop = sc;
     updateCartUI();
   }
   function openShopPage(s) {
     if (!s || !s.menu) return;
-    if (LIVE && CART.shop !== s.id) { CART.shop = s.id; CART.q = {}; CART.promo = ''; }
+    if (LIVE && sectorOf(s) !== 'service' && CART.shop !== s.id) { CART.shop = s.id; CART.q = {}; CART.promo = ''; }
     SP.id = s.id; SP.cat = 'Tất cả';
     const page = $('#shop-page');
     renderShopPage(); page.classList.add('open'); page.scrollTop = 0;
@@ -724,7 +746,7 @@
     const bar = $('#cart-bar'), { s, lines } = cartData(); if (!bar || !s) return;
     const n = lines.reduce((a, l) => a + l.qty, 0);
     if (s.open === false) { $('#cb-l').textContent = closedNote(s).replace('Đóng cửa', 'Quán đang đóng cửa'); $('#cb-t').textContent = ''; bar.classList.add('empty'); bar.disabled = true; return; }
-    $('#cb-l').textContent = `Giỏ hàng (${n} món)`; $('#cb-t').textContent = money(calc(s, lines, '').sub);
+    $('#cb-l').textContent = `Giỏ hàng (${n} ${(cartData().s && sectorOf(cartData().s) === 'fashion') ? 'sản phẩm' : 'món'})`; $('#cb-t').textContent = money(calc(s, lines, '').sub);
     bar.classList.toggle('empty', !n); bar.disabled = false;
   }
   /* ---------------- THANH TOÁN CHUYỂN KHOẢN (VietQR) ---------------- */
@@ -1146,10 +1168,9 @@
     if (fcat) { S.fav.cat = fcat.dataset.fcat; renderFavorites(); return; }
     const svc = t.closest('[data-svc]');
     if (svc) {
-      if (svc.dataset.svc === 'food') return;
-      if (svc.dataset.svc === 'ship') return openService('delivery');
-      if (svc.dataset.svc === 'market') return openService('errand');
-      return toast(svc.querySelector('.ic').nextSibling.textContent + ' – sắp ra mắt');
+      if (svc.dataset.svc === S.home.sector) return;
+      S.home.sector = svc.dataset.svc; S.home.cat = 'Tất cả'; S.home.q = ''; S.home.sort = 'default';
+      renderHome(); return;
     }
     const otab = t.closest('[data-otab]'); if (otab) { S.orders.tab = otab.dataset.otab; renderOrders(); return; }
     const ntab = t.closest('[data-ntab]'); if (ntab) { S.noti.tab = ntab.dataset.ntab; renderNotifications(); return; }
@@ -1219,7 +1240,7 @@
     if (a === 'filter') return openSheet(`<h3>Sắp xếp &amp; lọc</h3>${[['default','Mặc định'],['rate','Đánh giá cao nhất'],['fast','Giao nhanh nhất'],['sale','Đang giảm giá']].map(([k, l]) => `<button class="opt ${S.home.sort === k ? 'sel' : ''}" data-setsort="${k}">${l}${S.home.sort === k ? `<span class="tick">${ic('check')}</span>` : ''}</button>`).join('')}`);
     if (a === 'filter-fav') return openSheet(`<h3>Sắp xếp yêu thích</h3>${[['recent','Mới lưu nhất'],['rate','Đánh giá cao'],['name','Tên A - Z']].map(([k, l]) => `<button class="opt ${S.fav.sort === k ? 'sel' : ''}" data-setfsort="${k}">${l}${S.fav.sort === k ? `<span class="tick">${ic('check')}</span>` : ''}</button>`).join('')}`);
     if (a === 'order-now') return $('#shops-anchor').scrollIntoView({ behavior:'smooth', block:'start' });
-    if (a === 'see-all') { S.home.cat = 'Tất cả'; S.home.q = ''; S.home.sort = 'default'; renderHome(); return toast('Đang hiển thị tất cả quán'); }
+    if (a === 'see-all') { S.home.cat = 'Tất cả'; S.home.q = ''; S.home.sort = 'default'; renderHome(); return toast('Đang hiển thị tất cả'); }
     if (a === 'fav-all') { $('#fav-body').scrollIntoView({ behavior:'smooth' }); return; }
     if (a === 'orders-search') { S.orders.search = !S.orders.search; if (!S.orders.search) S.orders.q = ''; renderOrders(); if (S.orders.search) $('#orders-q').focus(); return; }
   });
@@ -1389,10 +1410,10 @@
     const free = +d.freeShipMin || 0, cat = d.cat || '';
     const cr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().getTime() : 0, sold = +d.sold || 0;   // sold: số đơn đã giao, Admin cập nhật tự động
     return {
-      id:d.id, _d:d, name:esc(d.name), cat:esc(cat), homeCat:esc(cat), img:esc(d.img || 'hero.svg'), rate:+d.rate || 0, rc:esc(d.rc || ''),
+      id:d.id, _d:d, sector:(['fresh', 'fashion', 'service'].includes(d.sector) ? d.sector : 'food'), name:esc(d.name), cat:esc(cat), homeCat:esc(cat), img:esc(d.img || 'hero.svg'), rate:+d.rate || 0, rc:esc(d.rc || ''),
       eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, freeShipAll:!!d.freeShipAll, sale:+d.sale || 0, order:(d.order == null || isNaN(+d.order)) ? 9999 : +d.order, featured:!!d.featured, sold, hotFlag:d.hot === true ? 1 : 0, hot:d.hot === true || sold >= 10, created:cr, isNew:d.isNew === true || (cr > 0 && Date.now() - cr < 30 * 864e5),
       group:((d.group && d.group.length) ? d.group : [cat.split('•')[0].trim()]).map(esc), desc:esc(d.desc || ''),
-      menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false, esc(m.cat || ''), esc(m.img || '')]), lat:d.lat ?? null, lng:d.lng ?? null, get open() { return shopOpenNow(d); }, phone:esc(d.phone || ''), address:esc(d.address || ''),
+      menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false, esc(m.cat || ''), esc(m.img || ''), esc(m.desc || '')]), lat:d.lat ?? null, lng:d.lng ?? null, get open() { return shopOpenNow(d); }, phone:esc(d.phone || ''), address:esc(d.address || ''),
     };
   }
   function mapOrder(o) {
@@ -1426,7 +1447,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261103b').then(m => {
+    import('./fb.js?v=20261103c').then(m => {
       FB = m;
       let RAWSHOPS = [], openSig = '';
       const applyShops = () => {

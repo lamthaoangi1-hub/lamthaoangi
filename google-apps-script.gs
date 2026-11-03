@@ -109,6 +109,7 @@ function doPost(e) {
     if (body.action === 'rateShop') return rateShop(body);
     if (body.action === 'resetPassword') return resetPassword(body);
     if (body.action === 'createSeller') return createSeller(body);
+    if (body.action === 'claimPhone') return claimPhone(body);
     if (body.action === 'syncUser') return syncUser(body);
     if (body.action === 'syncOrder') return syncOrder(body);
     if (body.action === 'adminList') return adminList(body);
@@ -319,6 +320,58 @@ function createSeller(body) {
   try { upsertUser(uid, { name: String(body.name || shop.name || ''), phone: phone, role: 'seller', shopId: String(body.shopId), zaloId: body.zaloId ? String(body.zaloId).trim() : '', address: '' }, { createdAt: new Date().toISOString() }); } catch (e) { console.error('Sheet user: ' + e); }
   console.log('createSeller: admin ' + adminUid + ' cấp tài khoản chủ quán ' + phone + ' cho quán ' + body.shopId + (adopted ? ' (dùng lại tài khoản sẵn có)' : ''));
   return out({ ok: true, uid: uid, adopted: adopted });
+}
+
+
+// ===================== 3c) KHÁCH ĐĂNG KÝ LẠI SĐT BỊ "MỒ CÔI" =====================
+// Tài khoản mồ côi = có trong Firebase Authentication nhưng KHÔNG có hồ sơ trong Firestore (lần đăng ký trước bị rớt mạng / tắt trang giữa chừng).
+// Khách đăng ký lại sẽ bị báo "đã được đăng ký" mãi. Hàm này cho khách nhận lại đúng SĐT đó: đặt mật khẩu mới + tạo hồ sơ khách hàng.
+// AN TOÀN: chỉ áp dụng cho tài khoản chưa có hồ sơ (chưa có đơn, chưa có quyền gì) và đã tạo hơn 2 phút. SĐT đã có hồ sơ thật thì bị từ chối.
+function claimPhone(body) {
+  const phone = String(body.phone || '').replace(/\D/g, ''), pass = String(body.password || ''), name = String(body.name || '').trim().slice(0, 100);
+  const TAKEN = 'Số điện thoại đã được đăng ký. Nếu quên mật khẩu, bấm "Quên mật khẩu?" hoặc liên hệ Lâm Thao Ăn Gì qua Zalo.';
+  if (!/^0\d{9}$/.test(phone)) return out({ ok: false, error: 'Số điện thoại gồm 10 số, bắt đầu bằng 0' });
+  if (pass.length < 6 || pass.length > 64) return out({ ok: false, error: 'Mật khẩu từ 6 đến 64 ký tự' });
+  if (name.length < 2) return out({ ok: false, error: 'Vui lòng nhập họ và tên' });
+  const email = phone + '@lamthaoangi.app';
+  const hdr = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Goog-User-Project': FIREBASE_PROJECT };
+  const post = (op, payload) => UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/projects/' + FIREBASE_PROJECT + '/accounts' + op, {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: hdr, payload: JSON.stringify(payload) });
+
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const lk = post(':lookup', { email: [email] });
+    if (lk.getResponseCode() !== 200) { console.error('claimPhone lookup ' + lk.getResponseCode() + ': ' + lk.getContentText().slice(0, 200)); return out({ ok: false, error: lk.getResponseCode() === 403 ? 'Máy chủ chưa đủ quyền, vui lòng liên hệ quản trị.' : TAKEN }); }
+    const acc = (JSON.parse(lk.getContentText()).users || [])[0];
+    if (!acc) return out({ ok: false, error: 'Không tìm thấy tài khoản, vui lòng bấm Tạo tài khoản lại.' });
+    // Đã có hồ sơ thật → không được nhận
+    const pr = UrlFetchApp.fetch(FS + 'users/' + acc.localId, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    const pc = pr.getResponseCode();
+    if (pc === 200) return out({ ok: false, error: TAKEN });
+    if (pc !== 404) return out({ ok: false, error: pc === 429 || pc >= 500 ? QUOTA_MSG : 'Không kiểm tra được tài khoản (mã ' + pc + '), thử lại sau ít phút.' });
+    if (Date.now() - Number(acc.createdAt || 0) < 120000) return out({ ok: false, error: 'Tài khoản đang được tạo, vui lòng đợi 1–2 phút rồi thử lại.' });
+
+    // Đặt mật khẩu mới (dự phòng đường cập nhật chung nếu đường theo project không có tác dụng), kiểm tra bằng cách đăng nhập thử
+    const tryLogin = () => UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + FIREBASE_API_KEY, {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true, payload: JSON.stringify({ email: email, password: pass, returnSecureToken: true }) }).getResponseCode() === 200;
+    const up = post(':update', { localId: acc.localId, password: pass, disableUser: false });
+    let okPass = up.getResponseCode() === 200 && (tryLogin() || (Utilities.sleep(1500), tryLogin()));
+    if (!okPass) {
+      UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:update', { method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: hdr,
+        payload: JSON.stringify({ localId: acc.localId, password: pass, targetProjectId: FIREBASE_PROJECT, returnSecureToken: false }) });
+      okPass = tryLogin() || (Utilities.sleep(1500), tryLogin());
+    }
+    if (!okPass) { console.error('claimPhone: không đặt được mật khẩu cho ' + acc.localId); return out({ ok: false, error: 'Chưa đặt được mật khẩu, vui lòng thử lại hoặc liên hệ quản trị.' }); }
+
+    // Tạo hồ sơ khách hàng (chỉ khi chưa có: currentDocument.exists=false)
+    const f = { name: { stringValue: name }, phone: { stringValue: phone }, role: { stringValue: 'customer' }, address: { stringValue: '' }, createdAt: { timestampValue: new Date().toISOString() } };
+    const w = UrlFetchApp.fetch(FS + 'users/' + acc.localId + '?currentDocument.exists=false', { method: 'patch', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, payload: JSON.stringify({ fields: f }) });
+    if (w.getResponseCode() !== 200) { console.error('claimPhone ghi hồ sơ ' + w.getResponseCode() + ': ' + w.getContentText().slice(0, 200)); return out({ ok: false, error: w.getResponseCode() === 429 ? QUOTA_MSG : TAKEN }); }
+    try { upsertUser(acc.localId, { name: name, phone: phone, role: 'customer', address: '' }, { createdAt: new Date().toISOString() }); } catch (e) { console.error('Sheet user: ' + e); }
+    console.log('claimPhone: đã nhận lại tài khoản mồ côi ' + phone + ' (' + acc.localId + ')');
+    return out({ ok: true });
+  } finally { lock.releaseLock(); }
 }
 
 // Chạy tay 1 lần trong trình soạn thảo (chọn hàm này → Run) để cấp quyền và kiểm tra kết nối với Firebase Authentication

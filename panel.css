@@ -127,3 +127,5 @@ main{max-width:1180px;padding:24px 18px 70px}
 .pres-btn{flex:none;padding:10px 16px;border-radius:12px;background:var(--g);color:#fff;font-weight:700;font-size:14px}
 .pres.on .pres-btn{background:#fff;color:var(--red);border:1px solid var(--red)}
 .pres-btn:disabled{opacity:.6}
+
+.mrow3{margin-top:6px}.mrow3 input{margin:0;width:100%}

@@ -717,3 +717,29 @@ body{font-size:13px}
 .ia-step{display:flex;gap:12px;align-items:flex-start;margin-top:12px;font-size:14px;line-height:1.45}
 .ia-step b:first-child{flex:0 0 26px;width:26px;height:26px;border-radius:50%;background:var(--green-l);color:var(--green-d);display:flex;align-items:center;justify-content:center;font-size:13px}
 .ia-note{margin-top:12px;font-size:12.5px;color:var(--ink-2)}
+
+/* ---- Mục Thời trang / Dịch vụ khác ---- */
+.sp-item .in em{display:block;font-style:normal;color:var(--ink-2);font-size:12.5px;margin-top:3px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pg-wrap{margin:14px 14px 0}
+.pg-h{font-family:var(--font-h);font-size:15px;font-weight:700;color:var(--green-d);margin:0 0 8px}
+.pg-h small{font-weight:500;color:var(--ink-2);font-size:13px;margin-left:4px}
+.pg-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pg-card{background:#fff;border:1px solid #e3ebe6;border-radius:18px;overflow:hidden;display:flex;flex-direction:column}
+.pg-card img,.pg-card .ph{width:100%;aspect-ratio:1/1;object-fit:cover;background:var(--green-l);display:block}
+.pg-card .ph{display:grid;place-items:center;font-family:var(--font-h);font-weight:700;font-size:36px;color:var(--green-d)}
+.pg-in{padding:10px 12px 12px;display:flex;flex-direction:column;flex:1}
+.pg-in b{font-size:14px;line-height:1.25}
+.pg-in p{margin:5px 0 0;color:var(--ink-2);font-size:12.5px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.pg-foot{margin-top:auto;padding-top:8px;display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}
+.pg-foot>span{color:#d92d20;font-weight:700;font-size:14px}
+.pg-card.off{opacity:.5}
+.sv-card{display:flex;gap:12px;padding:12px 14px;border-top:1px solid #edf1ee;align-items:flex-start}
+.sv-card img{width:96px;height:96px;border-radius:14px;object-fit:cover;flex:none;background:var(--green-l)}
+.sv-in{flex:1;min-width:0}
+.sv-in b{display:block;font-size:15px;line-height:1.25}
+.sv-in p{margin:5px 0 0;color:var(--ink-2);font-size:13px;line-height:1.4}
+.sv-in span{display:block;color:#d92d20;font-weight:700;font-size:14px;margin-top:6px}
+.sv-bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:10px;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid #e3ebe6;z-index:5}
+.sv-bar a{flex:1;text-align:center;padding:13px 8px;border-radius:14px;font-weight:700;font-size:15px;text-decoration:none}
+.sv-call{background:var(--green);color:#fff}
+.sv-zalo{background:#0068ff;color:#fff}
