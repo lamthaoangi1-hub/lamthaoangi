@@ -134,7 +134,7 @@ export function startPortal(panels) {
 }
 
 /* ---- Trình sửa thực đơn dùng chung (Admin + Nhà bán hàng) ---- */
-export const menuRowHtml = (m = {}) => `<div class="mitem" data-mrow><div class="mrow"><input type="text" placeholder="Tên món" value="${esc(m.name || '')}" data-k="name"><input type="number" min="0" step="1000" placeholder="Giá (đ)" value="${m.price ?? ''}" data-k="price"><label class="sw" style="margin:0"><input type="checkbox" data-k="available" ${m.available === false ? '' : 'checked'}>Còn</label><button type="button" class="btn sm r" data-mdel title="Xóa món">×</button></div><div class="mrow2"><input type="text" placeholder="Nhóm món (VD: Đồ ăn nhanh)" value="${esc(m.cat || '')}" data-k="cat">${imgUpHtml(m.img || '')}</div><div class="mrow3"><input type="text" placeholder="Thông tin / mô tả (VD: size S-M-L, màu đỏ, chất liệu cotton; hoặc nội dung gói dịch vụ)" value="${esc(m.desc || '')}" data-k="desc" maxlength="300"></div></div>`;
+export const menuRowHtml = (m = {}) => `<div class="mitem" data-mrow><div class="mrow"><input type="text" placeholder="Tên món" value="${esc(m.name || '')}" data-k="name"><input type="number" min="0" step="1000" placeholder="Giá (đ)" value="${m.price ?? ''}" data-k="price"><label class="sw" style="margin:0"><input type="checkbox" data-k="available" ${m.available === false ? '' : 'checked'}>Còn</label><button type="button" class="btn sm r" data-mdel title="Xóa món">×</button></div><div class="mrow2"><input type="text" placeholder="Nhóm món (VD: Đồ ăn nhanh)" value="${esc(m.cat || '')}" data-k="cat">${imgUpHtml(m.img || '')}</div><div class="mrow3"><input type="text" placeholder="Thông tin / mô tả (VD: size S-M-L, màu đỏ, chất liệu cotton; hoặc nội dung gói dịch vụ)" value="${esc(m.desc || '')}" data-k="desc" maxlength="300"></div><div class="mrow4"><input type="text" placeholder="Size (VD: S, M, L, XL hoặc 38-39-40)" value="${esc(m.sizes || '')}" data-k="sizes" maxlength="80"><input type="text" placeholder="Màu (VD: Đen, Trắng, Be)" value="${esc(m.colors || '')}" data-k="colors" maxlength="80"><input type="text" placeholder="Chất liệu (VD: Cotton 100%)" value="${esc(m.mat || '')}" data-k="mat" maxlength="80"></div></div>`;
 export const menuEditorHtml = menu => `<div class="mrow hd"><span>Tên món</span><span>Giá</span><span>Còn bán</span><span></span></div><div id="menu-rows">${(menu || []).map(menuRowHtml).join('')}</div>
   <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px"><button type="button" class="btn sm o" data-madd>+ Thêm món</button><button type="button" class="btn sm o" data-mpaste>📋 Dán danh sách món</button><button type="button" class="btn sm o" data-mxl>⬆ Nhập từ Excel</button><button type="button" class="btn sm gray" data-mtpl>⬇ File Excel mẫu</button><input type="file" accept=".xlsx,.xls,.csv" data-mxfile hidden></div>
   <div class="card" data-mpastebox hidden style="margin-top:10px;background:#f6faf7"><p class="muted" style="margin:0 0 6px">Mỗi dòng 1 món, ví dụ:<br><code>Phở bò tái | 55000 | Món chính</code> &nbsp; <code>Trà đá - 10k</code> &nbsp; <code>Cơm sườn 45.000</code><br>Copy nhiều dòng từ Excel (cột Món, Giá, Nhóm) rồi dán vào đây cũng được. Món trùng tên sẽ được cập nhật giá.</p>
@@ -178,6 +178,7 @@ export function bindMenuEditor(root) {
 export const readMenu = root => $$('[data-mrow]', root).map(r => ({
   name: $('[data-k=name]', r).value.trim(), price: Math.max(0, Math.round(Number($('[data-k=price]', r).value) || 0)), available: $('[data-k=available]', r).checked,
   cat: $('[data-k=cat]', r).value.trim(), img: $('[data-k=img]', r).value.trim(), desc: ($('[data-k=desc]', r)?.value || '').trim(),
+  sizes: ($('[data-k=sizes]', r)?.value || '').trim(), colors: ($('[data-k=colors]', r)?.value || '').trim(), mat: ($('[data-k=mat]', r)?.value || '').trim(),
 })).filter(m => m.name);
 
 /* ---- Vị trí (GPS) ---- */
@@ -201,33 +202,43 @@ async function shrink(file, max = 900) {
   const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
   c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-  return new Promise(r => c.toBlob(r, 'image/jpeg', 0.82));
+  return new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
 }
 const toB64 = blob => new Promise((ok, no) => { const f = new FileReader(); f.onload = () => ok(String(f.result).split(',')[1]); f.onerror = no; f.readAsDataURL(blob); });
-export async function uploadImage(file) {
+/* enhance=true: Apps Script gửi ảnh qua AI (Gemini) để làm nền sạch, chỉnh sáng, rồi lưu ảnh đã chỉnh. Trả về { url, orig, ai, aiError } */
+export async function uploadImageFull(file, enhance = false) {
   if (!fb.uploadUrl) throw new Error('Chưa bật lưu ảnh Google Drive. Xem HUONG-DAN.md, mục "Lưu ảnh lên Google Drive".');
   if (!/^image\//.test(file.type)) throw new Error('Vui lòng chọn file ảnh');
-  const blob = await shrink(file), data = await toB64(blob), token = await fb.idToken();
-  let res; try { res = await fetch(fb.uploadUrl, { method:'POST', body:JSON.stringify({ token, name:`lt-${Date.now()}.jpg`, mime:'image/jpeg', data }) }); } catch (e) { throw new Error('Không kết nối được máy chủ lưu ảnh. Kiểm tra mạng rồi thử lại.'); }
+  const blob = await shrink(file, enhance ? 1280 : 900), data = await toB64(blob), token = await fb.idToken();
+  let res; try { res = await fetch(fb.uploadUrl, { method:'POST', body:JSON.stringify({ token, name:`lt-${Date.now()}.jpg`, mime:'image/jpeg', data, ...(enhance ? { enhance:'fashion' } : {}) }) }); } catch (e) { throw new Error('Không kết nối được máy chủ lưu ảnh. Kiểm tra mạng rồi thử lại.'); }
   const j = await res.json().catch(() => null);
   if (!j) throw new Error('Máy chủ lưu ảnh trả về lỗi. Admin cần kiểm tra Google Apps Script (Deploy → Manage deployments → New version).');
   if (!j.ok) throw new Error(j.error || 'Tải ảnh thất bại');
-  return j.url;
+  return j;
 }
-export const imgUpHtml = (value = '', id = '') => `<div class="imgup" data-imgup><img class="th" alt="" src="${esc(value)}" ${value ? '' : 'hidden'}><span class="th ph" ${value ? 'hidden' : ''}>Ảnh</span><button type="button" class="btn sm o" data-pick>Tải ảnh lên</button><button type="button" class="btn sm gray" data-clearimg ${value ? '' : 'hidden'}>Xóa ảnh</button><input type="hidden" ${id ? `id="${id}"` : 'data-k="img"'} value="${esc(value)}"><input type="file" accept="image/*" hidden></div>`;
+export const uploadImage = async file => (await uploadImageFull(file, false)).url;
+export const imgUpHtml = (value = '', id = '') => `<div class="imgup" data-imgup><img class="th" alt="" src="${esc(value)}" ${value ? '' : 'hidden'}><span class="th ph" ${value ? 'hidden' : ''}>Ảnh</span><button type="button" class="btn sm o" data-pick>Tải ảnh lên</button><button type="button" class="btn sm gray" data-clearimg ${value ? '' : 'hidden'}>Xóa ảnh</button><button type="button" class="btn sm gray" data-useorig hidden>↩ Dùng ảnh gốc</button><input type="hidden" ${id ? `id="${id}"` : 'data-k="img"'} value="${esc(value)}"><input type="file" accept="image/*" hidden><small class="aihint">✨ Ảnh thời trang sẽ được AI tự chỉnh (nền sạch, đủ sáng) rồi đăng lên web</small></div>`;
 function setImg(w, url) {
   $('input[type=hidden]', w).value = url; const im = $('img.th', w); im.src = url; im.hidden = !url; $('.ph', w).hidden = !!url; $('[data-clearimg]', w).hidden = !url;
+  const uo = $('[data-useorig]', w); if (uo && !(w.dataset.orig && url && url !== w.dataset.orig)) uo.hidden = true;
 }
+/* Ảnh SẢN PHẨM của cửa hàng Thời trang (ô data-k="img" trong khu vực data-msector="fashion") được AI chỉnh; logo quán và các mục khác giữ nguyên */
+const wantsAi = w => $('input[type=hidden]', w).dataset.k === 'img' && !!w.closest('[data-msector="fashion"]');
 export function bindImgUpload(root) {
   root.addEventListener('click', e => {
     const p = e.target.closest('[data-pick]'); if (p) $('input[type=file]', p.closest('[data-imgup]')).click();
-    const c = e.target.closest('[data-clearimg]'); if (c) setImg(c.closest('[data-imgup]'), '');
+    const c = e.target.closest('[data-clearimg]'); if (c) { const w = c.closest('[data-imgup]'); delete w.dataset.orig; setImg(w, ''); }
+    const o = e.target.closest('[data-useorig]'); if (o) { const w = o.closest('[data-imgup]'), u = w.dataset.orig; delete w.dataset.orig; if (u) { setImg(w, u); toast('Đã chuyển về ảnh gốc. Nhớ bấm nút Lưu bên dưới.'); } }
   });
   root.addEventListener('change', async e => {
     const f = e.target; if (f.type !== 'file' || !f.closest('[data-imgup]')) return;
     const w = f.closest('[data-imgup]'), file = f.files[0]; f.value = ''; if (!file) return;
-    const b = $('[data-pick]', w), old = b.textContent; b.disabled = true; b.textContent = 'Đang tải…';
-    try { setImg(w, await uploadImage(file)); toast('Đã tải ảnh lên Google Drive. Nhớ bấm nút Lưu bên dưới.'); } catch (er) { toast(er.message || 'Tải ảnh thất bại'); }
+    const ai = wantsAi(w), b = $('[data-pick]', w), old = b.textContent; b.disabled = true; b.textContent = ai ? '✨ AI đang chỉnh ảnh… (10–30 giây)' : 'Đang tải…';
+    try {
+      const r = await uploadImageFull(file, ai); delete w.dataset.orig; setImg(w, r.url);
+      if (ai && r.ai && r.orig) { w.dataset.orig = r.orig; $('[data-useorig]', w).hidden = false; }
+      toast(ai ? (r.ai ? '✨ AI đã chỉnh xong ảnh. Nhớ bấm nút Lưu bên dưới.' : 'Đã tải ảnh gốc lên (AI chưa chỉnh được: ' + (r.aiError || 'lỗi không rõ') + '). Nhớ bấm nút Lưu bên dưới.') : 'Đã tải ảnh lên Google Drive. Nhớ bấm nút Lưu bên dưới.');
+    } catch (er) { toast(er.message || 'Tải ảnh thất bại'); }
     b.disabled = false; b.textContent = old;
   });
 }

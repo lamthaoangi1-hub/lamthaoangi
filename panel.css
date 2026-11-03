@@ -129,3 +129,12 @@ main{max-width:1180px;padding:24px 18px 70px}
 .pres-btn:disabled{opacity:.6}
 
 .mrow3{margin-top:6px}.mrow3 input{margin:0;width:100%}
+
+/* Thời trang: hàng Size / Màu / Chất liệu + gợi ý AI chỉnh ảnh (chỉ hiện khi cửa hàng thuộc mục Thời trang) */
+.mrow4,.aihint{display:none}
+[data-msector="fashion"] .mrow4{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px}
+.mrow4 input{margin:0;width:100%}
+@media(max-width:560px){[data-msector="fashion"] .mrow4{grid-template-columns:1fr}}
+[data-msector="fashion"] .aihint{display:block;flex-basis:100%;font-size:11.5px;color:var(--gd);font-weight:600}
+[data-msector="fashion"] .imgup:has(input[data-k="img"]) .aihint{display:block}
+.imgup:not(:has(input[data-k="img"])) .aihint{display:none!important}

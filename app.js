@@ -646,7 +646,25 @@
   function spProduct(s, i) {
     const m = s.menu[i];
     return `<div class="pg-card ${m[2] === false ? 'off' : ''}">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy">` : `<div class="ph">${(m[0] || '?').trim().charAt(0).toUpperCase()}</div>`}
-      <div class="pg-in"><b>${m[0]}</b>${m[5] ? `<p>${m[5]}</p>` : ''}<div class="pg-foot"><span>${money(m[1])}</span><div id="ctl-${i}">${spCtl(s, i)}</div></div></div></div>`;
+      <div class="pg-in"><b>${m[0]}</b>${m[5] ? `<p>${m[5]}</p>` : ''}<button class="pg-detail" data-pdetail="${i}">Xem chi tiết</button><div class="pg-foot"><span>${money(m[1])}</span><div id="ctl-${i}">${spCtl(s, i)}</div></div></div></div>`;
+  }
+  /* Thời trang: khung "Xem chi tiết" – ảnh lớn, giá, size, màu, chất liệu, mô tả đầy đủ */
+  function splitOpts(v) {
+    v = String(v || '').trim(); if (!v) return [];
+    let a = v.split(/[,;/|\n]+/).map(x => x.trim()).filter(Boolean);
+    if (a.length === 1 && /^[A-Za-z0-9.]{1,5}(\s*-\s*[A-Za-z0-9.]{1,5})+$/.test(a[0])) a = a[0].split('-').map(x => x.trim());
+    return a;
+  }
+  function productDetail(s, i) {
+    const m = s.menu[i]; if (!m) return;
+    const sizes = splitOpts(m[6]), colors = splitOpts(m[7]), chips = a => `<div class="pd-chips">${a.map(x => `<span>${x}</span>`).join('')}</div>`;
+    openSheet(`${m[4] ? `<img class="pd-img" src="${m[4]}" alt="${m[0]}">` : ''}
+      <div class="pd-name">${m[0]}</div><div class="pd-price">${money(m[1])}</div>
+      ${sizes.length ? `<div class="pd-row"><small>Size</small>${chips(sizes)}</div>` : ''}
+      ${colors.length ? `<div class="pd-row"><small>Màu sắc</small>${chips(colors)}</div>` : ''}
+      ${m[8] ? `<div class="pd-row"><small>Chất liệu</small><div class="pd-text">${m[8]}</div></div>` : ''}
+      ${m[5] ? `<div class="pd-row"><small>Mô tả</small><div class="pd-text">${m[5]}</div></div>` : ''}
+      ${m[2] === false ? `<div class="pd-off">Sản phẩm tạm hết hàng</div>` : `<button class="sheet-btn" data-pdadd="${i}">Thêm vào giỏ</button>`}`);
   }
   /* Dịch vụ khác: gói dịch vụ + nút Gọi / Zalo (không có giỏ hàng, khách liên hệ trực tiếp) */
   function spService(s, i) {
@@ -1143,6 +1161,8 @@
     const qb = t.closest('[data-qty]');
     if (qb) { if (!LIVE) return toast('Đây là bản demo, chưa đặt món được'); const i = +qb.dataset.qty, s0 = SHOPS.find(x => x.id === CART.shop); CART.q[i] = Math.max(0, (CART.q[i] || 0) + +qb.dataset.d); const c = $('#ctl-' + i); if (c && s0) c.innerHTML = spCtl(s0, i); updateCartUI(); return; }
     if (t.closest('[data-shopback]')) { history.back(); return; }
+    const pdt = t.closest('[data-pdetail]'); if (pdt) { productDetail(SHOPS.find(x => x.id === SP.id), +pdt.dataset.pdetail); return; }
+    const pda = t.closest('[data-pdadd]'); if (pda) { const b = document.querySelector(`#shop-page [data-qty="${pda.dataset.pdadd}"][data-d="1"]`); closeSheet(); if (b) b.click(); return; }
     const spc = t.closest('[data-spcat]'); if (spc) { SP.cat = spc.dataset.spcat; renderShopPage(); return; }
     if (t.closest('[data-cart]')) { if (!LIVE) return toast('Đây là bản demo, chưa đặt món được'); return checkoutSheet(); }
     const ap = t.closest('[data-applypromo]');
@@ -1413,7 +1433,7 @@
       id:d.id, _d:d, sector:(['fresh', 'fashion', 'service'].includes(d.sector) ? d.sector : 'food'), name:esc(d.name), cat:esc(cat), homeCat:esc(cat), img:esc(d.img || 'hero.svg'), rate:+d.rate || 0, rc:esc(d.rc || ''),
       eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, freeShipAll:!!d.freeShipAll, sale:+d.sale || 0, order:(d.order == null || isNaN(+d.order)) ? 9999 : +d.order, featured:!!d.featured, sold, hotFlag:d.hot === true ? 1 : 0, hot:d.hot === true || sold >= 10, created:cr, isNew:d.isNew === true || (cr > 0 && Date.now() - cr < 30 * 864e5),
       group:((d.group && d.group.length) ? d.group : [cat.split('•')[0].trim()]).map(esc), desc:esc(d.desc || ''),
-      menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false, esc(m.cat || ''), esc(m.img || ''), esc(m.desc || '')]), lat:d.lat ?? null, lng:d.lng ?? null, get open() { return shopOpenNow(d); }, phone:esc(d.phone || ''), address:esc(d.address || ''),
+      menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false, esc(m.cat || ''), esc(m.img || ''), esc(m.desc || ''), esc(m.sizes || ''), esc(m.colors || ''), esc(m.mat || '')]), lat:d.lat ?? null, lng:d.lng ?? null, get open() { return shopOpenNow(d); }, phone:esc(d.phone || ''), address:esc(d.address || ''),
     };
   }
   function mapOrder(o) {

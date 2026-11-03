@@ -1,6 +1,6 @@
 import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261103d';
 import { shopLink, copyText } from './shoplink.js?v=20261103d';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261103d';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261104a';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -313,6 +313,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   function applySector() {
     const sel = $('#f-sector'); if (!sel) return;
     const k = sel.value, T = SEC_TXT[k] || SEC_TXT.food;
+    root.dataset.msector = k;
     root.querySelectorAll('[data-hide]').forEach(el => { el.style.display = el.dataset.hide.split(' ').includes(k) ? 'none' : ''; });
     root.querySelectorAll('[data-lbl]').forEach(el => { if (T[el.dataset.lbl]) el.textContent = T[el.dataset.lbl]; });
     const g = $('#f-group'); if (g) g.placeholder = T.ph;

@@ -1,7 +1,7 @@
 import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261103a';
 import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261023a';
 import { shopLink, copyText } from './shoplink.js?v=20261103a';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261103a';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261104a';
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
@@ -55,7 +55,7 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
   }
   function revenueTab() { const r = report(orders, period); return `<div class="section-heading"><h2>Doanh thu cửa hàng</h2><p>Chi tiết hoạt động kinh doanh của ${esc(shop.name)}</p></div>${periodControl(period)}${metrics(r)}${note}${dailyView(r)}${subTable()}`; }
   function menuTab() {
-    return `<div class="card"><h3>Thực đơn</h3><p class="muted">Sửa tên, giá, tắt món hết hàng rồi bấm Lưu.</p>${menuEditorHtml(shop.menu)}<button class="btn" style="margin-top:14px" data-savemenu>Lưu thực đơn</button></div>`;
+    return `<div class="card" data-msector="${esc(shop.sector || 'food')}"><h3>Thực đơn</h3><p class="muted">Sửa tên, giá, tắt món hết hàng rồi bấm Lưu.${shop.sector === 'fashion' ? ' Điền thêm Size / Màu / Chất liệu để khách bấm “Xem chi tiết”. Ảnh bạn tải lên sẽ được AI chỉnh đẹp rồi tự đăng lên web.' : ''}</p>${menuEditorHtml(shop.menu)}<button class="btn" style="margin-top:14px" data-savemenu>Lưu thực đơn</button></div>`;
   }
   function shopTab() {
     const n = (k, d = '') => esc(shop[k] ?? d);

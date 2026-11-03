@@ -157,7 +157,100 @@ function uploadImage(body) {
   const name = String(body.name || 'anh.jpg').replace(/[^\w.\-]/g, '_').slice(0, 80);
   const file = DriveApp.getFolderById(FOLDER_ID).createFile(Utilities.newBlob(bytes, mime, name));
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  return out({ ok: true, id: file.getId(), url: 'https://lh3.googleusercontent.com/d/' + file.getId() + '=w900' });
+  const driveUrl = f => 'https://lh3.googleusercontent.com/d/' + f.getId() + '=w900';
+  const res = { ok: true, id: file.getId(), url: driveUrl(file) };
+
+  // AI chỉnh ảnh sản phẩm thời trang: nền sạch, đủ sáng. Lỗi thì giữ ảnh gốc (không làm hỏng việc tải ảnh).
+  if (body.enhance === 'fashion') {
+    const r = aiEnhanceImage_(uid, bytes, mime);
+    if (r.ok) {
+      const ext = /png/.test(r.mime) ? '.png' : /webp/.test(r.mime) ? '.webp' : '.jpg';
+      const aiFile = DriveApp.getFolderById(FOLDER_ID).createFile(Utilities.newBlob(Utilities.base64Decode(r.data), r.mime, 'ai-' + name.replace(/\.[^.]+$/, '') + ext));
+      aiFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      res.orig = res.url; res.url = driveUrl(aiFile); res.id = aiFile.getId(); res.ai = true;
+    } else { res.ai = false; res.aiError = r.error; console.warn('aiEnhance: ' + r.error); }
+  }
+  return out(res);
+}
+
+// ===================== 1b) AI CHỈNH ẢNH THỜI TRANG (Muse của Meta hoặc Gemini của Google) =====================
+// Khóa API KHÔNG dán vào file này: vào Project Settings → Script properties và thêm:
+//   MUSE_API_KEY    = khóa tạo ở https://dev.meta.ai (mục API keys)       → dùng Muse
+//   GEMINI_API_KEY  = khóa lấy ở https://aistudio.google.com/apikey         → dùng Gemini
+//   AI_PROVIDER     = muse | gemini   (tùy chọn; bỏ trống = muse nếu có MUSE_API_KEY, ngược lại gemini)
+//   AI_MAX_PER_6H   = số ảnh AI tối đa mỗi tài khoản / 6 giờ (mặc định 40)
+//   MUSE_MODEL / GEMINI_MODEL (tùy chọn; mặc định muse-image-1.0 / gemini-2.5-flash-image)
+const AI_PROMPT = 'Edit this product photo for an online fashion store. Keep the clothing / accessory EXACTLY the same: same shape, cut, color, pattern, print, logo, text and stitching. Do not add, remove or redesign anything on the product. ' +
+  'Only improve the photo: replace the messy background with a clean, plain light-neutral studio background, correct exposure and white balance, soften harsh shadows, remove dust and lint, and center the product in a square 1:1 frame with a little margin. ' +
+  'If a person is wearing the item, keep the person and the garment unchanged and only clean up the background and lighting. Do not add watermarks, captions or extra objects.';
+
+function aiEnhanceImage_(uid, bytes, mime) {
+  const props = PropertiesService.getScriptProperties();
+  const pv = String(props.getProperty('AI_PROVIDER') || '').toLowerCase();
+  const provider = pv === 'muse' || pv === 'gemini' ? pv : (props.getProperty('MUSE_API_KEY') ? 'muse' : 'gemini');
+  const key = props.getProperty(provider === 'muse' ? 'MUSE_API_KEY' : 'GEMINI_API_KEY');
+  if (!key) return { ok: false, error: 'Admin chưa cài ' + (provider === 'muse' ? 'MUSE_API_KEY' : 'GEMINI_API_KEY') + ' trong Script properties' };
+  const cache = CacheService.getScriptCache(), ck = 'ai_' + uid, used = Number(cache.get(ck) || 0), max = Number(props.getProperty('AI_MAX_PER_6H')) || 40;
+  if (used >= max) return { ok: false, error: 'đã dùng hết lượt AI tạm thời, thử lại sau' };
+  const r = provider === 'muse' ? aiMuse_(key, props, bytes, mime) : aiGemini_(key, props, bytes, mime);
+  if (r.ok) cache.put(ck, String(used + 1), 21600);
+  return r;
+}
+
+// Muse Image (Meta Model API – kiểu "responses"): ảnh gửi dạng data URL, ảnh kết quả là base64 trong output[].image_generation_call.result
+function aiMuse_(key, props, bytes, mime) {
+  let r;
+  try {
+    r = UrlFetchApp.fetch('https://api.meta.ai/v1/responses', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + key },
+      payload: JSON.stringify({
+        model: props.getProperty('MUSE_MODEL') || 'muse-image-1.0',
+        input: [{ type: 'message', role: 'user', content: [
+          { type: 'input_text', text: AI_PROMPT },
+          { type: 'input_image', image_url: 'data:' + mime + ';base64,' + Utilities.base64Encode(bytes) },
+        ] }],
+        tools: [{ type: 'image_generation' }],
+        max_output_tokens: 2048, store: false, stream: false,
+      }),
+    });
+  } catch (e) { return { ok: false, error: 'không gọi được Muse: ' + e }; }
+  const code = r.getResponseCode(), txt = r.getContentText();
+  if (code !== 200) return { ok: false, error: code === 429 ? 'Muse đang quá tải / hết hạn mức, thử lại sau' : 'Muse trả lỗi ' + code + ' ' + txt.slice(0, 200) };
+  let j; try { j = JSON.parse(txt); } catch (e) { return { ok: false, error: 'Muse trả dữ liệu lạ' }; }
+  const out = j.output || [];
+  for (let i = 0; i < out.length; i++) {
+    if (out[i].type === 'image_generation_call' && out[i].result) return { ok: true, data: out[i].result, mime: 'image/png' };
+  }
+  return { ok: false, error: 'Muse không trả về ảnh: ' + txt.slice(0, 200) };
+}
+
+// Gemini (Google)
+function aiGemini_(key, props, bytes, mime) {
+  const model = props.getProperty('GEMINI_MODEL') || 'gemini-2.5-flash-image';
+  let r;
+  try {
+    r = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-goog-api-key': key },
+      payload: JSON.stringify({
+        contents: [{ parts: [{ text: AI_PROMPT }, { inline_data: { mime_type: mime, data: Utilities.base64Encode(bytes) } }] }],
+        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+      }),
+    });
+  } catch (e) { return { ok: false, error: 'không gọi được AI: ' + e }; }
+  const code = r.getResponseCode();
+  if (code !== 200) return { ok: false, error: code === 429 ? 'AI đang quá tải / hết hạn mức, thử lại sau' : 'AI trả lỗi ' + code + ' ' + r.getContentText().slice(0, 120) };
+  let j; try { j = JSON.parse(r.getContentText()); } catch (e) { return { ok: false, error: 'AI trả dữ liệu lạ' }; }
+  const parts = (((j.candidates || [])[0] || {}).content || {}).parts || [];
+  for (let i = 0; i < parts.length; i++) {
+    const d = parts[i].inlineData || parts[i].inline_data;
+    if (d && d.data) return { ok: true, data: d.data, mime: d.mimeType || d.mime_type || 'image/png' };
+  }
+  return { ok: false, error: 'AI không trả về ảnh (có thể ảnh bị từ chối)' };
+}
+// Chạy thử trong trình soạn thảo (chọn hàm testAi → Run): cấp quyền + xem đã có khóa nào. Xem kết quả ở Execution log
+function testAi() {
+  const p = PropertiesService.getScriptProperties();
+  Logger.log('MUSE_API_KEY: ' + (p.getProperty('MUSE_API_KEY') ? 'có' : 'chưa có') + ' | GEMINI_API_KEY: ' + (p.getProperty('GEMINI_API_KEY') ? 'có' : 'chưa có') + ' | AI_PROVIDER: ' + (p.getProperty('AI_PROVIDER') || '(tự chọn)'));
 }
 
 // ===================== 3) ADMIN ĐẶT LẠI MẬT KHẨU =====================
