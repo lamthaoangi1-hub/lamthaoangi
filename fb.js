@@ -292,6 +292,15 @@ export async function resetUserPassword(uid, password) {
   const j = await res.json().catch(() => null);
   if (!j || !j.ok) throw new Error((j && j.error) || 'Không đặt lại được mật khẩu, thử lại sau');
 }
+/* Admin: lấy danh sách người đã nhắn tin cho Zalo Bot (Apps Script đọc getUpdates, lưu vào Sheet 'ZaloChats') để gắn Zalo ID cho quán / shipper, không cần chạy lệnh trong Apps Script */
+export async function zaloChats() {
+  if (!UPLOAD_URL) throw new Error('Chưa cấu hình Google Apps Script (upload-config.js)');
+  const token = await idToken();
+  const res = await withTimeout(fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'zaloChats', token }) }), 60000, 'Google Apps Script không phản hồi');
+  const j = await res.json().catch(() => null);
+  if (!j || !j.ok) throw new Error((j && j.error) || 'Không lấy được danh sách Zalo. Kiểm tra đã triển khai bản Apps Script mới chưa.');
+  return j.rows || [];
+}
 export const savePromo = (id, d) => id ? setDoc(doc(db, 'promos', id), d) : addDoc(collection(db, 'promos'), d);
 export const removePromo = id => deleteDoc(doc(db, 'promos', id));
 /* Danh sách Zalo ID nhận báo đơn mới: { shops:{ shopId:[id...] }, shippers:[id...] } – Admin ghi, Apps Script đọc */

@@ -1,5 +1,5 @@
 /* Khung dùng chung cho 3 trang quản lý: đăng nhập, kiểm tra quyền, tiện ích hiển thị */
-import * as fb from './fb.js?v=20261102c';
+import * as fb from './fb.js?v=20261103a';
 export { fb };
 import { parseMenuText, parseMenuSheets, readSheets, downloadMenuTemplate } from './bulk.js?v=20261023a';
 export const $ = (s, r = document) => r.querySelector(s);
@@ -208,8 +208,9 @@ export async function uploadImage(file) {
   if (!fb.uploadUrl) throw new Error('Chưa bật lưu ảnh Google Drive. Xem HUONG-DAN.md, mục "Lưu ảnh lên Google Drive".');
   if (!/^image\//.test(file.type)) throw new Error('Vui lòng chọn file ảnh');
   const blob = await shrink(file), data = await toB64(blob), token = await fb.idToken();
-  const res = await fetch(fb.uploadUrl, { method:'POST', body:JSON.stringify({ token, name:`lt-${Date.now()}.jpg`, mime:'image/jpeg', data }) });
-  const j = await res.json();
+  let res; try { res = await fetch(fb.uploadUrl, { method:'POST', body:JSON.stringify({ token, name:`lt-${Date.now()}.jpg`, mime:'image/jpeg', data }) }); } catch (e) { throw new Error('Không kết nối được máy chủ lưu ảnh. Kiểm tra mạng rồi thử lại.'); }
+  const j = await res.json().catch(() => null);
+  if (!j) throw new Error('Máy chủ lưu ảnh trả về lỗi. Admin cần kiểm tra Google Apps Script (Deploy → Manage deployments → New version).');
   if (!j.ok) throw new Error(j.error || 'Tải ảnh thất bại');
   return j.url;
 }

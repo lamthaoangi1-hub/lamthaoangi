@@ -1,4 +1,4 @@
-import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payText, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261102c';
+import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payText, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261103a';
 
 export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
   let tab = 'open', open = [], mine = [], err = '';
@@ -43,7 +43,7 @@ export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'
     const bank = o.payment === 'bank', paid = bank && o.payStatus === 'paid';
     return `<article class="oc">
       <header class="oc-head"><div><span class="oc-code">#${esc(o.code)}</span><div class="oc-time">${extra}</div></div>${badge(o.status)}</header>
-      <div class="oc-money"><div class="earn"><small>Phí ship bạn nhận${o.nightFee ? ' (gồm phụ phí đêm ' + money(o.nightFee) + ')' : ''}${o.shopShip ? ' · quán trả ' + money(o.shopShip) : ''}</small><b>${money(shipEarn(o))}</b></div><div class="${bank ? (paid ? 'bank' : 'bankwait') : ''}"><small>${bank ? (paid ? 'Khách ĐÃ chuyển khoản – không thu tiền' : 'Chuyển khoản – chờ xác nhận nhận tiền') : o.type ? 'Phí dịch vụ (tiền mặt)' : 'Thu tiền mặt của khách'}</small><b>${paid ? '0đ' : money(o.total)}</b></div>${!o.type && !bank ? `<div style="grid-column:1/-1"><small>Tiền trả cho quán (tiền món − giảm giá${o.shopShip ? ' − phí ship quán hỗ trợ' : ''})</small><b>${money(Math.max(0, (o.total || 0) - shipEarn(o)))}</b></div>` : ''}</div>
+      <div class="oc-money"><div class="earn"><small>Phí ship bạn nhận${o.nightFee || o.weatherFee ? ' (gồm ' + [o.nightFee ? 'phụ phí đêm ' + money(o.nightFee) : '', o.weatherFee ? 'phụ phí thời tiết ' + money(o.weatherFee) : ''].filter(Boolean).join(' + ') + ')' : ''}${o.shopShip ? ' · quán trả ' + money(o.shopShip) : ''}</small><b>${money(shipEarn(o))}</b></div><div class="${bank ? (paid ? 'bank' : 'bankwait') : ''}"><small>${bank ? (paid ? 'Khách ĐÃ chuyển khoản – không thu tiền' : 'Chuyển khoản – chờ xác nhận nhận tiền') : o.type ? 'Phí dịch vụ (tiền mặt)' : 'Thu tiền mặt của khách'}</small><b>${paid ? '0đ' : money(o.total)}</b></div>${!o.type && !bank ? `<div style="grid-column:1/-1"><small>Tiền trả cho quán (tiền món − giảm giá${o.shopShip ? ' − phí ship quán hỗ trợ' : ''})</small><b>${money(Math.max(0, (o.total || 0) - shipEarn(o)))}</b></div>` : ''}</div>
       ${bank && !paid ? '<div class="oc-warn">⚠️ Đơn chuyển khoản CHƯA được xác nhận nhận tiền. Hãy hỏi Admin hoặc khách trước khi giao.</div>' : ''}
       <div class="oc-route">
         <div class="oc-stop from"><i class="oc-dot"></i><div>

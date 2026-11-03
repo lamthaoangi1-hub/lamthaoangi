@@ -1,6 +1,6 @@
-import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261102c';
-import { shopLink, copyText } from './shoplink.js?v=20261102c';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261102c';
+import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261103a';
+import { shopLink, copyText } from './shoplink.js?v=20261103a';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261103a';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -150,6 +150,28 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       ${orphan.length ? `<p style="margin:6px 0 2px"><b>⚠ ${orphan.length} tài khoản nhà bán hàng chưa gán quán hoặc gán vào quán không còn tồn tại</b> (chọn lại quán ở bảng dưới):</p><ul style="margin:0 0 4px 18px">${li(orphan.map(u => esc(u.name || '') + ' · ' + esc(u.phone || '')))}</ul>` : ''}
       ${dups.length ? `<p style="margin:6px 0 2px"><b>⚠ Quán trùng tên</b> (có thể là quán nhập hai lần – nên xóa bản thừa):</p><ul style="margin:0 0 4px 18px">${li(dups.map(a => esc(a[0].name) + ' ×' + a.length))}</ul>` : ''}</div>`;
   };
+  /* ---- Zalo: danh sách người đã nhắn tin cho bot → gắn Zalo ID cho nhà bán hàng / shipper ngay trên web ---- */
+  let zl = { list:null, busy:false, err:'', pick:{} };
+  const splitZ = v => String(v || '').split(',').map(x => x.trim()).filter(Boolean);
+  const zaloCard = () => {
+    if (!['all', 'seller', 'shipper'].includes(ufil)) return '';
+    const staff = users.filter(u => u.role === 'seller' || u.role === 'shipper');
+    const label = u => `${u.role === 'seller' ? '🏪' : '🛵'} ${esc(u.name || u.phone || '?')}${u.role === 'seller' && u.shopId ? ' – ' + esc(shops.find(x => x.id === u.shopId)?.name || '') : ''}${u.phone ? ' · ' + esc(u.phone) : ''}`;
+    const owners = id => staff.filter(u => splitZ(u.zaloId).includes(id));
+    const rows = (zl.list || []).map(c => {
+      const own = owners(c.id), pk = zl.pick[c.id] || '';
+      return `<tr><td><b>${esc(c.name || '(không tên)')}</b></td><td style="white-space:nowrap"><code>${esc(c.id)}</code></td><td class="muted">${esc(c.text || '')}${c.at ? `<br><small>${esc(fmtTime(c.at))}</small>` : ''}</td>
+        <td>${own.length ? own.map(u => `<span class="badge ok" style="margin:0 4px 4px 0">${label(u)} <a href="#" data-zunlink="${u.uid}|${esc(c.id)}" title="Gỡ Zalo ID này khỏi tài khoản" style="margin-left:4px;color:inherit">✕</a></span>`).join('') : '<span class="badge warn">Chưa gắn</span>'}</td>
+        <td><select data-zpick="${esc(c.id)}" style="width:auto;max-width:230px"><option value="">— chọn người nhận báo đơn —</option>${staff.map(u => `<option value="${u.uid}" ${pk === u.uid ? 'selected' : ''}>${label(u)}</option>`).join('')}</select></td>
+        <td><button class="btn sm" data-zassign="${esc(c.id)}" ${pk ? '' : 'disabled'}>Gắn</button></td></tr>`;
+    }).join('');
+    return `<div class="card"><h3>💬 Zalo – gắn ID nhận báo đơn</h3>
+      <p class="muted" style="margin:4px 0 8px">Nhờ chủ quán / shipper mở Zalo, <b>nhắn 1 tin bất kỳ</b> (VD: “xin chào”) cho bot của Lâm Thao Ăn Gì, rồi bấm <b>Làm mới danh sách</b>. Chọn người tương ứng ở cột “Gắn cho” và bấm <b>Gắn</b> – không cần vào Apps Script chạy lệnh nữa. Shipper chỉ nhận báo đơn khi đang bật Online.</p>
+      <div class="row"><button class="btn sm" data-zload ${zl.busy ? 'disabled' : ''}>${zl.busy ? 'Đang lấy tin nhắn từ Zalo…' : 'Làm mới danh sách'}</button>${zl.list ? `<span class="muted">${zl.list.length} người đã nhắn bot</span>` : ''}</div>
+      ${zl.err ? `<p style="color:var(--red);margin:8px 0 0">${esc(zl.err)}</p>` : ''}
+      ${zl.list ? (zl.list.length ? `<div class="table-scroll" style="margin-top:8px"><table><thead><tr><th>Tên Zalo</th><th>Zalo ID</th><th>Tin nhắn gần nhất</th><th>Đang gắn cho</th><th>Gắn cho</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted" style="margin:8px 0 0">Chưa có ai nhắn tin cho bot. Hãy nhờ họ nhắn 1 tin rồi bấm Làm mới lại.</p>') : ''}
+    </div>`;
+  };
   const usersView = () => {
     if (rp) return rpForm();
     const q = flat($('#uq')?.value.trim());
@@ -157,7 +179,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     const cnt = r => users.filter(u => u.role === r).length;
     const pills = [['all', 'Tất cả', utotal != null ? users.length - cnt('customer') + utotal : users.length], ...ROLES.map(([r, l]) => [r, l, r === 'customer' && utotal != null ? utotal : cnt(r)])];
     const groups = ufil === 'all' ? ROLES : ROLES.filter(([r]) => r === ufil);
-    return auditCard() + syncBox('users') + `<div class="card"><div class="row"><input type="search" id="uq" placeholder="Tìm theo tên hoặc số điện thoại" style="max-width:280px;margin:0"><button class="btn sm" data-ureload>Tải lại danh sách</button></div>
+    return auditCard() + zaloCard() + syncBox('users') + `<div class="card"><div class="row"><input type="search" id="uq" placeholder="Tìm theo tên hoặc số điện thoại" style="max-width:280px;margin:0"><button class="btn sm" data-ureload>Tải lại danh sách</button></div>
     <p class="muted" style="margin-top:8px">Khách tự đăng ký trên website (vai trò “Khách hàng”). Đổi vai trò tại đây; <b>Nhà bán hàng</b> cần gán cửa hàng, hoặc dùng nút “Cấp TK” ở tab Cửa hàng. Người dùng quên mật khẩu: bấm <b>Đặt lại MK</b> ở cuối dòng.</p></div>
     <div class="tabs" style="position:static;border:0;padding:0;background:none;margin:2px 0 10px">${pills.map(([k, l, n]) => `<button class="${ufil === k ? 'on' : ''}" data-ufil="${k}">${l} (${n})</button>`).join('')}</div>
     ${groups.map(([r, l]) => `${ufil === 'all' ? `<h3 style="margin:14px 0 6px">${l} (${r === 'customer' && utotal != null ? utotal : cnt(r)})</h3>` : ''}${userTable(r, users.filter(u => u.role === r && match(u)))}`).join('')}
@@ -258,7 +280,27 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   const platformView = () => `<div class="card" style="margin-top:12px"><h3>🎁 Giảm giá do Lâm Thao Ăn Gì chịu</h3><p class="muted">Khách được giảm % trên <b>tiền món</b> (sau giảm giá quán và mã giảm giá, không tính phí ship) và thấy dòng “Ưu đãi Lâm Thao Ăn Gì” khi đặt đơn. <b>Quán vẫn nhận đủ tiền món</b>; phần giảm này bạn chịu và bù cho quán cuối ngày ở tab <b>💸 Bù lỗ</b>. Chỉ áp dụng cho đơn đặt từ lúc bạn lưu; nhập 0 để tắt.</p>
     <div class="grid"><label class="f">Mức giảm (%)<input type="number" id="plat-pct" min="0" max="50" step="0.5" value="${Number(settings.platformPct) || 0}"></label></div>
     <button class="btn" style="margin-top:12px" data-saveplat>Lưu mức giảm</button></div>`;
-  const settingsView = () => platformView() + custView() + contactView() + bankView() + shipCfgView();
+  /* Phụ phí thời tiết xấu: Admin bật/tắt + chỉnh mức. Khách thấy thêm dòng phụ phí khi đặt đơn, shipper nhận khoản này (kể cả đơn freeship). */
+  const weatherView = () => {
+    const on = settings.weatherOn === true && Number(settings.weatherFee) > 0, fee = Number(settings.weatherFee) || 0;
+    return `<div class="card" style="margin-top:12px;${on ? 'background:#fff8ec' : ''}"><h3>🌧 Phụ phí thời tiết xấu</h3>
+      <p class="muted">Trời mưa to, bão, rét đậm… bật lên để cộng thêm <b>phụ phí cho mỗi đơn</b> (đồ ăn, giao hàng, mua hộ). Khách thấy rõ dòng phụ phí trước khi đặt; <b>shipper nhận toàn bộ khoản này</b> (cộng vào tiền ship, kể cả đơn freeship). Chỉ áp dụng cho đơn đặt sau khi bạn lưu; tắt là hết thu ngay.</p>
+      <label class="sw" style="margin:8px 0"><input type="checkbox" id="wx-on" data-wxon ${on ? 'checked' : ''}>Đang BẬT phụ phí thời tiết xấu</label>
+      <div class="grid"><label class="f">Mức phụ phí mỗi đơn (đồng)<input type="number" id="wx-fee" min="0" max="100000" step="1000" value="${fee}"></label>
+        <label class="f">Tên hiển thị cho khách<input type="text" id="wx-label" maxlength="40" placeholder="Phụ phí thời tiết xấu" value="${esc(settings.weatherLabel || '')}"></label></div>
+      <p class="muted" style="margin:6px 0 0">${on ? `<b style="color:var(--green-d)">Đang bật:</b> +${money(fee)}/đơn${settings.weatherAt ? ' từ ' + esc(fmtTime(settings.weatherAt)) : ''}.` : 'Đang tắt – khách không bị tính phụ phí này.'} Tối đa 100.000đ/đơn.</p>
+      <button class="btn" style="margin-top:12px" data-savewx>Lưu</button></div>`;
+  };
+  const saveWx = async onOverride => {
+    const v = Math.round(Number($('#wx-fee').value)), fee = isNaN(v) ? 0 : Math.min(100000, Math.max(0, v));
+    const on = onOverride !== undefined ? onOverride : $('#wx-on').checked;
+    if (on && fee <= 0) { $('#wx-on').checked = false; toast('Hãy nhập mức phụ phí (đồng) lớn hơn 0 rồi mới bật'); return; }
+    const was = settings.weatherOn === true && Number(settings.weatherFee) > 0;
+    if (on && !was && !confirm(`Bật phụ phí thời tiết xấu +${money(fee)} cho MỖI đơn? Khách sẽ thấy phụ phí khi đặt.`)) { $('#wx-on').checked = false; return; }
+    await fb.saveSettings({ weatherOn:on, weatherFee:fee, weatherLabel:$('#wx-label').value.trim().slice(0, 40), ...(on !== was ? { weatherAt:Date.now() } : {}) });
+    toast(on ? `Đã bật phụ phí thời tiết xấu +${money(fee)}/đơn` : 'Đã tắt phụ phí thời tiết xấu');
+  };
+  const settingsView = () => weatherView() + platformView() + custView() + contactView() + bankView() + shipCfgView();
 
   function draw() {
     const keep = $('#uq')?.value;
@@ -363,6 +405,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
         if (!imp.length) { imp = null; toast('Không thấy dữ liệu quán trong file (cần tab “Quán” có cột “Tên quán”). Bấm “File Excel mẫu” để xem mẫu.'); }
         t.value = ''; draw();
       }
+      if (t.dataset.zpick !== undefined) { zl.pick[t.dataset.zpick] = t.value; const b = $(`[data-zassign="${t.dataset.zpick}"]`); if (b) b.disabled = !t.value; return; }
+      if (t.dataset.wxon !== undefined) { await saveWx(t.checked); return; }
       if (t.dataset.shopcust !== undefined) { await fb.saveSettings({ shopSeeCustomer:t.checked }); toast(t.checked ? 'Quán đã được xem thông tin khách' : 'Đã ẩn thông tin khách với quán'); return; }
       if (t.id === 'rev-shop') { revShop = t.value; draw(); return; }
       if (t.id === 'sub-day') { subDay = t.value || todayKey(); draw(); loadSub(); return; }
@@ -400,6 +444,22 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
         const info = on ? { at:Date.now(), amount:amt } : null;
         await fb.setSettlement(subDay, id, info); subSet[subDay] = { ...(subSet[subDay] || {}), [id]:info }; toast(on ? 'Đã đánh dấu đã bù' : 'Đã bỏ đánh dấu'); draw();
       }
+      else if (g('[data-zload]')) {
+        if (zl.busy) return; zl.busy = true; zl.err = ''; draw();
+        try { zl.list = await fb.zaloChats(); } catch (er) { zl.err = er.message || 'Không lấy được danh sách Zalo'; }
+        zl.busy = false; draw();
+      }
+      else if (g('[data-zassign]')) {
+        const id = g('[data-zassign]').dataset.zassign, uid = zl.pick[id], u = users.find(x => x.uid === uid); if (!u) { toast('Hãy chọn người cần gắn'); return; }
+        const cur = splitZ(u.zaloId); if (cur.includes(id)) { toast('Người này đã có Zalo ID đó rồi'); return; }
+        const z = [...cur, id].join(','); await fb.patchUser(uid, { zaloId:z }); u.zaloId = z; await syncNotify(); zl.pick[id] = ''; toast('Đã gắn Zalo ID cho ' + (u.name || u.phone)); draw();
+      }
+      else if (g('[data-zunlink]')) {
+        e.preventDefault(); const [uid, id] = g('[data-zunlink]').dataset.zunlink.split('|'), u = users.find(x => x.uid === uid); if (!u) return;
+        if (!confirm('Gỡ Zalo ID này khỏi ' + (u.name || u.phone) + '? Họ sẽ không nhận báo đơn qua Zalo nữa.')) return;
+        const z = splitZ(u.zaloId).filter(x => x !== id).join(','); await fb.patchUser(uid, { zaloId:z }); u.zaloId = z; await syncNotify(); toast('Đã gỡ Zalo ID'); draw();
+      }
+      else if (g('[data-savewx]')) { await saveWx(); }
       else if (g('[data-saveplat]')) {
         const v = parseFloat($('#plat-pct').value), pct = isNaN(v) ? 0 : Math.min(50, Math.max(0, Math.round(v * 10) / 10));
         if (pct !== (Number(settings.platformPct) || 0) && !confirm(pct ? `Bật giảm ${pct}% tiền món cho MỌI quán, bạn chịu phần giảm này?` : 'Tắt giảm giá do Lâm Thao Ăn Gì chịu?')) return;

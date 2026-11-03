@@ -93,6 +93,9 @@ service cloud.firestore {
         && request.resource.data.discount is number && request.resource.data.discount >= 0 && request.resource.data.discount <= request.resource.data.subtotal
         && request.resource.data.shipFee is number && request.resource.data.shipFee >= 0 && request.resource.data.shipFee <= 300000
         && !('shipperUid' in request.resource.data)
+        // phụ phí thời tiết xấu (Admin bật): số không âm, không quá 100.000đ và nằm trong phí ship
+        && request.resource.data.get('weatherFee', 0) is number && request.resource.data.get('weatherFee', 0) >= 0
+        && request.resource.data.get('weatherFee', 0) <= 100000 && request.resource.data.get('weatherFee', 0) <= request.resource.data.shipFee
         // thanh toán: chỉ tiền mặt hoặc chuyển khoản (chuyển khoản chỉ khi Admin đang bật); khách KHÔNG được tự đánh dấu đã trả
         && request.resource.data.get('payment', 'cash') in ['cash', 'bank']
         && (request.resource.data.get('payment', 'cash') == 'cash'

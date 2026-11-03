@@ -31,10 +31,10 @@ const USER_COLS = ['uid', 'name', 'phone', 'role', 'shopId', 'zaloId', 'address'
 const USER_TEXT = ['uid', 'name', 'phone', 'role', 'shopId', 'zaloId', 'address', 'createdAt', 'updatedAt'];
 const ORDER_COLS = ['id', 'code', 'createdAt', 'updatedAt', 'status', 'type', 'shopId', 'shopName', 'uid', 'customerName', 'customerPhone', 'address', 'note', 'items',
   'subtotal', 'discount', 'shipFee', 'shopShip', 'nightFee', 'total', 'payment', 'payStatus', 'customerPaid', 'shipperUid', 'shipperName', 'shipperPhone',
-  'lat', 'lng', 'distanceKm', 'codAmount', 'receiverName', 'receiverPhone', 'shopAddress', 'promoCode', 'platformOff', 'platformPct'];   // platformOff: LUÔN để cuối cột, để dữ liệu cũ không bị lệch
+  'lat', 'lng', 'distanceKm', 'codAmount', 'receiverName', 'receiverPhone', 'shopAddress', 'promoCode', 'platformOff', 'platformPct', 'weatherFee'];   // cột mới LUÔN thêm vào cuối, để dữ liệu cũ không bị lệch
 const ORDER_TEXT = ['id', 'code', 'createdAt', 'updatedAt', 'status', 'type', 'shopId', 'shopName', 'uid', 'customerName', 'customerPhone', 'address', 'note', 'items',
   'payment', 'payStatus', 'shipperUid', 'shipperName', 'shipperPhone', 'receiverName', 'receiverPhone', 'shopAddress', 'promoCode'];
-const ORDER_NUM = ['subtotal', 'discount', 'shipFee', 'shopShip', 'nightFee', 'total', 'lat', 'lng', 'distanceKm', 'codAmount', 'platformOff', 'platformPct'];
+const ORDER_NUM = ['subtotal', 'discount', 'shipFee', 'shopShip', 'nightFee', 'total', 'lat', 'lng', 'distanceKm', 'codAmount', 'platformOff', 'platformPct', 'weatherFee'];
 
 /**
  * Script properties (Project Settings → Script properties) – dùng cho Zalo Bot:
@@ -113,6 +113,7 @@ function doPost(e) {
     if (body.action === 'syncOrder') return syncOrder(body);
     if (body.action === 'adminList') return adminList(body);
     if (body.action === 'backfill') return backfillWeb(body);
+    if (body.action === 'zaloChats') return zaloChatsApi(body);
     return uploadImage(body);
   } catch (err) {
     return out({ ok: false, error: 'Lỗi máy chủ: ' + err });
@@ -124,8 +125,20 @@ function uploadImage(body) {
   if (!body.token || !body.data) return out({ ok: false, error: 'Thiếu dữ liệu' });
   const uid = verifyToken(body.token);
   if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn, hãy đăng nhập lại' });
-  // Đọc hồ sơ bằng token của người gọi; không được thì đọc bằng quyền của chủ script, và nếu vẫn lỗi thì báo rõ mã lỗi thay vì báo chung chung
-  let me = getDoc('users/' + uid, body.token) || getDocAdmin('users/' + uid, body.token);
+  // Vai trò: ưu tiên bộ nhớ đệm (không tốn lượt đọc Firestore) → Firestore → bản sao trong Google Sheet.
+  // Nhờ vậy khi Firestore hết hạn mức đọc miễn phí trong ngày (429) nhà bán hàng vẫn tải ảnh lên Drive được (ảnh lưu ở Drive, không cần Firestore).
+  const cache = CacheService.getScriptCache(), roleKey = 'role_' + uid;
+  let me = null, cachedRole = cache.get(roleKey);
+  if (cachedRole) me = { role: cachedRole };
+  else {
+    me = getDocAdmin('users/' + uid, body.token);   // đọc bằng quyền chủ script, lỗi thì rơi về token của người gọi
+    if (me && me.role) { if (me.role === 'admin' || me.role === 'seller') cache.put(roleKey, me.role, 3600); }
+    else {
+      const sr = sheetUserRole(uid);
+      if (sr) { me = { role: sr }; if (sr === 'admin' || sr === 'seller') cache.put(roleKey, sr, 900); console.warn('uploadImage: không đọc được Firestore, dùng vai trò từ Sheet cho ' + uid); }
+      else me = null;
+    }
+  }
   if (!me) {
     const rr = UrlFetchApp.fetch(FS + 'users/' + uid, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
     const c = rr.getResponseCode();
@@ -611,11 +624,18 @@ function svcLines(o) {
   return [];
 }
 
+// Ghi chú phụ phí trong tin báo: " (gồm phụ phí đêm 5.000đ + phụ phí thời tiết xấu 10.000đ)"
+function feeNote(o) {
+  const p = [];
+  if (o.nightFee) p.push('phụ phí đêm ' + money(o.nightFee));
+  if (o.weatherFee) p.push('phụ phí thời tiết xấu ' + money(o.weatherFee));
+  return p.length ? ' (gồm ' + p.join(' + ') + ')' : '';
+}
 function zaloText(order, shop, footer, hideCustomer, forShop) {
   const w = order._warn ? order._warn + '\n' : '';
   if (order.type) return w + '🛎 ĐƠN ' + (order.type === 'errand' ? 'MUA HỘ' : 'GIAO HÀNG') + ' MỚI #' + order.code + '\n'
     + svcLines(order).join('\n') + '\n'
-    + 'Quãng đường: ' + (order.distanceKm != null ? order.distanceKm + ' km' : '?') + ' | PHÍ: ' + money(order.total) + (order.nightFee ? ' (gồm phụ phí đêm ' + money(order.nightFee) + ')' : '') + ' (' + payLabel(order) + ')\n'
+    + 'Quãng đường: ' + (order.distanceKm != null ? order.distanceKm + ' km' : '?') + ' | PHÍ: ' + money(order.total) + feeNote(order) + ' (' + payLabel(order) + ')\n'
     + (hideCustomer ? '' : 'Khách đặt: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
     + 'Giao đến: ' + (order.address || '') + '\n')
     + (order.note ? 'Ghi chú: ' + order.note + '\n' : '')
@@ -629,7 +649,7 @@ function zaloText(order, shop, footer, hideCustomer, forShop) {
       ? 'TIỀN MÓN QUÁN NHẬN: ' + money(Math.max(0, Number(order.subtotal || 0) - Number(order.discount || 0) + Number(order.platformOff || 0))) + (order.discount ? ' (đã trừ giảm giá ' + money(order.discount) + ')' : '') + '\n'
         + (order.shopShip ? 'Quán hỗ trợ ship (freeship): -' + money(order.shopShip) + ' → quán thực nhận ' + money(Math.max(0, Number(order.subtotal || 0) - Number(order.discount || 0) + Number(order.platformOff || 0) - Number(order.shopShip || 0))) + '\n' : '')
         + 'Phí ship khách trả cho shipper, không tính vào quán.\n'
-      : 'Phí ship: ' + money(order.shipFee) + (order.nightFee ? ' (gồm phụ phí đêm ' + money(order.nightFee) + ')' : '') + (order.shopShip ? ' | Quán hỗ trợ ship: ' + money(order.shopShip) : '') + (order.discount ? ' | Giảm: -' + money(order.discount) : '') + '\n'
+      : 'Phí ship: ' + money(order.shipFee) + feeNote(order) + (order.shopShip ? ' | Quán hỗ trợ ship: ' + money(order.shopShip) : '') + (order.discount ? ' | Giảm: -' + money(order.discount) : '') + '\n'
         + 'TỔNG: ' + money(order.total) + ' (' + payLabel(order) + ')\n')
     + (order.platformOff ? '🎁 Lâm Thao Ăn Gì giảm cho khách ' + money(order.platformOff) + ' – quán VẪN NHẬN ĐỦ, Admin bù lại cuối ngày\n' : '')
     + (hideCustomer ? '' : 'Khách: ' + (order.customerName || '') + ' – ' + (order.customerPhone || '') + '\n'
@@ -648,7 +668,7 @@ function sendOrderEmail(order, shop) {
     + '<h2 style="color:#16a34a;margin:0 0 8px">🛎 Đơn mới #' + esc(order.code) + '</h2>'
     + '<p style="margin:0 0 8px"><b>' + (order.type ? 'Dịch vụ' : 'Quán') + ':</b> ' + esc(order.shopName || shop.name) + (shop.phone ? ' · ' + esc(shop.phone) : '') + '</p>'
     + '<table style="border-collapse:collapse;width:100%;border:1px solid #e5e7eb">' + rows
-    + '<tr><td style="padding:4px 8px">Phí giao hàng' + (order.nightFee ? ' (gồm phụ phí đêm ' + money(order.nightFee) + ')' : '') + '</td><td style="padding:4px 8px;text-align:right">' + money(order.shipFee) + '</td></tr>'
+    + '<tr><td style="padding:4px 8px">Phí giao hàng' + feeNote(order) + '</td><td style="padding:4px 8px;text-align:right">' + money(order.shipFee) + '</td></tr>'
     + (order.discount ? '<tr><td style="padding:4px 8px">Giảm giá</td><td style="padding:4px 8px;text-align:right">-' + money(order.discount) + '</td></tr>' : '')
     + (order.platformOff ? '<tr><td style="padding:4px 8px">🎁 Trong đó Lâm Thao Ăn Gì chịu (bù cho quán)</td><td style="padding:4px 8px;text-align:right">' + money(order.platformOff) + '</td></tr>' : '')
     + '<tr><td style="padding:4px 8px"><b>' + (order.type ? 'Phí' : 'Tổng') + '</b></td><td style="padding:4px 8px;text-align:right"><b>' + money(order.total) + '</b></td></tr></table>'
@@ -762,6 +782,7 @@ function syncUser(body) {
   if (body.uid && body.uid !== me.localId) {
     if (roleOf(me.localId, body.token) !== 'admin') return out({ ok: false, error: 'Chỉ Admin mới đồng bộ hồ sơ người khác' });
     uid = String(body.uid);
+    try { CacheService.getScriptCache().remove('role_' + uid); } catch (e) {}   // đổi vai trò → bỏ bộ nhớ đệm để quyền tải ảnh cập nhật ngay
     const d = getDoc('users/' + uid, body.token);
     if (!d) return out({ ok: false, error: 'Không đọc được hồ sơ' });
     upsertUser(uid, pick(d), {});
@@ -893,6 +914,49 @@ function sendZalo(chatId, text) {
   if (j.ok) return true;
   console.error('Zalo lỗi ' + r.getResponseCode() + ': ' + r.getContentText() + ' (chat ' + chatId + ')');
   return false;
+}
+
+// ===================== DANH SÁCH NGƯỜI NHẮN BOT (Admin gắn Zalo ID trên web) =====================
+// Mỗi tin nhắn gửi cho bot chỉ đọc được 1 lần qua getUpdates, nên lưu lại vào tab "ZaloChats" của Google Sheet để Admin xem lại danh sách bất kỳ lúc nào.
+const SHEET_ZALO = 'ZaloChats', ZALO_COLS = ['id', 'name', 'text', 'at'];
+const zaloSheet = () => sheetOf(SHEET_ZALO, ZALO_COLS, ZALO_COLS);
+function pullZaloUpdates() {
+  const token = props().getProperty('ZALO_BOT_TOKEN');
+  if (!token) throw new Error('Chưa nhập ZALO_BOT_TOKEN trong Script properties');
+  const sh = zaloSheet(), seen = {};
+  let empty = 0, apiErr = '';
+  for (let i = 0; i < 25 && empty < 2; i++) {
+    const r = UrlFetchApp.fetch('https://bot-api.zaloplatforms.com/bot' + token + '/getUpdates', {
+      method: 'post', contentType: 'application/json', payload: JSON.stringify({ timeout: '2' }), muteHttpExceptions: true });
+    let j = {}; try { j = JSON.parse(r.getContentText()); } catch (e) {}
+    if (!j.ok) { apiErr = r.getContentText().slice(0, 200); break; }
+    const m = j.result && j.result.message;
+    const id = m && m.chat && m.chat.id;
+    if (!id) { empty++; continue; }
+    empty = 0;
+    seen[id] = { id: String(id), name: String((m.from && (m.from.display_name || m.from.name)) || ''), text: String(m.text || '').slice(0, 80), at: new Date().toISOString() };
+  }
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    Object.keys(seen).forEach(id => {
+      const row = ZALO_COLS.map(c => seen[id][c]), r = findRow(sh, id);
+      if (r) sh.getRange(r, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
+    });
+  } finally { lock.releaseLock(); }
+  return { added: Object.keys(seen).length, apiErr: apiErr };
+}
+function zaloChatsApi(body) {
+  if (!body.token) return out({ ok: false, error: 'Thiếu dữ liệu' });
+  const uid = verifyToken(body.token);
+  if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn, hãy đăng nhập lại' });
+  if (roleOf(uid, body.token) !== 'admin') return out({ ok: false, error: 'Chỉ Admin mới xem được danh sách Zalo' });
+  let info;
+  try { info = pullZaloUpdates(); } catch (e) { return out({ ok: false, error: String(e.message || e) }); }
+  const sh = zaloSheet(), last = sh.getLastRow();
+  const rows = last < 2 ? [] : sh.getRange(2, 1, last - 1, ZALO_COLS.length).getValues().map(r => rowToObj(ZALO_COLS, r));
+  rows.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+  if (info.apiErr && !rows.length) return out({ ok: false, error: 'Zalo Bot báo lỗi: ' + info.apiErr });
+  return out({ ok: true, rows: rows.slice(0, 200), added: info.added });
 }
 
 // ===================== HÀM CHẠY TAY TRONG TRÌNH SOẠN THẢO =====================
