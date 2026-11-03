@@ -1426,7 +1426,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261103a').then(m => {
+    import('./fb.js?v=20261103b').then(m => {
       FB = m;
       let RAWSHOPS = [], openSig = '';
       const applyShops = () => {

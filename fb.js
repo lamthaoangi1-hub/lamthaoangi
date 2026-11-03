@@ -49,8 +49,20 @@ export async function login(phone, pass) { await signInWithEmailAndPassword(auth
 /* Chờ tối đa ms mili-giây; quá hạn thì báo lỗi thay vì treo mãi (Firestore hết hạn mức / mất mạng sẽ tự thử lại vô hạn) */
 const withTimeout = (p, ms, msg) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
 const SLOW = QUOTA_MSG;   // quá hạn chờ = nhiều khả năng Firestore đã hết hạn mức trong ngày
+/* SĐT đã có tài khoản đăng nhập nhưng KHÔNG có hồ sơ (tài khoản "mồ côi" do lần đăng ký trước bị rớt mạng / tắt trình duyệt giữa chừng):
+   nhờ Apps Script nhận lại tài khoản đó – đặt mật khẩu mới, tạo hồ sơ – rồi đăng nhập luôn. SĐT đã có hồ sơ thật thì bị từ chối như cũ. */
+async function claimPhone(name, phone, pass) {
+  if (!UPLOAD_URL) throw new Error(ERR['auth/email-already-in-use']);
+  const res = await withTimeout(fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'claimPhone', name, phone, password:pass }) }), 45000, 'Máy chủ không phản hồi, vui lòng thử lại sau ít phút.');
+  const j = await res.json().catch(() => null);
+  if (!j || !j.ok) throw new Error((j && j.error) || ERR['auth/email-already-in-use']);
+  await signInWithEmailAndPassword(auth, toEmail(phone), pass);
+  sheetCall('syncUser', { name });
+}
 export async function register(name, phone, pass) {
-  const c = await createUserWithEmailAndPassword(auth, toEmail(phone), pass);
+  let c;
+  try { c = await createUserWithEmailAndPassword(auth, toEmail(phone), pass); }
+  catch (e) { if (e?.code === 'auth/email-already-in-use') return claimPhone(name, phone, pass); throw e; }
   try { await withTimeout(setDoc(doc(db, 'users', c.user.uid), { name, phone, role:'customer', address:'', createdAt:serverTimestamp() }), 15000, SLOW); }
   catch (e) { try { await c.user.delete(); } catch (e2) {} throw e; }   // ghi hồ sơ lỗi thì xóa luôn tài khoản vừa tạo, tránh để lại tài khoản "mồ côi" (báo đã đăng ký nhưng không có trong danh sách)
   sheetCall('syncUser', { name });   // lưu tài khoản mới vào Google Sheet (chạy nền, lỗi cũng không ảnh hưởng việc đăng ký)
