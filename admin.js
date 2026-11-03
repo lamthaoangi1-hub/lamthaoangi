@@ -1,6 +1,6 @@
-import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261103c';
-import { shopLink, copyText } from './shoplink.js?v=20261103c';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261103c';
+import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261103d';
+import { shopLink, copyText } from './shoplink.js?v=20261103d';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261103d';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -102,22 +102,22 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   function shopForm() {
     const s = edit, n = (k, d = '') => esc(s[k] ?? d);
     return `<div class="card"><h3>${s.id ? 'Sửa cửa hàng' : 'Thêm cửa hàng'}</h3>
-      <div class="grid"><label class="f">Hiển thị ở mục nào trên trang chủ<select id="f-sector">${[['food', 'Đồ ăn'], ['fresh', 'Thực phẩm sống'], ['fashion', 'Thời trang'], ['service', 'Dịch vụ khác']].map(([v, l]) => `<option value="${v}" ${(s.sector || 'food') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label><label class="f">Tên quán *<input type="text" id="f-name" value="${n('name')}"></label><label class="f">Loại (VD: Phở • Món Việt)<input type="text" id="f-cat" value="${n('cat')}"></label>
-      <label class="f">Nhóm lọc (cách nhau dấu phẩy)<input type="text" id="f-group" value="${esc((s.group || []).join(', '))}" placeholder="Phở, Món Việt"></label><label class="f">SĐT quán<input type="tel" id="f-phone" value="${n('phone')}"></label>
-      <label class="f">Địa chỉ<input type="text" id="f-address" value="${n('address')}"></label><label class="f">Thời gian giao<input type="text" id="f-eta" value="${n('eta', '15 - 30 phút')}"></label>
-      <label class="f">Phí ship cố định (đ) – chỉ dùng khi quán chưa có GPS<input type="number" id="f-ship" min="0" step="1000" value="${s.shipFee ?? 15000}"></label><label class="f">Miễn phí ship cho đơn từ (đ, 0 = không áp dụng)<input type="number" id="f-free" min="0" step="1000" value="${s.freeShipMin ?? 0}"></label></div>
-      <div class="f"><span>Chọn nhanh mức freeship cho quán này</span><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${[100000, 150000, 200000, 300000].map(v => `<button type="button" class="btn sm o" data-freeset="${v}">Từ ${v / 1000}K</button>`).join('')}<button type="button" class="btn sm o" data-freeset="0">Tắt freeship</button></div></div>
-      <label class="sw"><input type="checkbox" id="f-freeall" ${s.freeShipAll ? 'checked' : ''}>Miễn phí TOÀN BỘ phí giao khi đạt mức trên (bỏ chọn = chỉ miễn phần phí cơ bản, khách vẫn trả km vượt)</label>
+      <div class="grid"><label class="f">Hiển thị ở mục nào trên trang chủ<select id="f-sector">${[['food', 'Đồ ăn'], ['fresh', 'Thực phẩm sống'], ['fashion', 'Thời trang'], ['service', 'Dịch vụ khác']].map(([v, l]) => `<option value="${v}" ${(s.sector || 'food') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label><label class="f"><span data-lbl="name">Tên quán *</span><input type="text" id="f-name" value="${n('name')}"></label><label class="f"><span data-lbl="cat">Loại (VD: Phở • Món Việt)</span><input type="text" id="f-cat" value="${n('cat')}"></label>
+      <label class="f"><span data-lbl="group">Nhóm lọc (cách nhau dấu phẩy)</span><input type="text" id="f-group" value="${esc((s.group || []).join(', '))}" placeholder="Phở, Món Việt"></label><label class="f"><span data-lbl="phone">SĐT quán</span><input type="tel" id="f-phone" value="${n('phone')}"></label>
+      <label class="f">Địa chỉ<input type="text" id="f-address" value="${n('address')}"></label><label class="f" data-hide="service">Thời gian giao<input type="text" id="f-eta" value="${n('eta', '15 - 30 phút')}"></label>
+      <label class="f" data-hide="service">Phí ship cố định (đ) – chỉ dùng khi quán chưa có GPS<input type="number" id="f-ship" min="0" step="1000" value="${s.shipFee ?? 15000}"></label><label class="f" data-hide="fashion service">Miễn phí ship cho đơn từ (đ, 0 = không áp dụng)<input type="number" id="f-free" min="0" step="1000" value="${s.freeShipMin ?? 0}"></label></div>
+      <div class="f" data-hide="fashion service"><span>Chọn nhanh mức freeship cho quán này</span><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${[100000, 150000, 200000, 300000].map(v => `<button type="button" class="btn sm o" data-freeset="${v}">Từ ${v / 1000}K</button>`).join('')}<button type="button" class="btn sm o" data-freeset="0">Tắt freeship</button></div></div>
+      <label class="sw" data-hide="fashion service"><input type="checkbox" id="f-freeall" ${s.freeShipAll ? 'checked' : ''}>Miễn phí TOÀN BỘ phí giao khi đạt mức trên (bỏ chọn = chỉ miễn phần phí cơ bản, khách vẫn trả km vượt)</label>
       <div class="grid">
-      <label class="f">Giảm giá (%)<input type="number" id="f-sale" min="0" max="90" value="${s.sale ?? 0}"></label><label class="f">Điểm đánh giá (0–5, để 0 nếu quán mới) – khách đánh giá sau sẽ cộng dồn tiếp trên số này<input type="number" id="f-rate" min="0" max="5" step="0.1" value="${s.rate ?? 0}"></label>
+      <label class="f" data-hide="service">Giảm giá (%)<input type="number" id="f-sale" min="0" max="90" value="${s.sale ?? 0}"></label><label class="f">Điểm đánh giá (0–5, để 0 nếu quán mới) – khách đánh giá sau sẽ cộng dồn tiếp trên số này<input type="number" id="f-rate" min="0" max="5" step="0.1" value="${s.rate ?? 0}"></label>
       <label class="f">Số lượt đánh giá (nhập SỐ, VD: 120)<input type="text" id="f-rc" value="${n('rc')}"></label></div>
       <label class="f">Ảnh / logo quán</label>${imgUpHtml(s.img || '', 'f-img')}
       <label class="f">Mô tả<textarea id="f-desc">${n('desc')}</textarea></label>
       ${s.id ? `<p class="muted" style="margin-top:10px">Vị trí bản đồ: ${s.lat != null ? `đã lưu · <a href="${mapLink(s.lat, s.lng)}" target="_blank" rel="noopener">xem</a> · <button type="button" class="btn sm r" data-resetloc>Đặt lại vị trí</button>` : 'chưa có (chủ quán tự chia sẻ ở trang Nhà bán hàng)'}</p>` : ''}
       ${hoursFormHtml(s, 'f')}
       <label class="sw"><input type="checkbox" id="f-open" ${s.open === false ? '' : 'checked'}>Đang mở cửa (công tắc tổng – tắt là đóng cả ngày)</label>
-      <label class="sw"><input type="checkbox" id="f-feat" ${s.featured ? 'checked' : ''}>⭐ Nổi bật (hiện trên banner trang chủ)</label>
-      <h3 style="margin-top:16px">Thực đơn</h3>${menuEditorHtml(s.menu)}
+      <label class="sw"><input type="checkbox" id="f-feat" ${s.featured ? 'checked' : ''}><span data-lbl="feat">⭐ Nổi bật (hiện trên banner trang chủ)</span></label>
+      <h3 style="margin-top:16px" data-lbl="menu">Thực đơn</h3>${menuEditorHtml(s.menu)}
       <div class="row" style="margin-top:16px"><button class="btn" data-saveshop>Lưu</button><button class="btn gray" data-cancel>Hủy</button></div></div>`;
   }
 
@@ -302,6 +302,24 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   };
   const settingsView = () => weatherView() + platformView() + custView() + contactView() + bankView() + shipCfgView();
 
+  /* Form thêm / sửa cửa hàng: ẩn các cài đặt không dùng và đổi nhãn theo mục đã chọn (Đồ ăn / Thực phẩm sống / Thời trang / Dịch vụ khác) */
+  const SEC_TXT = {
+    food:    { name:'Tên quán *', cat:'Loại (VD: Phở • Món Việt)', group:'Nhóm lọc (cách nhau dấu phẩy)', phone:'SĐT quán', menu:'Thực đơn', item:'Tên món', add:'+ Thêm món', feat:'⭐ Nổi bật (hiện trên banner trang chủ)', ph:'Phở, Món Việt' },
+    fresh:   { name:'Tên cửa hàng *', cat:'Loại (VD: Thịt heo • Cá • Rau củ)', group:'Nhóm lọc (VD: Thịt, Cá, Rau củ, Trứng)', phone:'SĐT cửa hàng', menu:'Sản phẩm', item:'Tên sản phẩm', add:'+ Thêm sản phẩm', feat:'⭐ Nổi bật (hiện ở nhóm Nổi bật)', ph:'Thịt, Cá, Rau củ' },
+    fashion: { name:'Tên cửa hàng *', cat:'Loại (VD: Quần áo nữ • Phụ kiện)', group:'Nhóm lọc (VD: Nữ, Nam, Trẻ em, Phụ kiện)', phone:'SĐT cửa hàng', menu:'Sản phẩm', item:'Tên sản phẩm', add:'+ Thêm sản phẩm', feat:'⭐ Nổi bật (hiện ở nhóm Nổi bật)', ph:'Nữ, Phụ kiện' },
+    service: { name:'Tên nhà cung cấp / thương hiệu *', cat:'Loại dịch vụ (VD: Chụp ảnh cưới • Makeup)', group:'Nhóm lọc (VD: Chụp ảnh, Makeup, Cúng - Lễ, Khác)', phone:'SĐT liên hệ (nút Gọi / Zalo của khách) *', menu:'Các gói dịch vụ', item:'Tên dịch vụ', add:'+ Thêm dịch vụ', feat:'⭐ Nổi bật (hiện ở nhóm Nổi bật)', ph:'Chụp ảnh, Makeup' },
+  };
+  root.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-madd]')) setTimeout(applySector, 0); });
+  function applySector() {
+    const sel = $('#f-sector'); if (!sel) return;
+    const k = sel.value, T = SEC_TXT[k] || SEC_TXT.food;
+    root.querySelectorAll('[data-hide]').forEach(el => { el.style.display = el.dataset.hide.split(' ').includes(k) ? 'none' : ''; });
+    root.querySelectorAll('[data-lbl]').forEach(el => { if (T[el.dataset.lbl]) el.textContent = T[el.dataset.lbl]; });
+    const g = $('#f-group'); if (g) g.placeholder = T.ph;
+    const hd = root.querySelector('.mrow.hd span'); if (hd) hd.textContent = T.item;
+    const add = root.querySelector('[data-madd]'); if (add) add.textContent = T.add;
+    root.querySelectorAll('[data-k=name]').forEach(i => { i.placeholder = T.item; });
+  }
   function draw() {
     const keep = $('#uq')?.value;
     if (sel.size) sel = new Set([...sel].filter(id => shops.some(s => s.id === id)));
@@ -310,6 +328,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     const T = [['revenue', '📊 Doanh thu'], ['subsidy', '💸 Bù lỗ'], ['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shops', 'Cửa hàng'], ['online', `🟢 Shipper online<span class="n" id="pres-n" style="background:var(--g);${pn ? '' : 'display:none'}">${pn}</span>`], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
     root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ revenue:revenueView, subsidy:subsidyView, orders:ordersView, shops:shopsView, users:usersView, online:onlineView, promos:promosView, settings:settingsView }[tab]()}</main>`;
     if (keep && $('#uq')) $('#uq').value = keep;
+    applySector();
   }
   /* Ghi danh sách Zalo ID (chủ quán theo từng quán + shipper) để Apps Script biết gửi báo đơn cho ai */
   const syncNotify = async () => {
@@ -388,6 +407,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   root.addEventListener('change', async e => {
     const t = e.target;
     try {
+      if (t.id === 'f-sector') applySector();
       if (t.id === 'ofil') { ofil = t.value; draw(); }
       if (t.dataset.feat) { await fb.patchShop(t.dataset.feat, { featured:t.checked }); toast(t.checked ? 'Đã bật Nổi bật' : 'Đã tắt Nổi bật'); }
       if (t.dataset.hot) { await fb.patchShop(t.dataset.hot, { hot:t.checked }); toast(t.checked ? 'Đã ghim vào mục Bán chạy' : 'Đã bỏ ghim Bán chạy'); }
@@ -551,6 +571,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       else if (g('[data-saveshop]')) {
         const v = id => $('#' + id).value.trim();
         if (!v('f-name')) return toast('Nhập tên quán');
+        if (v('f-sector') === 'service' && !v('f-phone')) return toast('Dịch vụ cần có SĐT liên hệ để khách bấm Gọi / Zalo');
         const hr = readHours('f', root); if (hr.error) return toast(hr.error);
         const d = { name:v('f-name'), sector:v('f-sector') || 'food', cat:v('f-cat'), group:v('f-group').split(',').map(x => x.trim()).filter(Boolean), phone:v('f-phone'), address:v('f-address'), eta:v('f-eta'), shipFee:Math.max(0, +v('f-ship') || 0), freeShipMin:Math.max(0, +v('f-free') || 0), freeShipAll:$('#f-freeall').checked, sale:Math.min(90, Math.max(0, +v('f-sale') || 0)), rate:Math.min(5, Math.max(0, +v('f-rate') || 0)), rc:v('f-rc'), img:v('f-img'), desc:v('f-desc'), open:$('#f-open').checked, featured:$('#f-feat').checked, menu:readMenu(root), ...hr.fields };
         /* Admin chỉnh điểm / số lượt đánh giá → đặt lại mốc cộng dồn (rateSum, rateCount). Khách đánh giá sau đó sẽ cộng tiếp trên mốc này, không quay về số thật. */

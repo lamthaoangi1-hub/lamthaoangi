@@ -253,13 +253,13 @@
   /* ---------------- HOME ---------------- */
   /* Các mục trên trang chủ. Mỗi cửa hàng có trường sector (Admin chọn khi thêm / sửa quán): food | fresh | fashion | service. Không có = food. */
   const SECTORS = {
-    food:    { t:'Đồ ăn', svg:'svcScooter', ph:'Bạn muốn ăn gì hôm nay?', head:'Quán ngon gần bạn', cats:['Tất cả','Nổi bật','Bán chạy','Quán mới','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'], empty:'Các quán sẽ sớm có mặt ở đây.' },
-    fresh:   { t:'Thực phẩm sống', svg:'svcFresh', ph:'Bạn muốn mua gì hôm nay?', head:'Thực phẩm tươi sống', cats:['Tất cả','Nổi bật','Bán chạy','Quán mới','Thịt','Cá','Hải sản','Rau củ','Trứng'], empty:'Mục Thực phẩm sống sẽ sớm ra mắt.' },
-    fashion: { t:'Thời trang', svg:'svcFashion', ph:'Bạn muốn tìm cửa hàng nào?', head:'Cửa hàng thời trang', cats:['Tất cả','Nổi bật','Quán mới','Nữ','Nam','Trẻ em','Phụ kiện'], empty:'Mục Thời trang sẽ sớm ra mắt.' },
-    service: { t:'Dịch vụ khác', svg:'svcOther', ph:'Bạn cần dịch vụ gì?', head:'Dịch vụ tại Lâm Thao', cats:['Tất cả','Nổi bật','Quán mới','Chụp ảnh','Makeup','Cúng - Lễ','Khác'], empty:'Các dịch vụ sẽ sớm có mặt ở đây.' },
+    food:    { t:'Đồ ăn', img:'icon-food.png', ph:'Bạn muốn ăn gì hôm nay?', head:'Quán ngon gần bạn', cats:['Tất cả','Nổi bật','Bán chạy','Quán mới','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'], empty:'Các quán sẽ sớm có mặt ở đây.' },
+    fresh:   { t:'Thực phẩm sống', img:'icon-fresh.png', ph:'Bạn muốn mua gì hôm nay?', head:'Thực phẩm tươi sống', cats:['Tất cả','Nổi bật','Bán chạy','Quán mới','Thịt','Cá','Hải sản','Rau củ','Trứng'], empty:'Mục Thực phẩm sống sẽ sớm ra mắt.' },
+    fashion: { t:'Thời trang', img:'icon-fashion.png', ph:'Bạn muốn tìm cửa hàng nào?', head:'Cửa hàng thời trang', cats:['Tất cả','Nổi bật','Quán mới','Nữ','Nam','Trẻ em','Phụ kiện'], empty:'Mục Thời trang sẽ sớm ra mắt.' },
+    service: { t:'Dịch vụ khác', img:'icon-other.png', ph:'Bạn cần dịch vụ gì?', head:'Dịch vụ tại Lâm Thao', cats:['Tất cả','Nổi bật','Quán mới','Chụp ảnh','Makeup','Cúng - Lễ','Khác'], empty:'Các dịch vụ sẽ sớm có mặt ở đây.' },
   };
   const sectorOf = s => (s && SECTORS[s.sector] ? s.sector : 'food');
-  const SERVICES = Object.keys(SECTORS).map((k, i) => ({ k, t:SECTORS[k].t, svg:SECTORS[k].svg, tint:i % 2 === 1 }));
+  const SERVICES = Object.keys(SECTORS).map((k, i) => ({ k, t:SECTORS[k].t, img:SECTORS[k].img }));
   const SLIDES = [
     ['Món ngon quê mình','Giao nhanh tận nơi'],
     ['Ưu đãi mỗi ngày','Freeship từ 20K'],
@@ -320,7 +320,7 @@
         <p class="tagline">Đặt món dễ dàng – Ngon gần nhà</p>
       </div>
       <div class="search-float"><label class="search">${ic('search')}<input id="home-q" type="search" placeholder="${SECTORS[S.home.sector].ph}" value="${S.home.q.replace(/"/g, '&quot;')}" autocomplete="off"><button class="filter-btn" data-act="filter" aria-label="Bộ lọc">${ic('sliders')}</button></label></div>
-      <div class="services">${SERVICES.map(s => `<button class="service ${s.k === S.home.sector ? 'active' : ''} ${s.tint ? 'tint' : ''}" data-svc="${s.k}"><span class="ic">${fx[s.svg]}</span>${s.t}</button>`).join('')}</div>
+      <div class="services">${SERVICES.map(s => `<button class="service ${s.k === S.home.sector ? 'active' : ''} ${s.tint ? 'tint' : ''}" data-svc="${s.k}"><span class="ic"><img src="${s.img}?v=1" alt="" width="56" height="56" loading="eager" decoding="async"></span>${s.t}</button>`).join('')}</div>
       ${S.home.sector === 'food' ? `<div class="banner-wrap"><div class="banner" id="banner">${bannerInner()}</div></div>` : ''}
       <div class="section-head" id="shops-anchor"><h2>${SECTORS[S.home.sector].head}</h2><button class="see-all" data-act="see-all">Xem tất cả ${ic('chevRight')}</button></div>
       <div class="chips" id="home-chips">${SECTORS[S.home.sector].cats.map(c => `<button class="chip ${c === S.home.cat ? 'on' : ''}" data-cat="${c}">${c === 'Bán chạy' ? '🔥 ' : ''}${c}</button>`).join('')}</div>
@@ -1447,7 +1447,7 @@
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261103c').then(m => {
+    import('./fb.js?v=20261103d').then(m => {
       FB = m;
       let RAWSHOPS = [], openSig = '';
       const applyShops = () => {
