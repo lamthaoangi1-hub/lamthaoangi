@@ -7,3 +7,5 @@
 **Tiền:** voucher vận chuyển trừ vào phần phí ship khách trả (gồm cả phụ phí đêm/thời tiết). Shipper vẫn nhận đủ (`shipFull`), quán KHÔNG bị trừ, phần chênh do Lâm Thao Ăn Gì chịu. Đơn lưu thêm `shipVoucherOff`, `shipVoucherCode`. Admin → Bù lỗ có thẻ "Voucher vận chuyển" tổng theo ngày; app shipper hiện dòng "Lâm Thao Ăn Gì hỗ trợ …".
 
 **Đưa lên:** (1) chép đè `app.js`, `style.css`, `index.html`, `admin.js`, `shipper.js`; (2) dán lại `google-apps-script.gs` rồi Deploy → New version (tự thêm 2 cột cuối tab DonHang). Không cần sửa Firestore rules.
+
+**Bổ sung:** voucher có thể giảm theo % (kèm mức giảm tối đa). % tính trên tiền món sau giảm giá quán (voucher giảm giá) hoặc trên phí ship khách trả (voucher vận chuyển).

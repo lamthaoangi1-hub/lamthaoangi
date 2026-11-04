@@ -730,6 +730,9 @@
   }
   /* Voucher: type 'discount' (giảm tiền món, mặc định) hoặc 'ship' (giảm phí vận chuyển; full = miễn phí ship). kind chỉ nhận đúng loại. */
   const isShipPromo = p => p && p.type === 'ship';
+  /* Giá trị giảm: theo số tiền (off) hoặc theo % (pct, tối đa max đ; max = 0 là không giới hạn) tính trên base (tiền món sau giảm giá quán / phí ship khách trả) */
+  const promoValue = (p, base) => p.mode === 'pct' ? Math.min(Math.round(base * (+p.pct || 0) / 100), +p.max > 0 ? +p.max : Infinity) : (+p.off || 0);
+  const promoLabel = p => isShipPromo(p) && p.full ? 'Miễn phí ship' : (p.mode === 'pct' ? `Giảm ${+p.pct || 0}%${+p.max > 0 ? ' (tối đa ' + money(+p.max) + ')' : ''}` : `Giảm ${money(+p.off || 0)}`) + (isShipPromo(p) ? ' phí ship' : '');
   function findPromo(code, sub, kind = 'discount') {
     if (!code) return null;
     const p = PROMOS.find(x => String(x.code).toUpperCase() === String(code).toUpperCase() && (kind === 'ship') === isShipPromo(x));
@@ -762,7 +765,7 @@
     const sub = lines.reduce((a, l) => a + l.price * l.qty, 0);
     const disc = Math.round(sub * (s.sale || 0) / 100);
     const promo = findPromo(code, sub);
-    const promoOff = promo ? Math.min(promo.off || 0, sub - disc) : 0;
+    const promoOff = promo ? Math.min(promoValue(promo, sub - disc), sub - disc) : 0;
     const platOff = PLAT.pct > 0 ? Math.max(0, Math.round((sub - disc - promoOff) * PLAT.pct / 100)) : 0;   // do Lâm Thao Ăn Gì chịu, quán vẫn nhận đủ
     const q = shipQuote(s, CART.loc);
     // đơn đạt mức miễn phí ship: chỉ miễn phần phí cơ bản, khách vẫn trả phần km vượt
@@ -776,7 +779,7 @@
     const shopShip = Math.max(0, shipFull - ship);       // quán hỗ trợ (freeship): quán trả cho shipper, khách không thấy
     // voucher vận chuyển: giảm vào phần khách phải trả; shipper vẫn nhận đủ shipFull, phần chênh do Lâm Thao Ăn Gì chịu (không tính vào quán)
     const shipPromo = q.mode === 'need-loc' ? null : findPromo(scode, sub, 'ship');
-    const shipVoucherOff = shipPromo ? Math.min(ship, shipPromo.full ? ship : (+shipPromo.off || 0)) : 0;
+    const shipVoucherOff = shipPromo ? Math.min(ship, shipPromo.full ? ship : promoValue(shipPromo, ship)) : 0;
     return { sub, disc, promo, promoOff, platOff, ship, shipPromo, shipVoucherOff, shipBase, night, wx, shipFull, shopShip, shipMode:q.mode, km:q.km, extraKm:q.extraKm, freeBase:hit, freeAll:hit && !!s.freeShipAll, toFree:(s.freeShipMin && !hit) ? s.freeShipMin - sub : 0, freeAllShop:!!s.freeShipAll, total:sub - disc - promoOff - platOff + ship - shipVoucherOff };
   }
   function updateCartUI() {
@@ -818,7 +821,7 @@
       const short = c.sub < (p.min || 0) ? (p.min || 0) - c.sub : 0;
       const why = short ? `Mua thêm ${money(short)} để dùng` : '';
       const note = why || (ship && need ? 'Chia sẻ vị trí để tính phí ship' : (p.min ? `Đơn từ ${money(p.min)}` : 'Không yêu cầu đơn tối thiểu'));
-      const head = ship ? (p.full ? 'Miễn phí ship' : `Giảm ${money(p.off || 0)} phí ship`) : `Giảm ${money(p.off || 0)}`;
+      const head = promoLabel(p);
       return `<button type="button" class="vc ${sel ? 'on' : ''} ${short ? 'off' : ''} ${ship ? 'ship' : ''}" data-vpick="${esc(p.code)}" data-vship="${ship ? 1 : 0}" data-why="${esc(why)}" ${short ? 'disabled' : ''}>
         <span class="vc-ic">${ship ? '🚚' : '🎟️'}</span>
         <span class="vc-tx"><b>${esc(head)}</b><small>${esc(p.desc || p.code)}</small><small class="vc-n ${short ? 'warn' : ''}">${esc(p.code)} · ${esc(note)}</small></span>
