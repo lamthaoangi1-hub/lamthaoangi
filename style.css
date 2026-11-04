@@ -762,3 +762,7 @@ body{font-size:13px}
 .pd-chips span{min-width:44px;padding:8px 14px;border-radius:12px;border:1.5px solid #d6dfd9;font-weight:700;font-size:14px;text-align:center;background:#fff}
 .pd-text{font-size:14px;line-height:1.55;color:var(--ink);white-space:pre-line}
 .pd-off{margin-top:14px;color:#d92d20;font-weight:700}
+
+/* Đổi mục mượt hơn: ẩn banner bằng thuộc tính hidden, bỏ qua vẽ các thẻ quán ngoài màn hình */
+.banner-wrap[hidden]{display:none}
+.shop{content-visibility:auto;contain-intrinsic-size:auto 108px}

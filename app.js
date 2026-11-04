@@ -297,8 +297,8 @@
     return list;
   }
   function shopCard(s, i = 0) {
-    return `<article class="shop" data-shop="${s.id}" style="animation-delay:${i * 60}ms">
-      <img class="img" src="${s.img}" alt="${s.name}" loading="lazy">
+    return `<article class="shop" data-shop="${s.id}" style="animation-delay:${Math.min(i, 5) * 35}ms">
+      <img class="img" src="${s.img}" alt="${s.name}" loading="lazy" decoding="async">
       <div class="info"><h3>${s.name}</h3><div class="cat">${s.homeCat}</div>${shopMeta(s)}${shopTags(s)}</div>
       <button class="heart ${isFav(s.id) ? 'on' : ''}" data-heart="${s.id}" aria-label="Yêu thích">${ic('heart')}</button>
     </article>`;
@@ -308,6 +308,20 @@
     if (LIVE && !SHOPS.length) return `<div class="empty"><b>${shopsLoaded ? 'Chưa có quán nào' : 'Đang tải danh sách quán…'}</b>${shopsLoaded ? 'Các quán sẽ sớm có mặt ở đây.' : ''}</div>`;
     if (LIVE && shopsLoaded && !SHOPS.some(x => sectorOf(x) === S.home.sector)) return `<div class="empty"><b>Sắp ra mắt</b>${SECTORS[S.home.sector].empty}</div>`;
     return l.length ? l.map(shopCard).join('') : `<div class="empty"><b>Chưa tìm thấy quán phù hợp</b>Hãy thử từ khoá hoặc danh mục khác nhé.</div>`;
+  }
+  const chipsHtml = () => SECTORS[S.home.sector].cats.map(c => `<button class="chip ${c === S.home.cat ? 'on' : ''}" data-cat="${c}">${c === 'Bán chạy' ? '🔥 ' : ''}${c}</button>`).join('');
+  /* Đổi mục (Đồ ăn / Thời trang / Thực phẩm sống…): chỉ cập nhật phần thay đổi, KHÔNG vẽ lại cả trang chủ (ảnh nền, banner…) nên bấm nhanh không bị khựng */
+  function switchSector(k) {
+    S.home.sector = k; S.home.cat = 'Tất cả'; S.home.q = ''; S.home.sort = 'default';
+    const q = $('#home-q'), list = $('#home-list');
+    if (!q || !list) return renderHome();
+    const sec = SECTORS[k];
+    $$('#view-home .service').forEach(b => b.classList.toggle('active', b.dataset.svc === k));
+    q.value = ''; q.placeholder = sec.ph;
+    const bw = $('#banner-wrap'); if (bw) bw.hidden = k !== 'food';
+    const h = $('#shops-anchor h2'); if (h) h.textContent = sec.head;
+    $('#home-chips').innerHTML = chipsHtml();
+    list.innerHTML = shopListHtml();
   }
   function renderHome() {
     const el = $('#view-home');
@@ -321,9 +335,9 @@
       </div>
       <div class="search-float"><label class="search">${ic('search')}<input id="home-q" type="search" placeholder="${SECTORS[S.home.sector].ph}" value="${S.home.q.replace(/"/g, '&quot;')}" autocomplete="off"><button class="filter-btn" data-act="filter" aria-label="Bộ lọc">${ic('sliders')}</button></label></div>
       <div class="services">${SERVICES.map(s => `<button class="service ${s.k === S.home.sector ? 'active' : ''} ${s.tint ? 'tint' : ''}" data-svc="${s.k}"><span class="ic"><img src="${s.img}?v=1" alt="" width="56" height="56" loading="eager" decoding="async"></span>${s.t}</button>`).join('')}</div>
-      ${S.home.sector === 'food' ? `<div class="banner-wrap"><div class="banner" id="banner">${bannerInner()}</div></div>` : ''}
+      <div class="banner-wrap" id="banner-wrap" ${S.home.sector === 'food' ? '' : 'hidden'}><div class="banner" id="banner">${bannerInner()}</div></div>
       <div class="section-head" id="shops-anchor"><h2>${SECTORS[S.home.sector].head}</h2><button class="see-all" data-act="see-all">Xem tất cả ${ic('chevRight')}</button></div>
-      <div class="chips" id="home-chips">${SECTORS[S.home.sector].cats.map(c => `<button class="chip ${c === S.home.cat ? 'on' : ''}" data-cat="${c}">${c === 'Bán chạy' ? '🔥 ' : ''}${c}</button>`).join('')}</div>
+      <div class="chips" id="home-chips">${chipsHtml()}</div>
       <div class="shop-list" id="home-list">${shopListHtml()}</div>`;
     el.scrollTop = scroll;
     const q = $('#home-q');
@@ -334,7 +348,7 @@
     clearInterval(slideTimer);
     slideTimer = setInterval(() => {
       if (S.tab !== 'home') return;
-      const b = $('#banner'); if (!b) return;
+      const b = $('#banner'); if (!b || S.home.sector !== 'food') return;
       S.home.slide = (S.home.slide + 1) % bannerSlides().length;
       b.innerHTML = bannerInner();
     }, 3800);
@@ -1189,8 +1203,7 @@
     const svc = t.closest('[data-svc]');
     if (svc) {
       if (svc.dataset.svc === S.home.sector) return;
-      S.home.sector = svc.dataset.svc; S.home.cat = 'Tất cả'; S.home.q = ''; S.home.sort = 'default';
-      renderHome(); return;
+      switchSector(svc.dataset.svc); return;
     }
     const otab = t.closest('[data-otab]'); if (otab) { S.orders.tab = otab.dataset.otab; renderOrders(); return; }
     const ntab = t.closest('[data-ntab]'); if (ntab) { S.noti.tab = ntab.dataset.ntab; renderNotifications(); return; }
@@ -1428,7 +1441,7 @@
   const hoursNote = s => { const d = s._d || {}; return d.autoHours && d.openAt && d.closeAt ? `<div class="sp-hours">⏰ Giờ mở cửa: ${d.openAt} – ${d.closeAt}</div>` : ''; };
   function mapShop(d) {
     const free = +d.freeShipMin || 0, cat = d.cat || '';
-    const cr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().getTime() : 0, sold = +d.sold || 0;   // sold: số đơn đã giao, Admin cập nhật tự động
+    const cr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().getTime() : (+d._cr || 0), sold = +d.sold || 0;   // sold: số đơn đã giao, Admin cập nhật tự động
     return {
       id:d.id, _d:d, sector:(['fresh', 'fashion', 'service'].includes(d.sector) ? d.sector : 'food'), name:esc(d.name), cat:esc(cat), homeCat:esc(cat), img:esc(d.img || 'hero.svg'), rate:+d.rate || 0, rc:esc(d.rc || ''),
       eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, freeShipAll:!!d.freeShipAll, sale:+d.sale || 0, order:(d.order == null || isNaN(+d.order)) ? 9999 : +d.order, featured:!!d.featured, sold, hotFlag:d.hot === true ? 1 : 0, hot:d.hot === true || sold >= 10, created:cr, isNew:d.isNew === true || (cr > 0 && Date.now() - cr < 30 * 864e5),
@@ -1461,19 +1474,24 @@
     if (S.tab === 'orders') { if (S.orders.search && document.activeElement && document.activeElement.id === 'orders-q') $('#orders-list').innerHTML = ordersListHtml(); else renderOrders(); }
     if (S.tab === 'profile') renderProfile();
   }
+  /* Lưu danh sách quán lần trước trong máy khách: vào web là hiện quán ngay, dữ liệu mới từ Firebase về sau sẽ tự cập nhật đè lên (cũng giúp web vẫn hiện quán khi Firestore tạm hết hạn mức) */
+  let CACHED = [];
+  const sortShops = l => l.map(mapShop).sort((a, b) => (b.open !== false) - (a.open !== false) || a.order - b.order || a.name.localeCompare(b.name, 'vi'));
+  const saveShopsCache = l => { try { store.set('shopsCache', l.map(d => { const c = { ...d }; if (c.createdAt && c.createdAt.toDate) c._cr = c.createdAt.toDate().getTime(); delete c.createdAt; return c; })); } catch (e) {} };
   function prepareLive() {
-    SHOPS = []; ORDERS = []; NOTICES = []; CONTACT = { hotline:'', email:'', zalo:'' };   // bản thật: chỉ hiện liên hệ do Admin cài đặt
+    try { const c = store.get('shopsCache', []); if (Array.isArray(c) && c.length) { CACHED = c; } } catch (e) {}
+    SHOPS = CACHED.length ? (() => { try { return sortShops(CACHED); } catch (e) { CACHED = []; return []; } })() : []; ORDERS = []; NOTICES = []; CONTACT = { hotline:'', email:'', zalo:'' };   // bản thật: chỉ hiện liên hệ do Admin cài đặt
     S.user = null; S.users = []; S.notices = []; S.favs = store.get('favs', []);
     $('#app').classList.add('live');
   }
   function connectLive() {
-    import('./fb.js?v=20261103d').then(m => {
+    fbReady.then(m => {
       FB = m;
-      let RAWSHOPS = [], openSig = '';
+      let RAWSHOPS = CACHED, openSig = SHOPS.map(x => x.open ? 1 : 0).join('');
       const applyShops = () => {
-        SHOPS = RAWSHOPS.map(mapShop).sort((a, b) => (b.open !== false) - (a.open !== false) || a.order - b.order || a.name.localeCompare(b.name, 'vi'));
+        SHOPS = sortShops(RAWSHOPS);
         openSig = SHOPS.map(x => x.open ? 1 : 0).join('');
-        if (S.tab === 'home' && $('#banner')) $('#banner').innerHTML = bannerInner();
+        if (S.tab === 'home' && $('#banner') && S.home.sector === 'food') $('#banner').innerHTML = bannerInner();
         if (shopPageOpen) { if (SHOPS.some(x => x.id === SP.id)) renderShopPage(); }
         if (S.tab === 'home' && $('#home-list')) $('#home-list').innerHTML = shopListHtml();
         else if (S.tab === 'favorites' && $('#fav-body')) { $('#fav-body').innerHTML = favBody(); bindFavSort(); }
@@ -1481,7 +1499,7 @@
       };
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
-        shopsLoaded = true; RAWSHOPS = l; applyShops(); openDeepLink();
+        shopsLoaded = true; RAWSHOPS = l; saveShopsCache(l); applyShops(); openDeepLink();
       });
       /* Quán tự đóng/mở theo giờ: mỗi 30 giây kiểm tra, có quán đổi trạng thái thì vẽ lại danh sách */
       setInterval(() => { if (SHOPS.length && SHOPS.map(x => x.open ? 1 : 0).join('') !== openSig) applyShops(); }, 30000);
@@ -1510,6 +1528,8 @@
     }).catch(() => toast('Không kết nối được máy chủ dữ liệu'));
   }
 
+  /* Tải sẵn lớp dữ liệu Firebase ngay từ đầu (song song với việc vẽ trang) thay vì đợi vẽ xong mới tải */
+  const fbReady = import('./fb.js?v=20261103d'); fbReady.catch(() => {});
   function boot() {
     const first = location.hash.slice(1);
     go(renderers[first] ? first : 'home', false);
