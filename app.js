@@ -126,7 +126,7 @@
   let LIVE = false, FB = null, BANK = null, PROMOS = [], CONTACT = { hotline:'0900 000 000', email:'lamthaoangi1@gmail.com', zalo:'' };
   const GHOST = {};
   let shopsLoaded = false;
-  const CART = { shop:null, q:{}, promo:'', note:'', address:null, loc:null, pay:'cash' };
+  const CART = { shop:null, q:{}, promo:'', shipPromo:'', note:'', address:null, loc:null, pay:'cash' };
   /* Giảm giá do Lâm Thao Ăn Gì chịu (Admin bật ở Liên hệ → settings/app.platformPct). Khách thấy giảm, quán vẫn nhận đủ tiền, Admin bù lại cho quán cuối ngày. */
   const PLAT = { pct:0 };
   /* Link riêng từng quán: https://lamthaoangi.io.vn/?quan=<tên-quán-không-dấu> (hoặc ?quan=<mã quán>) */
@@ -711,7 +711,7 @@
   }
   function openShopPage(s) {
     if (!s || !s.menu) return;
-    if (LIVE && sectorOf(s) !== 'service' && CART.shop !== s.id) { CART.shop = s.id; CART.q = {}; CART.promo = ''; }
+    if (LIVE && sectorOf(s) !== 'service' && CART.shop !== s.id) { CART.shop = s.id; CART.q = {}; CART.promo = ''; CART.shipPromo = ''; }
     SP.id = s.id; SP.cat = 'Tất cả';
     const page = $('#shop-page');
     renderShopPage(); page.classList.add('open'); page.scrollTop = 0;
@@ -728,9 +728,11 @@
       .map(([i, q]) => ({ name:s.menu[i][0], raw:s._d.menu[i].name, price:s.menu[i][1], qty:q }));
     return { s, lines };
   }
-  function findPromo(code, sub) {
+  /* Voucher: type 'discount' (giảm tiền món, mặc định) hoặc 'ship' (giảm phí vận chuyển; full = miễn phí ship). kind chỉ nhận đúng loại. */
+  const isShipPromo = p => p && p.type === 'ship';
+  function findPromo(code, sub, kind = 'discount') {
     if (!code) return null;
-    const p = PROMOS.find(x => String(x.code).toUpperCase() === code.toUpperCase());
+    const p = PROMOS.find(x => String(x.code).toUpperCase() === String(code).toUpperCase() && (kind === 'ship') === isShipPromo(x));
     return p && sub >= (p.min || 0) ? p : null;
   }
   /*SHIP-START*/
@@ -756,7 +758,7 @@
     return { mode:'km', fee:SHIPCFG.base + extraKm * SHIPCFG.perKm, km, extraKm };
   }
   /*SHIP-END*/
-  function calc(s, lines, code) {
+  function calc(s, lines, code, scode = CART.shipPromo) {
     const sub = lines.reduce((a, l) => a + l.price * l.qty, 0);
     const disc = Math.round(sub * (s.sale || 0) / 100);
     const promo = findPromo(code, sub);
@@ -772,7 +774,10 @@
     const ship = shipBase + night + wx;                  // khách trả
     const shipFull = q.mode === 'need-loc' ? 0 : q.fee + night + wx;   // tiền ship thật shipper nhận
     const shopShip = Math.max(0, shipFull - ship);       // quán hỗ trợ (freeship): quán trả cho shipper, khách không thấy
-    return { sub, disc, promo, promoOff, platOff, ship, shipBase, night, wx, shipFull, shopShip, shipMode:q.mode, km:q.km, extraKm:q.extraKm, freeBase:hit, freeAll:hit && !!s.freeShipAll, toFree:(s.freeShipMin && !hit) ? s.freeShipMin - sub : 0, freeAllShop:!!s.freeShipAll, total:sub - disc - promoOff - platOff + ship };
+    // voucher vận chuyển: giảm vào phần khách phải trả; shipper vẫn nhận đủ shipFull, phần chênh do Lâm Thao Ăn Gì chịu (không tính vào quán)
+    const shipPromo = q.mode === 'need-loc' ? null : findPromo(scode, sub, 'ship');
+    const shipVoucherOff = shipPromo ? Math.min(ship, shipPromo.full ? ship : (+shipPromo.off || 0)) : 0;
+    return { sub, disc, promo, promoOff, platOff, ship, shipPromo, shipVoucherOff, shipBase, night, wx, shipFull, shopShip, shipMode:q.mode, km:q.km, extraKm:q.extraKm, freeBase:hit, freeAll:hit && !!s.freeShipAll, toFree:(s.freeShipMin && !hit) ? s.freeShipMin - sub : 0, freeAllShop:!!s.freeShipAll, total:sub - disc - promoOff - platOff + ship - shipVoucherOff };
   }
   function updateCartUI() {
     const bar = $('#cart-bar'), { s, lines } = cartData(); if (!bar || !s) return;
@@ -804,6 +809,24 @@
       <button class="sheet-btn" style="background:var(--chip);color:var(--ink)" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button>`);
   }
   const rawOrder = id => (ORDERS.find(o => o.id === id) || {}).raw;
+  /* Danh sách voucher để khách CHỌN (không phải nhập mã): nhóm Giảm giá đơn hàng + Vận chuyển, mỗi nhóm chọn được 1 mã */
+  function voucherPicker(c) {
+    if (!PROMOS.length) return '<div class="co-hint">Hiện chưa có voucher nào.</div>';
+    const need = c.shipMode === 'need-loc';
+    const item = p => {
+      const ship = isShipPromo(p), sel = String(ship ? CART.shipPromo : CART.promo).toUpperCase() === String(p.code).toUpperCase();
+      const short = c.sub < (p.min || 0) ? (p.min || 0) - c.sub : 0;
+      const why = short ? `Mua thêm ${money(short)} để dùng` : '';
+      const note = why || (ship && need ? 'Chia sẻ vị trí để tính phí ship' : (p.min ? `Đơn từ ${money(p.min)}` : 'Không yêu cầu đơn tối thiểu'));
+      const head = ship ? (p.full ? 'Miễn phí ship' : `Giảm ${money(p.off || 0)} phí ship`) : `Giảm ${money(p.off || 0)}`;
+      return `<button type="button" class="vc ${sel ? 'on' : ''} ${short ? 'off' : ''} ${ship ? 'ship' : ''}" data-vpick="${esc(p.code)}" data-vship="${ship ? 1 : 0}" data-why="${esc(why)}" ${short ? 'disabled' : ''}>
+        <span class="vc-ic">${ship ? '🚚' : '🎟️'}</span>
+        <span class="vc-tx"><b>${esc(head)}</b><small>${esc(p.desc || p.code)}</small><small class="vc-n ${short ? 'warn' : ''}">${esc(p.code)} · ${esc(note)}</small></span>
+        <span class="vc-chk">${sel ? '✓' : ''}</span></button>`;
+    };
+    const grp = (t, l) => l.length ? `<div class="vc-grp">${t}</div><div class="vc-list">${l.map(item).join('')}</div>` : '';
+    return grp('Giảm giá đơn hàng', PROMOS.filter(p => !isShipPromo(p))) + grp('Vận chuyển', PROMOS.filter(isShipPromo));
+  }
   function checkoutSheet() {
     const { s, lines } = cartData(); if (!s || !lines.length) return toast('Giỏ hàng đang trống');
     if (!S.user) { closeSheet(); toast('Vui lòng đăng nhập để đặt món'); S.authTab = 'login'; return go('auth'); }
@@ -824,9 +847,7 @@
         <label class="co-f"><span>Ghi chú cho quán</span><input id="co-note" placeholder="Ít cay, không hành… (không bắt buộc)" value="${esc(CART.note)}"></label>
       </section>
 
-      <section class="co-card"><div class="co-title">Mã giảm giá</div>
-        <div class="co-promo"><input id="co-promo" placeholder="Nhập mã" value="${esc(CART.promo)}"><button type="button" data-applypromo>Áp dụng</button></div>
-      </section>
+      <section class="co-card"><div class="co-title">Voucher <span>${PROMOS.length ? 'Chọn để áp dụng' : ''}</span></div>${voucherPicker(c)}</section>
 
       <section class="co-card co-loc ${CART.loc ? 'ok' : 'need'}">
         <div class="co-loc-ic">${CART.loc ? '✓' : '📍'}</div>
@@ -838,6 +859,7 @@
         <div class="co-row"><span>Tạm tính</span><b>${money(c.sub)}</b></div>
         ${c.disc ? `<div class="co-row off"><span>Giảm giá quán (${s.sale}%)</span><b>-${money(c.disc)}</b></div>` : ''}
         ${c.promoOff ? `<div class="co-row off"><span>Mã ${esc(c.promo.code)}</span><b>-${money(c.promoOff)}</b></div>` : ''}
+        ${c.shipVoucherOff ? `<div class="co-row off"><span>🚚 Voucher vận chuyển ${esc(c.shipPromo.code)}</span><b>-${money(c.shipVoucherOff)}</b></div>` : ''}
         ${c.platOff ? `<div class="co-row off"><span>🎁 Ưu đãi Lâm Thao Ăn Gì (${PLAT.pct}%)</span><b>-${money(c.platOff)}</b></div>` : ''}
         ${c.shipMode === 'need-loc' ? `<div class="co-row"><span>Phí giao hàng</span><b style="color:var(--orange)">Chia sẻ vị trí để tính</b></div>`
           : `<div class="co-row"><span>Phí giao hàng${c.shipMode === 'km' ? ` <small>· ${String(c.km).replace('.', ',')} km</small>` : ''}</span><b>${c.shipBase ? money(c.shipBase) : 'Miễn phí'}</b></div>`}
@@ -854,7 +876,7 @@
     </div>`);
     if (keepScroll) sheetEl.scrollTop = keepScroll;
   }
-  const readCheckout = () => { CART.address = $('#co-addr')?.value ?? CART.address; CART.note = $('#co-note')?.value ?? CART.note; CART.promo = ($('#co-promo')?.value ?? CART.promo).trim(); };
+  const readCheckout = () => { CART.address = $('#co-addr')?.value ?? CART.address; CART.note = $('#co-note')?.value ?? CART.note; };
   async function placeOrderNow(btn) {
     readCheckout();
     const { s, lines } = cartData(); if (!s || !lines.length) return;
@@ -871,12 +893,12 @@
         code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone,
         address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '', shopLat:s.lat ?? null, shopLng:s.lng ?? null, lat:CART.loc.lat, lng:CART.loc.lng, locAcc:CART.loc.acc,
         items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff + c.platOff, ...(c.platOff ? { platformOff:c.platOff, platformPct:PLAT.pct } : {}), promoCode:c.promo ? c.promo.code : '',
-        shipFee:c.ship, shipFull:c.shipFull, ...(c.shopShip ? { shopShip:c.shopShip } : {}), ...(c.night ? { nightFee:c.night } : {}), ...(c.wx ? { weatherFee:c.wx } : {}), distanceKm:c.km, total:c.total, payment:pay, ...(pay === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending',
+        shipFee:c.ship - c.shipVoucherOff, shipFull:c.shipFull, ...(c.shipVoucherOff ? { shipVoucherOff:c.shipVoucherOff, shipVoucherCode:c.shipPromo.code } : {}), ...(c.shopShip ? { shopShip:c.shopShip } : {}), ...(c.night ? { nightFee:c.night } : {}), ...(c.wx ? { weatherFee:c.wx } : {}), distanceKm:c.km, total:c.total, payment:pay, ...(pay === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending',
       };
       const ref = await FB.placeOrder(data);
       FB.notifyNewOrder(ref.id, data);   // Gmail admin + Zalo quán/admin (chạy nền)
       FB.updateMyProfile(S.user.uid, { address:addr }).catch(() => {}); S.user.address = addr;
-      CART.q = {}; CART.promo = ''; CART.note = ''; CART.address = null; CART.loc = null; CART.pay = 'cash';
+      CART.q = {}; CART.promo = ''; CART.shipPromo = ''; CART.note = ''; CART.address = null; CART.loc = null; CART.pay = 'cash';
       closeSheet(); S.orders.tab = 'proc'; go('orders');
       if (pay === 'bank') bankSheet({ ...data, id:ref.id }); else { toast('Đặt đơn thành công! Đang chờ tài xế nhận đơn.'); pushAskAfterOrder(); }
     } catch (e) { btn.disabled = false; toast(FB.errMsg(e)); }
@@ -1179,8 +1201,13 @@
     const pda = t.closest('[data-pdadd]'); if (pda) { const b = document.querySelector(`#shop-page [data-qty="${pda.dataset.pdadd}"][data-d="1"]`); closeSheet(); if (b) b.click(); return; }
     const spc = t.closest('[data-spcat]'); if (spc) { SP.cat = spc.dataset.spcat; renderShopPage(); return; }
     if (t.closest('[data-cart]')) { if (!LIVE) return toast('Đây là bản demo, chưa đặt món được'); return checkoutSheet(); }
-    const ap = t.closest('[data-applypromo]');
-    if (ap) { readCheckout(); const { s, lines } = cartData(); if (CART.promo && !calc(s, lines, CART.promo).promo) toast('Mã không hợp lệ hoặc chưa đủ điều kiện'); return checkoutSheet(); }
+    const vp = t.closest('[data-vpick]');
+    if (vp) {
+      if (vp.disabled) return toast(vp.dataset.why || 'Chưa đủ điều kiện dùng voucher này');
+      readCheckout(); const key = vp.dataset.vship === '1' ? 'shipPromo' : 'promo', code = vp.dataset.vpick;
+      CART[key] = String(CART[key]).toUpperCase() === code.toUpperCase() ? '' : code;   // bấm lại để bỏ chọn
+      return checkoutSheet();
+    }
     const po = t.closest('[data-placeorder]'); if (po) return placeOrderNow(po);
     const sl = t.closest('[data-shareloc]'); if (sl) return shareLoc(sl);
     if (svcClick(t)) return;
@@ -1400,7 +1427,7 @@
     if (k === 'payment') return openSheet(LIVE
       ? `<h3>Phương thức thanh toán</h3><button class="opt sel">${ic('check')}Tiền mặt khi nhận hàng</button>${BANK ? `<button class="opt sel">${ic('check')}Chuyển khoản (quét mã QR)</button><p class="sub" style="margin-top:10px">Bạn chọn cách thanh toán ngay trong bước xác nhận đơn hàng. Với chuyển khoản, mã QR hiện ra sau khi đặt đơn.</p>` : `<p class="sub" style="margin-top:10px">Hiện chỉ nhận thanh toán tiền mặt cho tài xế khi giao hàng.</p>`}`
       : `<h3>Phương thức thanh toán</h3>${['Tiền mặt','Thẻ ngân hàng','Ví điện tử'].map((x, i) => `<button class="opt ${i === 0 ? 'sel' : ''}">${ic('check')}${x}</button>`).join('')}`);
-    if (k === 'coupons') return openSheet(`<h3>Mã giảm giá của bạn</h3>${(LIVE ? PROMOS.map(p => [esc(p.code), esc(p.desc)]) : [['GIAM30K','Giảm 30K cho đơn từ 100K'],['CUOITUAN','Giảm 20K cho đơn từ 80K'],['FREESHIP','Miễn phí giao hàng đơn từ 60K']]).map(([c, d]) => `<div class="row-kv"><span><b>${c}</b><br><small style="color:var(--ink-2)">${d}</small></span><button style="color:var(--green-d);font-weight:700" data-copy="${c}">Sao chép</button></div>`).join('')}`);
+    if (k === 'coupons') return openSheet(`<h3>Mã giảm giá của bạn</h3>${(LIVE ? PROMOS.map(p => [esc(p.code), (isShipPromo(p) ? '🚚 ' : '') + esc(p.desc)]) : [['GIAM30K','Giảm 30K cho đơn từ 100K'],['CUOITUAN','Giảm 20K cho đơn từ 80K'],['FREESHIP','Miễn phí giao hàng đơn từ 60K']]).map(([c, d]) => `<div class="row-kv"><span><b>${c}</b><br><small style="color:var(--ink-2)">${d}</small></span><button style="color:var(--green-d);font-weight:700" data-copy="${c}">Sao chép</button></div>`).join('')}<p class="sub" style="margin-top:10px">Voucher được chọn trực tiếp ở bước Xác nhận đơn hàng khi đặt món.</p>`);
     if (k === 'points') return openSheet(`<h3>Điểm tích lũy</h3><div style="font-family:var(--font-h);font-weight:700;font-size:28px;color:var(--green-d);margin-top:10px">${LIVE ? S.points : 820} điểm</div><div class="sub">${LIVE ? 'Tích 1 điểm cho mỗi 1.000đ của đơn đã hoàn thành' : 'Còn 180 điểm để lên hạng Vàng'}</div>`);
     if (k === 'lang') return openSheet(`<h3>Ngôn ngữ</h3><button class="opt sel">Tiếng Việt<span class="tick">${ic('check')}</span></button><button class="opt" data-sheetmsg="English – sắp ra mắt">English</button>`);
     if (k === 'contact') return openSheet(`<h3>Liên hệ Lâm Thao Ăn Gì</h3>${contactOpts()}`);

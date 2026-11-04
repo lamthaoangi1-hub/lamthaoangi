@@ -188,9 +188,11 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   };
 
   const promosView = () => `<div class="card"><h3>Thêm mã giảm giá</h3><div class="grid"><label class="f">Mã<input type="text" id="p-code" placeholder="GIAM30K"></label><label class="f">Mô tả<input type="text" id="p-desc" placeholder="Giảm 30K cho đơn từ 100K"></label>
-    <label class="f">Giảm (đ)<input type="number" id="p-off" min="0" step="1000"></label><label class="f">Đơn tối thiểu (đ)<input type="number" id="p-min" min="0" step="1000"></label></div><button class="btn" style="margin-top:12px" data-addpromo>Thêm</button>
-    <p class="muted" style="margin-top:8px">Mã hiển thị cho khách ở mục “Mã giảm giá” và tab Thông báo. Khách nhập mã khi đặt đơn.</p></div>
-    ${promos.map(p => `<div class="card row sb"><span><b>${esc(p.code)}</b> · ${esc(p.desc)}<br><span class="muted">Giảm ${money(p.off)} · đơn từ ${money(p.min)}</span></span><span class="row"><label class="sw" style="margin:0"><input type="checkbox" data-pact="${p.id}" ${p.active === false ? '' : 'checked'}>Bật</label><button class="btn sm r" data-delpromo="${p.id}">Xóa</button></span></div>`).join('') || '<div class="empty">Chưa có mã</div>'}`;
+    <label class="f">Loại voucher<select id="p-type"><option value="discount">Giảm giá đơn hàng (trừ vào tiền món)</option><option value="ship">Vận chuyển (trừ vào phí ship)</option></select></label>
+    <label class="f">Giảm (đ)<input type="number" id="p-off" min="0" step="1000"></label><label class="f">Đơn tối thiểu (đ)<input type="number" id="p-min" min="0" step="1000"></label>
+    <label class="sw f" style="margin:0;align-self:end"><input type="checkbox" id="p-full">Voucher vận chuyển: miễn phí ship toàn bộ</label></div><button class="btn" style="margin-top:12px" data-addpromo>Thêm</button>
+    <p class="muted" style="margin-top:8px">Khách không cần nhập mã: voucher hiện thành danh sách để CHỌN ở bước Xác nhận đơn hàng (mỗi lần dùng được 1 voucher giảm giá + 1 voucher vận chuyển). Voucher vận chuyển do Lâm Thao Ăn Gì chịu: shipper vẫn nhận đủ phí ship, quán không bị trừ; tổng tiền từng ngày xem ở tab Bù lỗ.</p></div>
+    ${promos.map(p => `<div class="card row sb"><span>${p.type === 'ship' ? '🚚' : '🎟️'} <b>${esc(p.code)}</b> · ${esc(p.desc)}<br><span class="muted">${p.type === 'ship' ? 'Vận chuyển: ' + (p.full ? 'miễn phí ship' : 'giảm ' + money(p.off) + ' phí ship') : 'Giảm giá: giảm ' + money(p.off)} · đơn từ ${money(p.min)}</span></span><span class="row"><label class="sw" style="margin:0"><input type="checkbox" data-pact="${p.id}" ${p.active === false ? '' : 'checked'}>Bật</label><button class="btn sm r" data-delpromo="${p.id}">Xóa</button></span></div>`).join('') || '<div class="empty">Chưa có mã</div>'}`;
 
   const shipCfgView = () => `<div class="card" style="margin-top:12px"><h3>Phí giao hàng theo khoảng cách</h3><p class="muted">Khách thấy phí này trước khi bấm đặt đơn. Khoảng cách = đường chim bay từ quán đến khách × hệ số đường đi, làm tròn 0,1 km; km lẻ tính tròn lên.</p>
     <div class="grid"><label class="f">Phí cơ bản (đ)<input type="number" id="sh-base" min="0" step="1000" value="${settings.shipBase ?? 15000}"></label><label class="f">Số km đầu tính phí cơ bản<input type="number" id="sh-basekm" min="0" step="0.5" value="${settings.shipBaseKm ?? 3.5}"></label>
@@ -250,6 +252,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       if (o.total != null && o.shipFee != null && Math.abs(Number(o.subtotal || 0) - Number(o.discount || 0) + Number(o.shipFee || 0) - Number(o.total)) > 1) msgs.push('tổng tiền không khớp');
       return { ok:!msgs.length, msg:msgs.join('; '), shopDisc };
     };
+    const vRows = (revRows || []).filter(o => { const d = toDate(o.updatedAt || o.createdAt); return Number(o.shipVoucherOff) > 0 && d && dayKeyOf(d) === subDay; }), vOff = vRows.reduce((a, o) => a + Number(o.shipVoucherOff), 0), vN = vRows.length;
     const total = rows.reduce((a, r) => a + r.amount, 0), orderN = rows.reduce((a, r) => a + r.count, 0);
     const owe = rows.reduce((a, r) => a + payState(paidDay[r.id], r.amount).short, 0);
     const hist = lastDays(7).map(k => { const m = by.get(k) || new Map(), tot = [...m.values()].reduce((a, v) => a + v.amount, 0), pd = subSet[k];
@@ -258,6 +261,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       <div class="card row sb" style="gap:8px"><span class="muted">${revBusy ? 'Đang tải dữ liệu từ Google Sheet…' : revErr ? `<span style="color:var(--red)">${esc(revErr)}</span>` : subErr ? `<span style="color:var(--red)">${esc(subErr)}</span>` : revRows ? 'Chỉ tính đơn đã giao thành công · dữ liệu từ Google Sheet' : 'Chưa tải dữ liệu'}</span><button class="btn sm o" data-revreload ${revBusy ? 'disabled' : ''}>Tải lại</button></div>
       <div class="card"><label class="f">Chọn ngày (theo ngày giao thành công)<input type="date" id="sub-day" value="${esc(subDay)}" max="${todayKey()}"></label></div>
       <div class="stat revenue-stats"><div class="card"><span class="metric-icon">💸</span><span class="muted">Tổng bù ngày ${dmy(subDay)}</span><b>${money(total)}</b></div><div class="card"><span class="metric-icon">⏳</span><span class="muted">Còn phải chuyển</span><b>${money(owe)}</b></div><div class="card"><span class="metric-icon">🧾</span><span class="muted">Đơn được giảm</span><b>${orderN.toLocaleString('vi-VN')}</b></div></div>
+      <div class="card"><h3>🚚 Voucher vận chuyển – ${dmy(subDay)}</h3><p class="muted" style="margin:0">Tổng Lâm Thao Ăn Gì hỗ trợ phí ship cho khách: <b>${money(vOff)}</b> (${vN} đơn). Shipper vẫn nhận đủ phí ship, phần này bạn trả bù cho shipper (không tính vào quán).</p></div>
       <div class="card"><h3>Chuyển khoản bù theo quán – ${dmy(subDay)}</h3><div class="table-scroll"><table><thead><tr><th>Quán</th><th>Đơn</th><th>Số tiền bù</th><th>Trạng thái</th><th></th></tr></thead><tbody>
         ${rows.map(r => { const st = payState(paidDay[r.id], r.amount); return `<tr><td><b>${esc(r.name)}</b>${r.phone ? `<br><span class="muted">${esc(r.phone)}</span>` : ''}</td><td>${r.count}</td><td><b>${money(r.amount)}</b></td><td><span class="badge ${st.cls}">${esc(st.text)}</span></td><td style="text-align:right">${st.done ? `<button class="btn sm o" data-subpay="${esc(r.id)}:0">Bỏ đánh dấu</button>` : `<button class="btn sm" data-subpay="${esc(r.id)}:1">Đã chuyển khoản bù</button>`}</td></tr>`; }).join('') || '<tr><td colspan="5">Chưa có đơn nào được giảm trong ngày này</td></tr>'}
       </tbody></table></div><p class="muted" style="margin-top:8px">Chuyển khoản xong cho quán thì bấm “Đã chuyển khoản bù”. Nếu sau đó phát sinh thêm đơn trong ngày, hệ thống tự báo phần còn thiếu.</p></div>
@@ -590,7 +594,10 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       else if (g('[data-uall]')) { await loadMoreUsers(true); }
       else if (g('[data-addpromo]')) {
         const v = id => $('#' + id).value.trim(); if (!v('p-code')) return toast('Nhập mã');
-        await fb.savePromo(null, { code:v('p-code').toUpperCase(), desc:v('p-desc'), off:+v('p-off') || 0, min:+v('p-min') || 0, active:true }); toast('Đã thêm mã');
+        const ship = $('#p-type').value === 'ship', full = ship && $('#p-full').checked, off = +v('p-off') || 0;
+        if (ship && !full && off <= 0) return toast('Nhập số tiền giảm phí ship hoặc tích "miễn phí ship toàn bộ"');
+        const min = +v('p-min') || 0, desc = v('p-desc') || (ship ? (full ? 'Miễn phí vận chuyển' : 'Giảm ' + money(off) + ' phí vận chuyển') : 'Giảm ' + money(off)) + (min ? ' cho đơn từ ' + money(min) : '');
+        await fb.savePromo(null, { code:v('p-code').toUpperCase(), desc, type:ship ? 'ship' : 'discount', ...(ship && full ? { full:true } : {}), off, min, active:true }); toast('Đã thêm voucher');
       }
       else if (g('[data-delpromo]')) { if (confirm('Xóa mã này?')) await fb.removePromo(g('[data-delpromo]').dataset.delpromo); }
       else if (g('[data-saveship]')) {
