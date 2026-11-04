@@ -338,3 +338,9 @@ export async function getShopSettlements(shopId, dayKeys) {
   await Promise.all(dayKeys.map(async k => { const d = await getDoc(doc(db, 'shopSettlements', k + '_' + shopId)); const v = d.exists() ? d.data() : null; out[k] = v && v.at ? { at:v.at, amount:Number(v.amount) || 0 } : null; }));
   return out;
 }
+
+/* ---- Ví tài xế: phần phí ship do Admin chịu (freeship / voucher ship) được cộng vào ví khi đơn giao xong; tài xế gửi yêu cầu rút, Admin chuyển khoản rồi duyệt ---- */
+export const watchMyPayouts = (uid, cb) => watch(query(collection(db, 'payouts'), where('uid', '==', uid)), cb);
+export const watchPayouts = cb => watch(collection(db, 'payouts'), cb);
+export const requestPayout = d => addDoc(collection(db, 'payouts'), { uid:d.uid, name:d.name, phone:d.phone, amount:d.amount, bankName:d.bankName, bankAccount:d.bankAccount, bankHolder:d.bankHolder, status:'pending', createdAt:serverTimestamp() });
+export const setPayout = (id, patch) => updateDoc(doc(db, 'payouts', id), patch);

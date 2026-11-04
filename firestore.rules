@@ -73,6 +73,16 @@ service cloud.firestore {
     // settings/notify chứa Zalo ID nhận báo đơn: CHỈ Admin đọc (Apps Script đọc bằng quyền riêng của chủ script)
     match /settings/{id} { allow read: if id != 'notify' || isAdmin(); allow write: if isAdmin(); }
 
+    // Yêu cầu rút tiền từ ví tài xế: shipper chỉ tạo/đọc của mình (trạng thái pending); chỉ Admin duyệt (paid / rejected)
+    match /payouts/{id} {
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isShipper() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'phone', 'amount', 'bankName', 'bankAccount', 'bankHolder', 'status', 'createdAt'])
+        && request.resource.data.status == 'pending'
+        && request.resource.data.amount is number && request.resource.data.amount >= 10000 && request.resource.data.amount <= 20000000;
+      allow update, delete: if isAdmin();
+    }
+
     // Đơn hàng
     match /orders/{id} {
       allow read: if signedIn() && (
@@ -119,6 +129,9 @@ service cloud.firestore {
           || (request.resource.data.get('type', 'food') in ['delivery', 'errand'] && request.resource.data.subtotal == 0
             && request.resource.data.discount == 0 && request.resource.data.shopId == 'svc-' + request.resource.data.type)
         )
+        // phần phí ship do Admin chịu (freeship / voucher ship) → cộng vào ví tài xế: số không âm, mỗi loại không quá 100.000đ
+        && request.resource.data.get('adminShip', 0) is number && request.resource.data.get('adminShip', 0) >= 0 && request.resource.data.get('adminShip', 0) <= 100000
+        && request.resource.data.get('shipVoucherOff', 0) is number && request.resource.data.get('shipVoucherOff', 0) >= 0 && request.resource.data.get('shipVoucherOff', 0) <= 100000
         // bắt buộc có vị trí GPS của khách
         && request.resource.data.lat is number && request.resource.data.lng is number;
 

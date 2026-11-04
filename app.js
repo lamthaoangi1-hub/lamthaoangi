@@ -896,7 +896,7 @@
         code:'LT' + Date.now().toString().slice(-6), uid:S.user.uid, customerName:S.user.name, customerPhone:S.user.phone,
         address:`${addr}, ${S.area}`, note:(CART.note || '').trim(), shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', shopAddress:s._d.address || '', shopLat:s.lat ?? null, shopLng:s.lng ?? null, lat:CART.loc.lat, lng:CART.loc.lng, locAcc:CART.loc.acc,
         items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), subtotal:c.sub, discount:c.disc + c.promoOff + c.platOff, ...(c.platOff ? { platformOff:c.platOff, platformPct:PLAT.pct } : {}), promoCode:c.promo ? c.promo.code : '',
-        shipFee:c.ship - c.shipVoucherOff, shipFull:c.shipFull, ...(c.shipVoucherOff ? { shipVoucherOff:c.shipVoucherOff, shipVoucherCode:c.shipPromo.code } : {}), ...(c.shopShip ? { shopShip:c.shopShip } : {}), ...(c.night ? { nightFee:c.night } : {}), ...(c.wx ? { weatherFee:c.wx } : {}), distanceKm:c.km, total:c.total, payment:pay, ...(pay === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending',
+        shipFee:c.ship - c.shipVoucherOff, shipFull:c.shipFull, ...(c.shipVoucherOff ? { shipVoucherOff:c.shipVoucherOff, shipVoucherCode:c.shipPromo.code } : {}), ...(c.shopShip ? { adminShip:c.shopShip } : {})   /* phần ship hỗ trợ (freeship) do Admin chịu → vào ví tài xế, quán nhận đủ tiền món */, ...(c.night ? { nightFee:c.night } : {}), ...(c.wx ? { weatherFee:c.wx } : {}), distanceKm:c.km, total:c.total, payment:pay, ...(pay === 'bank' ? { payStatus:'unpaid' } : {}), status:'pending',
       };
       const ref = await FB.placeOrder(data);
       FB.notifyNewOrder(ref.id, data);   // Gmail admin + Zalo quán/admin (chạy nền)
@@ -1559,7 +1559,7 @@
   }
 
   /* Tải sẵn lớp dữ liệu Firebase ngay từ đầu (song song với việc vẽ trang) thay vì đợi vẽ xong mới tải */
-  const fbReady = import('./fb.js?v=20261103d'); fbReady.catch(() => {});
+  const fbReady = import('./fb.js?v=20261104d'); fbReady.catch(() => {});
   function boot() {
     const first = location.hash.slice(1);
     go(renderers[first] ? first : 'home', false);

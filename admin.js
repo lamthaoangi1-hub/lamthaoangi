@@ -11,7 +11,7 @@ const SAMPLE = [
 ];
 
 export const panel = { key:'admin', title:'Quản trị', roles:['admin'], render(root, me) {
-  let tab = 'orders', shops = [], orders = [], live = [], hist = [], histDone = false, histBusy = false, histTotal = null, histErr = '', revRows = null, revBusy = false, revAt = 0, revErr = '', users = [], sync = {}, syncBusy = '', syncMsg = '', promos = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all', paste = null, sel = new Set(), bh = { open:'06:00', close:'21:00' }, subSet = {}, subBusy = false, subErr = '', subDay = '';
+  let tab = 'orders', shops = [], orders = [], live = [], hist = [], histDone = false, histBusy = false, histTotal = null, histErr = '', revRows = null, revBusy = false, revAt = 0, revErr = '', users = [], sync = {}, syncBusy = '', syncMsg = '', promos = [], payouts = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all', paste = null, sel = new Set(), bh = { open:'06:00', close:'21:00' }, subSet = {}, subBusy = false, subErr = '', subDay = '';
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
 
   /* ===== Shipper ONLINE (presence/{uid}, shipper tự bật/tắt; realtime) ===== */
@@ -241,6 +241,24 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     if (Number(p.amount) >= amount) return { cls:'ok', text:'Đã bù ' + fmtTime(p.at), done:true, short:0 };
     return { cls:'warn', text:`Đã bù ${money(p.amount)}, còn thiếu ${money(amount - Number(p.amount))}`, done:false, short:amount - Number(p.amount) };
   };
+  /* Ví tài xế: số dư = tổng phần ship Admin chịu (adminShip + voucher ship) của đơn đã giao (Google Sheet) − tiền đã rút/đang chờ rút */
+  const walletView = () => {
+    const cr = o => Number(o.adminShip || 0) + Number(o.shipVoucherOff || 0), by = new Map();
+    (revRows || []).forEach(o => { const c = cr(o); if (!(c > 0) || !o.shipperUid) return; const r = by.get(o.shipperUid) || { uid:o.shipperUid, name:'', earned:0, n:0 }; r.earned += c; r.n++; if (o.shipperName) r.name = o.shipperName; by.set(o.shipperUid, r); });
+    payouts.forEach(p => { if (!by.has(p.uid)) by.set(p.uid, { uid:p.uid, name:p.name || '', earned:0, n:0 }); });
+    const sum = (uid, st) => payouts.filter(p => p.uid === uid && p.status === st).reduce((a, p) => a + Number(p.amount || 0), 0);
+    const rows = [...by.values()].map(r => { const paid = sum(r.uid, 'paid'), pend = sum(r.uid, 'pending'); return { ...r, paid, pend, bal:r.earned - paid - pend }; }).sort((a, b) => b.bal - a.bal);
+    const earnedOf = uid => (by.get(uid) || { earned:0 }).earned, paidOf = uid => sum(uid, 'paid');
+    const ts = p => (p.createdAt && p.createdAt.seconds) || 0;
+    const pend = payouts.filter(p => p.status === 'pending').sort((a, b) => ts(a) - ts(b)), done = payouts.filter(p => p.status !== 'pending').sort((a, b) => ts(b) - ts(a)).slice(0, 30);
+    const totalBal = rows.reduce((a, r) => a + Math.max(0, r.bal), 0);
+    return `<div class="section-heading"><h2>Ví tài xế</h2><p>Phần phí ship do Lâm Thao Ăn Gì chịu (freeship quán, voucher ship) được cộng vào ví tài xế khi đơn giao xong. Tài xế gửi yêu cầu rút, bạn chuyển khoản rồi bấm xác nhận. Số liệu lấy từ Google Sheet (đơn vừa giao có thể chậm ~1 phút).</p></div>
+      <div class="card row sb" style="gap:8px"><span class="muted">${revBusy ? 'Đang tải dữ liệu từ Google Sheet…' : revErr ? `<span style="color:var(--red)">${esc(revErr)}</span>` : revRows ? 'Đã tải dữ liệu đơn đã giao' : 'Chưa tải dữ liệu'}</span><button class="btn sm o" data-revreload>Tải lại</button></div>
+      <div class="stat revenue-stats"><div class="card"><span class="metric-icon">👛</span><span class="muted">Tổng số dư các ví</span><b>${money(totalBal)}</b></div><div class="card"><span class="metric-icon">⏳</span><span class="muted">Yêu cầu chờ chuyển</span><b>${money(pend.reduce((a, p) => a + Number(p.amount || 0), 0))}</b></div></div>
+      <div class="card"><h3>Yêu cầu rút tiền đang chờ</h3>${pend.length ? pend.map(p => { const over = Number(p.amount) > earnedOf(p.uid) - paidOf(p.uid); return `<div class="card" style="margin:8px 0 0;${over ? 'background:#fff7ed' : ''}"><div class="row sb"><span><b>${esc(p.name || p.uid)}</b> · ${esc(p.phone || '')}<br><span class="muted">${esc(fmtTime(p.createdAt))}</span></span><b style="font-size:18px">${money(p.amount)}</b></div><div style="margin:6px 0">🏦 ${esc(p.bankName || '')} · <b>${esc(p.bankAccount || '')}</b> · ${esc(p.bankHolder || '')}</div>${over ? '<div style="color:var(--red);font-weight:600;margin-bottom:6px">⚠ Vượt số dư tính được từ Sheet – hãy kiểm tra trước khi chuyển</div>' : ''}<div class="row"><button class="btn sm" data-payok="${p.id}">Đã chuyển khoản</button><button class="btn sm r" data-payno="${p.id}">Từ chối</button></div></div>`; }).join('') : '<div class="muted">Không có yêu cầu nào</div>'}</div>
+      <div class="card"><h3>Số dư từng tài xế</h3><div class="table-scroll"><table><thead><tr><th>Tài xế</th><th>Đơn</th><th>Đã cộng vào ví</th><th>Đã chuyển</th><th>Đang chờ</th><th>Số dư</th></tr></thead><tbody>${rows.map(r => `<tr><td><b>${esc(r.name || r.uid)}</b></td><td>${r.n}</td><td>${money(r.earned)}</td><td>${money(r.paid)}</td><td>${money(r.pend)}</td><td><b>${money(r.bal)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="muted">Chưa có dữ liệu</td></tr>'}</tbody></table></div></div>
+      <div class="card"><h3>Lịch sử đã xử lý</h3>${done.length ? done.map(p => `<div class="row sb" style="padding:6px 0;border-top:1px solid #eef0f2"><span><b>${esc(p.name || p.uid)}</b> · ${money(p.amount)}<br><span class="muted">${esc(fmtTime(p.createdAt))} · ${esc(p.bankName || '')} ${esc(p.bankAccount || '')}</span></span><span class="badge">${p.status === 'paid' ? 'Đã chuyển khoản' : 'Từ chối'}</span></div>`).join('') : '<div class="muted">Chưa có</div>'}</div>`;
+  };
   const subsidyView = () => {
     if (!subDay) subDay = todayKey();
     const pct = Number(settings.platformPct) || 0, by = subsidyByDay(), dm = by.get(subDay) || new Map(), paidDay = subSet[subDay] || {};
@@ -253,7 +271,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       if (o.total != null && o.shipFee != null && Math.abs(Number(o.subtotal || 0) - Number(o.discount || 0) + Number(o.shipFee || 0) - Number(o.total)) > 1) msgs.push('tổng tiền không khớp');
       return { ok:!msgs.length, msg:msgs.join('; '), shopDisc };
     };
-    const vRows = (revRows || []).filter(o => { const d = toDate(o.updatedAt || o.createdAt); return Number(o.shipVoucherOff) > 0 && d && dayKeyOf(d) === subDay; }), vOff = vRows.reduce((a, o) => a + Number(o.shipVoucherOff), 0), vN = vRows.length;
+    const vRows = (revRows || []).filter(o => { const d = toDate(o.updatedAt || o.createdAt); return Number(o.shipVoucherOff || 0) + Number(o.adminShip || 0) > 0 && d && dayKeyOf(d) === subDay; }), vOff = vRows.reduce((a, o) => a + Number(o.shipVoucherOff || 0) + Number(o.adminShip || 0), 0), vN = vRows.length;
     const total = rows.reduce((a, r) => a + r.amount, 0), orderN = rows.reduce((a, r) => a + r.count, 0);
     const owe = rows.reduce((a, r) => a + payState(paidDay[r.id], r.amount).short, 0);
     const hist = lastDays(7).map(k => { const m = by.get(k) || new Map(), tot = [...m.values()].reduce((a, v) => a + v.amount, 0), pd = subSet[k];
@@ -262,7 +280,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       <div class="card row sb" style="gap:8px"><span class="muted">${revBusy ? 'Đang tải dữ liệu từ Google Sheet…' : revErr ? `<span style="color:var(--red)">${esc(revErr)}</span>` : subErr ? `<span style="color:var(--red)">${esc(subErr)}</span>` : revRows ? 'Chỉ tính đơn đã giao thành công · dữ liệu từ Google Sheet' : 'Chưa tải dữ liệu'}</span><button class="btn sm o" data-revreload ${revBusy ? 'disabled' : ''}>Tải lại</button></div>
       <div class="card"><label class="f">Chọn ngày (theo ngày giao thành công)<input type="date" id="sub-day" value="${esc(subDay)}" max="${todayKey()}"></label></div>
       <div class="stat revenue-stats"><div class="card"><span class="metric-icon">💸</span><span class="muted">Tổng bù ngày ${dmy(subDay)}</span><b>${money(total)}</b></div><div class="card"><span class="metric-icon">⏳</span><span class="muted">Còn phải chuyển</span><b>${money(owe)}</b></div><div class="card"><span class="metric-icon">🧾</span><span class="muted">Đơn được giảm</span><b>${orderN.toLocaleString('vi-VN')}</b></div></div>
-      <div class="card"><h3>🚚 Voucher vận chuyển – ${dmy(subDay)}</h3><p class="muted" style="margin:0">Tổng Lâm Thao Ăn Gì hỗ trợ phí ship cho khách: <b>${money(vOff)}</b> (${vN} đơn). Shipper vẫn nhận đủ phí ship, phần này bạn trả bù cho shipper (không tính vào quán).</p></div>
+      <div class="card"><h3>🚚 Phí ship Admin chịu – ${dmy(subDay)}</h3><p class="muted" style="margin:0">Voucher ship + freeship: <b>${money(vOff)}</b> (${vN} đơn). Quán vẫn nhận đủ tiền món; số này được cộng vào <b>ví tài xế</b> (xem tab 👛 Ví tài xế), không phải chuyển khoản trực tiếp.</p></div>
       <div class="card"><h3>Chuyển khoản bù theo quán – ${dmy(subDay)}</h3><div class="table-scroll"><table><thead><tr><th>Quán</th><th>Đơn</th><th>Số tiền bù</th><th>Trạng thái</th><th></th></tr></thead><tbody>
         ${rows.map(r => { const st = payState(paidDay[r.id], r.amount); return `<tr><td><b>${esc(r.name)}</b>${r.phone ? `<br><span class="muted">${esc(r.phone)}</span>` : ''}</td><td>${r.count}</td><td><b>${money(r.amount)}</b></td><td><span class="badge ${st.cls}">${esc(st.text)}</span></td><td style="text-align:right">${st.done ? `<button class="btn sm o" data-subpay="${esc(r.id)}:0">Bỏ đánh dấu</button>` : `<button class="btn sm" data-subpay="${esc(r.id)}:1">Đã chuyển khoản bù</button>`}</td></tr>`; }).join('') || '<tr><td colspan="5">Chưa có đơn nào được giảm trong ngày này</td></tr>'}
       </tbody></table></div><p class="muted" style="margin-top:8px">Chuyển khoản xong cho quán thì bấm “Đã chuyển khoản bù”. Nếu sau đó phát sinh thêm đơn trong ngày, hệ thống tự báo phần còn thiếu.</p></div>
@@ -331,8 +349,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     if (sel.size) sel = new Set([...sel].filter(id => shops.some(s => s.id === id)));
     const pend = live.filter(o => o.status === 'pending').length;
     const pn = presence.filter(presOn).length;
-    const T = [['revenue', '📊 Doanh thu'], ['subsidy', '💸 Bù lỗ'], ['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shops', 'Cửa hàng'], ['online', `🟢 Shipper online<span class="n" id="pres-n" style="background:var(--g);${pn ? '' : 'display:none'}">${pn}</span>`], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
-    root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ revenue:revenueView, subsidy:subsidyView, orders:ordersView, shops:shopsView, users:usersView, online:onlineView, promos:promosView, settings:settingsView }[tab]()}</main>`;
+    const T = [['revenue', '📊 Doanh thu'], ['subsidy', '💸 Bù lỗ'], ['wallet', `👛 Ví tài xế${payouts.some(p => p.status === 'pending') ? `<span class="n">${payouts.filter(p => p.status === 'pending').length}</span>` : ''}`], ['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shops', 'Cửa hàng'], ['online', `🟢 Shipper online<span class="n" id="pres-n" style="background:var(--g);${pn ? '' : 'display:none'}">${pn}</span>`], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
+    root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ revenue:revenueView, subsidy:subsidyView, wallet:walletView, orders:ordersView, shops:shopsView, users:usersView, online:onlineView, promos:promosView, settings:settingsView }[tab]()}</main>`;
     if (keep && $('#uq')) $('#uq').value = keep;
     applySector();
   }
@@ -384,9 +402,9 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   };
   const loadRev = async (force) => {
     if (revBusy || (!force && revRows && Date.now() - revAt < 60000)) return;
-    revBusy = true; revErr = ''; if (tab === 'revenue' || tab === 'subsidy') draw();
+    revBusy = true; revErr = ''; if (tab === 'revenue' || tab === 'subsidy' || tab === 'wallet') draw();
     try { revRows = await fb.sheetDoneOrders(); revAt = Date.now(); syncSold(); } catch (e) { revErr = fb.errMsg(e); }
-    revBusy = false; if (tab === 'revenue' || tab === 'subsidy') draw();
+    revBusy = false; if (tab === 'revenue' || tab === 'subsidy' || tab === 'wallet') draw();
   };
   /* sửa bản đã tải từ Sheet ngay trên màn hình (đơn realtime tự cập nhật qua Firestore) */
   const patchLocal = (id, patch) => { const h = hist.find(o => o.id === id); if (h) { Object.assign(h, patch); mergeOrders(); draw(); } };
@@ -396,6 +414,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   const presClock = setInterval(() => { if (tab === 'online') draw(); }, 60000);   // làm mới nhãn "x phút trước"
   track(() => clearInterval(presClock));
   track(fb.watchPromos(l => { promos = l; if (tab === 'promos') draw(); }));
+  track(fb.watchPayouts(l => { payouts = l; draw(); }));
   track(fb.watchSettings(s => { settings = s; if (tab === 'settings') draw(); }));
   /* Đếm số đơn đã giao của từng quán và lưu vào quán (trường sold) để khách thấy mục “Bán chạy”. Chạy khi Admin mở trang quản lý. */
   let soldT; const syncSold = () => { clearTimeout(soldT); soldT = setTimeout(() => {
@@ -448,7 +467,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     const g = s => e.target.closest(s);
     if (g('[data-period]')) { period = g('[data-period]').dataset.period; draw(); return; }
     if (g('[data-revshop]')) { revShop = g('[data-revshop]').dataset.revshop; draw(); return; }
-    if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; rp = null; paste = null; draw(); if (tab === 'revenue' || tab === 'subsidy') loadRev(false); if (tab === 'subsidy') loadSub(); if (tab === 'orders' && !hist.length && !histDone && !histBusy) loadHist(true); return; }
+    if (g('[data-t]')) { tab = g('[data-t]').dataset.t; edit = null; mk = null; rp = null; paste = null; draw(); if (tab === 'revenue' || tab === 'subsidy' || tab === 'wallet') loadRev(false); if (tab === 'subsidy') loadSub(); if (tab === 'orders' && !hist.length && !histDone && !histBusy) loadHist(true); return; }
     if (g('[data-revreload]')) { loadRev(true); return; }
     if (g('[data-histmore]')) { loadHist(false); return; }
     if (g('[data-histall]')) { (async () => { while (!histDone && !histErr) { const n = hist.length; await loadHist(false); if (hist.length === n) break; } })(); return; }
@@ -602,6 +621,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
         const min = +v('p-min') || 0, what = pct ? 'Giảm ' + p + '%' + (mx ? ' (tối đa ' + money(mx) + ')' : '') : 'Giảm ' + money(off), desc = v('p-desc') || (ship ? (full ? 'Miễn phí vận chuyển' : what + ' phí vận chuyển') : what) + (min ? ' cho đơn từ ' + money(min) : '');
         await fb.savePromo(null, { code:v('p-code').toUpperCase(), desc, type:ship ? 'ship' : 'discount', ...(ship && full ? { full:true } : {}), ...(pct ? { mode:'pct', pct:p, max:mx } : {}), off:pct ? 0 : off, min, active:true }); toast('Đã thêm voucher');
       }
+      else if (g('[data-payok]')) { if (confirm('Xác nhận ĐÃ chuyển khoản cho tài xế?')) { await fb.setPayout(g('[data-payok]').dataset.payok, { status:'paid', paidAt:fb.ts() }); toast('Đã xác nhận chuyển khoản'); } }
+      else if (g('[data-payno]')) { if (confirm('Từ chối yêu cầu này? Tiền được hoàn lại vào ví tài xế.')) { await fb.setPayout(g('[data-payno]').dataset.payno, { status:'rejected' }); toast('Đã từ chối'); } }
       else if (g('[data-delpromo]')) { if (confirm('Xóa mã này?')) await fb.removePromo(g('[data-delpromo]').dataset.delpromo); }
       else if (g('[data-saveship]')) {
         const n = (id, d) => { const v = parseFloat($('#' + id).value); return isNaN(v) ? d : v; };

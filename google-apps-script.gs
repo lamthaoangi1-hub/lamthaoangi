@@ -31,10 +31,10 @@ const USER_COLS = ['uid', 'name', 'phone', 'role', 'shopId', 'zaloId', 'address'
 const USER_TEXT = ['uid', 'name', 'phone', 'role', 'shopId', 'zaloId', 'address', 'createdAt', 'updatedAt'];
 const ORDER_COLS = ['id', 'code', 'createdAt', 'updatedAt', 'status', 'type', 'shopId', 'shopName', 'uid', 'customerName', 'customerPhone', 'address', 'note', 'items',
   'subtotal', 'discount', 'shipFee', 'shopShip', 'nightFee', 'total', 'payment', 'payStatus', 'customerPaid', 'shipperUid', 'shipperName', 'shipperPhone',
-  'lat', 'lng', 'distanceKm', 'codAmount', 'receiverName', 'receiverPhone', 'shopAddress', 'promoCode', 'platformOff', 'platformPct', 'weatherFee', 'shipVoucherOff', 'shipVoucherCode'];   // cột mới LUÔN thêm vào cuối, để dữ liệu cũ không bị lệch
+  'lat', 'lng', 'distanceKm', 'codAmount', 'receiverName', 'receiverPhone', 'shopAddress', 'promoCode', 'platformOff', 'platformPct', 'weatherFee', 'shipVoucherOff', 'shipVoucherCode', 'adminShip'];   // cột mới LUÔN thêm vào cuối, để dữ liệu cũ không bị lệch
 const ORDER_TEXT = ['id', 'code', 'createdAt', 'updatedAt', 'status', 'type', 'shopId', 'shopName', 'uid', 'customerName', 'customerPhone', 'address', 'note', 'items',
   'payment', 'payStatus', 'shipperUid', 'shipperName', 'shipperPhone', 'receiverName', 'receiverPhone', 'shopAddress', 'promoCode', 'shipVoucherCode'];
-const ORDER_NUM = ['subtotal', 'discount', 'shipFee', 'shopShip', 'nightFee', 'total', 'lat', 'lng', 'distanceKm', 'codAmount', 'platformOff', 'platformPct', 'weatherFee', 'shipVoucherOff'];
+const ORDER_NUM = ['subtotal', 'discount', 'shipFee', 'shopShip', 'nightFee', 'total', 'lat', 'lng', 'distanceKm', 'codAmount', 'platformOff', 'platformPct', 'weatherFee', 'shipVoucherOff', 'adminShip'];
 
 /**
  * Script properties (Project Settings → Script properties) – dùng cho Zalo Bot:
@@ -962,7 +962,7 @@ function adminList(body) {
     if (!total) return out({ ok: true, rows: [], total: 0, done: true });
     if (body.mode === 'done') {   // báo cáo doanh thu: chỉ đơn hoàn thành, chỉ các cột cần thiết
       const vals = sh.getRange(2, 1, total, ORDER_COLS.length).getValues();
-      const keep = ['id', 'shopId', 'status', 'type', 'subtotal', 'discount', 'shopShip', 'platformOff', 'platformPct', 'shipVoucherOff', 'code', 'customerName', 'shipFee', 'total', 'createdAt', 'updatedAt'];
+      const keep = ['id', 'shopId', 'status', 'type', 'subtotal', 'discount', 'shopShip', 'platformOff', 'platformPct', 'shipVoucherOff', 'adminShip', 'shipperUid', 'shipperName', 'code', 'customerName', 'shipFee', 'total', 'createdAt', 'updatedAt'];
       const rows = vals.filter(r => r[ORDER_COLS.indexOf('status')] === 'done').map(r => { const o = orderFromRow(r), s = {}; keep.forEach(k => { if (o[k] !== undefined) s[k] = o[k]; }); return s; });
       return out({ ok: true, rows: rows, total: rows.length, done: true });
     }
