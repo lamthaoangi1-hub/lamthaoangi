@@ -146,3 +146,11 @@ main{max-width:1180px;padding:24px 18px 70px}
 .qctl button{width:36px;height:36px;border-radius:50%;background:var(--gl);color:var(--gd);font-size:22px;font-weight:800;line-height:1}
 .qctl button:active{transform:scale(.94)}
 .qctl b{min-width:24px;text-align:center;font-size:16px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:10px 0 4px;margin-bottom:2px;-webkit-overflow-scrolling:touch}
+.chips:empty{display:none}
+.chips button{flex:none;padding:7px 13px;border-radius:18px;background:var(--bg);font-weight:600;font-size:13.5px;color:#4b525c;border:1px solid var(--line);white-space:nowrap}
+.chips button.on{background:var(--g);color:#fff;border-color:var(--g)}
+.chips .n{display:inline-block;min-width:18px;padding:0 5px;margin-left:3px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;text-align:center}
+.csum{padding:10px 0 8px;border-bottom:1px solid var(--line)}
+.clist{max-height:min(55vh,460px);overflow-y:auto;overscroll-behavior:contain}
+#c-q{margin-top:10px}

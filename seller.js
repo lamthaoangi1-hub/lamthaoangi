@@ -5,7 +5,7 @@ import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
-  let tab = 'orders', draft = { q:{}, name:'', phone:'', addr:'', note:'' }, drafts = null, lastLink = '', draftBusy = false, shop = null, settings = {}, orders = [], err = '', fil = 'active', period = 'month', subPaid = {};
+  let tab = 'orders', cf = 'all', cq = '', draft = { q:{}, name:'', phone:'', addr:'', note:'' }, drafts = null, lastLink = '', draftBusy = false, shop = null, settings = {}, orders = [], err = '', fil = 'active', period = 'month', subPaid = {};
   /* Tiền Lâm Thao Ăn Gì bù cho quán (phần giảm giá khách được hưởng do Admin chịu), theo ngày giao thành công */
   const pad2 = n => String(n).padStart(2, '0');
   const dayKeyOf = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -55,7 +55,26 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
   }
   function revenueTab() { const r = report(orders, period); return `<div class="section-heading"><h2>Doanh thu cửa hàng</h2><p>Chi tiết hoạt động kinh doanh của ${esc(shop.name)}</p></div>${periodControl(period)}${metrics(r)}${note}${dailyView(r)}${subTable()}`; }
   /* ---- Tạo đơn hộ khách: quán chọn món → tạo link → khách mở link, chia sẻ vị trí và gửi ---- */
-  const menuList = () => (shop.menu || []).map((m, i) => ({ i, name:m.name, price:+m.price || 0, ok:m.available !== false })).filter(m => m.ok && m.name);
+  const menuList = () => (shop.menu || []).map((m, i) => ({ i, name:m.name, price:+m.price || 0, cat:String(m.cat || '').trim(), ok:m.available !== false })).filter(m => m.ok && m.name);
+  const nz = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+  const NOCAT = '__nocat';
+  const selCount = () => draftLines().reduce((a, l) => a + l.qty, 0);
+  /* Chip danh mục: Tất cả · Đã chọn · từng danh mục (kèm số món đã chọn) · Chưa phân loại */
+  function catChips() {
+    const list = menuList(), cats = [...new Set(list.map(m => m.cat).filter(Boolean))], hasNo = list.some(m => !m.cat);
+    if (!cats.length) return '';
+    const cnt = k => list.filter(m => draft.q[m.i] > 0 && (m.cat || NOCAT) === k).reduce((a, m) => a + draft.q[m.i], 0);
+    const chip = (k, t, n) => `<button type="button" class="${cf === k ? 'on' : ''}" data-cf="${esc(k)}">${esc(t)}${n ? ` <span class="n">${n}</span>` : ''}</button>`;
+    return chip('all', 'Tất cả') + chip('sel', '✓ Đã chọn', selCount()) + cats.map(c => chip(c, c, cnt(c))).join('') + (hasNo ? chip(NOCAT, 'Khác', cnt(NOCAT)) : '');
+  }
+  function rowsHtml() {
+    const q = nz(cq.trim());
+    const list = menuList().filter(m => (cf === 'all' || (cf === 'sel' ? draft.q[m.i] > 0 : (m.cat || NOCAT) === cf)) && (!q || nz(m.name).includes(q)));
+    if (!list.length) return `<div class="empty" style="padding:24px 10px">${cf === 'sel' ? 'Chưa chọn món nào' : 'Không tìm thấy món phù hợp'}</div>`;
+    return list.map(m => `<div class="qrow"><div><b>${esc(m.name)}</b><div class="muted">${money(m.price)}</div></div><div class="qctl"><button type="button" data-qm="${m.i}" aria-label="Giảm">−</button><b data-qn="${m.i}">${draft.q[m.i] || 0}</b><button type="button" data-qp="${m.i}" aria-label="Tăng">+</button></div></div>`).join('');
+  }
+  const refreshChips = () => { const c = $('#c-cats', root); if (c) c.innerHTML = catChips(); const n = $('#c-cnt', root); if (n) n.textContent = selCount(); };
+  const refreshList = () => { const r = $('#c-rows', root); if (r) { r.innerHTML = rowsHtml(); r.scrollTop = 0; } refreshChips(); };
   const draftLines = () => menuList().filter(m => draft.q[m.i] > 0).map(m => ({ name:m.name, price:m.price, qty:draft.q[m.i] }));
   const draftSub = () => draftLines().reduce((a, l) => a + l.price * l.qty, 0);
   const draftUrl = id => siteBase() + 'dat.html?d=' + encodeURIComponent(id);
@@ -66,8 +85,7 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
   }
   function createTab() {
     const list = menuList(), closed = !isOpenNow(shop);
-    const rows = list.length ? list.map(m => `<div class="qrow"><div><b>${esc(m.name)}</b><div class="muted">${money(m.price)}</div></div><div class="qctl"><button type="button" data-qm="${m.i}" aria-label="Giảm">−</button><b data-qn="${m.i}">${draft.q[m.i] || 0}</b><button type="button" data-qp="${m.i}" aria-label="Tăng">+</button></div></div>`).join('')
-      : '<div class="empty">Quán chưa có món nào đang bán. Hãy thêm món ở tab Thực đơn.</div>';
+    const rows = list.length ? rowsHtml() : '<div class="empty">Quán chưa có món nào đang bán. Hãy thêm món ở tab Thực đơn.</div>';
     const linkCard = lastLink ? `<div class="card" style="background:#f0fbf4;border:1px solid #b7e4c7"><h3>✅ Đã tạo link cho khách</h3>
       <p class="muted" style="margin:4px 0 8px">Gửi link này cho khách (Zalo, Messenger, tin nhắn…). Khách bấm vào, cho phép vị trí rồi bấm Gửi đơn. Đơn sẽ báo về quán, shipper và Admin như đơn thường.</p>
       <input type="text" id="c-link" readonly value="${esc(lastLink)}" onclick="this.select()">
@@ -77,8 +95,10 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
         <div class="row"><button class="btn sm" data-copydraft="${esc(draftUrl(d.id))}" data-dname="${esc(d.customerName || '')}">Sao chép</button><button class="btn sm r" data-deldraft="${esc(d.id)}">Xóa</button></div></div>`).join('')}</div>` : (drafts === null ? '<div class="muted" style="margin-bottom:10px">Đang tải link đã tạo…</div>' : '');
     return linkCard + `<div class="card"><h3>📝 Tạo đơn hộ khách</h3><p class="muted" style="margin:4px 0 4px">Dành cho khách không quen dùng web: bạn chọn món, tạo link rồi gửi cho khách. Khách chỉ cần chia sẻ vị trí và bấm Gửi đơn.</p>
       ${closed ? '<p style="color:var(--red);font-weight:600;margin-top:6px">Quán đang đóng cửa nên khách chưa gửi đơn được. Hãy bật mở cửa ở tab Cửa hàng.</p>' : ''}
-      <div id="c-rows">${rows}</div>
-      <div class="row sb" style="margin-top:10px"><span class="muted">Tạm tính (chưa gồm phí ship)</span><b class="total" id="c-sub">${money(draftSub())}</b></div></div>
+      ${list.length > 8 ? `<input type="text" id="c-q" value="${esc(cq)}" placeholder="🔍 Tìm món theo tên (${list.length} món)…" autocomplete="off">` : ''}
+      <div class="chips" id="c-cats">${catChips()}</div>
+      <div class="row sb csum"><span>Đã chọn <b id="c-cnt">${selCount()}</b> món · tạm tính <span class="muted">(chưa gồm ship)</span></span><b class="total" id="c-sub">${money(draftSub())}</b></div>
+      <div id="c-rows" class="clist">${rows}</div></div>
       <div class="card"><h3>Thông tin khách</h3><p class="muted" style="margin:4px 0 0">Shipper cần tên và số điện thoại để liên hệ giao hàng.</p>
       <div class="grid"><label class="f">Tên khách *<input type="text" id="c-name" maxlength="80" value="${esc(draft.name)}" placeholder="VD: Chị Lan"></label><label class="f">Số điện thoại *<input type="tel" id="c-phone" maxlength="15" inputmode="tel" value="${esc(draft.phone)}" placeholder="09xxxxxxxx"></label></div>
       <label class="f">Địa chỉ nhận hàng (không bắt buộc, khách có thể bổ sung)<input type="text" id="c-addr" maxlength="200" value="${esc(draft.addr)}" placeholder="Số nhà, thôn/xóm…"></label>
@@ -122,7 +142,7 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
   }));
   track(fb.watchSettings(s => { settings = s; if (tab === 'orders') draw(); }));
   bindMenuEditor(root); bindImgUpload(root);
-  root.addEventListener('input', e => { const k = { 'c-name':'name', 'c-phone':'phone', 'c-addr':'addr', 'c-note':'note' }[e.target.id]; if (k) draft[k] = e.target.value; });
+  root.addEventListener('input', e => { if (e.target.id === 'c-q') { cq = e.target.value; refreshList(); return; } const k = { 'c-name':'name', 'c-phone':'phone', 'c-addr':'addr', 'c-note':'note' }[e.target.id]; if (k) draft[k] = e.target.value; });
   async function makeDraft() {
     if (draftBusy) return;
     const lines = draftLines(), name = draft.name.trim(), phone = draft.phone.replace(/[\s.\-]/g, '');
@@ -143,7 +163,8 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
   root.addEventListener('click', async e => {
     const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; draw(); if (tab === 'create' && drafts === null) loadDrafts(); return; }
     const qp = e.target.closest('[data-qp]'), qm = e.target.closest('[data-qm]');
-    if (qp || qm) { const i = +(qp || qm).dataset[qp ? 'qp' : 'qm']; draft.q[i] = Math.max(0, Math.min(99, (draft.q[i] || 0) + (qp ? 1 : -1))); const n = $(`[data-qn="${i}"]`, root); if (n) n.textContent = draft.q[i]; const sb = $('#c-sub', root); if (sb) sb.textContent = money(draftSub()); return; }
+    if (qp || qm) { const i = +(qp || qm).dataset[qp ? 'qp' : 'qm']; draft.q[i] = Math.max(0, Math.min(99, (draft.q[i] || 0) + (qp ? 1 : -1))); const n = $(`[data-qn="${i}"]`, root); if (n) n.textContent = draft.q[i]; const sb = $('#c-sub', root); if (sb) sb.textContent = money(draftSub()); refreshChips(); return; }
+    const cfb = e.target.closest('[data-cf]'); if (cfb) { cf = cfb.dataset.cf; refreshList(); return; }
     const cd = e.target.closest('[data-copydraft]'); if (cd) { if (await copyText(draftMsg(cd.dataset.copydraft, cd.dataset.dname ?? draft.name))) toast('Đã sao chép tin nhắn, dán gửi cho khách'); return; }
     const sd = e.target.closest('[data-sharedraft]'); if (sd) { try { await navigator.share({ text:draftMsg(sd.dataset.sharedraft, draft.name) }); } catch (er) { /* khách hủy chia sẻ */ } return; }
     const dd = e.target.closest('[data-deldraft]'); if (dd) { if (!confirm('Xóa link này? Khách sẽ không mở được nữa.')) return; try { await fb.deleteDraft(dd.dataset.deldraft); drafts = (drafts || []).filter(x => x.id !== dd.dataset.deldraft); draw(); toast('Đã xóa link'); } catch (er) { toast(fb.errMsg(er)); } return; }
