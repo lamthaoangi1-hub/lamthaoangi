@@ -66,6 +66,26 @@ service cloud.firestore {
     }
 
     match /promos/{id} { allow read: if true; allow write: if isAdmin(); }
+
+    // Đơn nháp do quán tạo hộ khách (drafts/{id}): ID ngẫu nhiên nên ai có link mới mở được (chỉ get, không list).
+    // Quán chỉ tạo/xem/xóa nháp của quán mình; khách (đăng nhập ẩn danh trên trang dat.html) chỉ được đánh dấu "used" sau khi đặt đơn.
+    match /drafts/{id} {
+      allow get: if true;
+      allow list: if isAdmin() || (isSeller() && resource.data.shopId == me().shopId);
+      allow create: if isSeller() && request.resource.data.shopId == me().shopId
+        && request.resource.data.keys().hasOnly(['shopId', 'shopName', 'items', 'customerName', 'customerPhone', 'address', 'note', 'status', 'createdAtMs', 'createdBy'])
+        && request.resource.data.status == 'open'
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.items is list && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 40
+        && request.resource.data.customerName is string && request.resource.data.customerName.size() <= 80
+        && request.resource.data.customerPhone is string && request.resource.data.customerPhone.size() <= 20
+        && request.resource.data.address is string && request.resource.data.address.size() <= 300
+        && request.resource.data.note is string && request.resource.data.note.size() <= 300
+        && request.resource.data.createdAtMs is number;
+      allow update: if isAdmin()
+        || (signedIn() && resource.data.status == 'open' && request.resource.data.status == 'used' && changedOnly(['status', 'usedAt', 'orderId']));
+      allow delete: if isAdmin() || (isSeller() && me().shopId == resource.data.shopId);
+    }
     // Đánh dấu Admin đã chuyển khoản bù giảm giá cho quán theo ngày (settlements/{yyyy-mm-dd}): chỉ Admin đọc/ghi
     match /settlements/{id} { allow read, write: if isAdmin(); }
     // Bản riêng từng quán (id = yyyy-mm-dd_shopId): Admin ghi; chủ quán chỉ đọc được của quán mình để biết đã được bù chưa

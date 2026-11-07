@@ -222,6 +222,13 @@ export async function onForegroundPush(cb) {
 }
 export const createShop = d => addDoc(collection(db, 'shops'), { ...d, createdAt:serverTimestamp() });
 export const patchShop = (id, patch) => updateDoc(doc(db, 'shops', id), patch);
+/* ---- Đơn nháp quán tạo hộ khách (drafts): quán chọn món → tạo link dat.html?d=<id> → khách chỉ chia sẻ vị trí và gửi ---- */
+export const createDraft = async d => (await withTimeout(addDoc(collection(db, 'drafts'), { ...d, status:'open', createdAtMs:Date.now(), createdBy:auth.currentUser.uid }), 30000, QUOTA_MSG)).id;
+export async function listOpenDrafts(shopId) {
+  const s = await getDocs(query(collection(db, 'drafts'), where('shopId', '==', shopId), where('status', '==', 'open'), limit(30)));
+  return s.docs.map(d => ({ id:d.id, ...d.data() })).sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+}
+export const deleteDraft = id => deleteDoc(doc(db, 'drafts', id));
 export const removeShop = id => deleteDoc(doc(db, 'shops', id));
 /* Danh sách người dùng cho Admin: nhân sự (admin/seller/shipper) luôn lấy ĐỦ; khách lấy theo từng trang (mặc định 300) để tiết kiệm lượt đọc, bấm "Tải thêm" để lấy tiếp.
    Trước đây chỉ lấy 300 hồ sơ đầu (thứ tự theo mã ngẫu nhiên) nên chủ quán/shipper mới bị rớt khỏi danh sách. */
