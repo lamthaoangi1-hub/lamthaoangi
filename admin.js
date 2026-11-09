@@ -1,6 +1,6 @@
-import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261109b';
+import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261109d';
 import { shopLink, copyText } from './shoplink.js?v=20261103d';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261109b';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261109d';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -414,7 +414,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   track(fb.watchPresence((l, e) => { presence = l; if (tab === 'online') draw(); else { const b = $('#pres-n'); const n = l.filter(presOn).length; if (b) { b.textContent = n; b.style.display = n ? '' : 'none'; } } }));
   const presClock = setInterval(() => { if (tab === 'online') draw(); }, 60000);   // làm mới nhãn "x phút trước"
   track(() => clearInterval(presClock));
-  track(fb.watchNewShipCalls((l, e) => { shipCalls = l.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0)); shipCalls.forEach(c => { const k = fb.shipPhoneKey(c.customerPhone); if (k in savedLoc) return; savedLoc[k] = null; fb.getShipCustomer(c.customerPhone).then(d => { if (d) { savedLoc[k] = d; if (tab === 'shipcalls' && !document.activeElement?.closest?.('input,textarea,select')) draw(); } }).catch(() => {}); }); if (sf && !shipCalls.some(c => c.id === sf.id)) sf = null; if (!document.activeElement?.closest?.('input,textarea,select')) draw(); }));
+  track(fb.watchNewShipCalls((l, e) => { shipCalls = l.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0)); shipCalls.forEach(c => { const k = fb.shipPhoneKey(c.customerPhone); if (k in savedLoc) return; savedLoc[k] = null; fb.getShipCustomer(c.customerPhone).then(d => { if (!d) return; savedLoc[k] = d; if (sf && sf.id === c.id && !sf.link.trim()) { sfInit(c); draw(); return; } if (tab === 'shipcalls' && !document.activeElement?.closest?.('input,textarea,select')) draw(); }).catch(e => { console.warn('Không đọc được vị trí khách đã lưu', e); delete savedLoc[k]; }); }); if (sf && !shipCalls.some(c => c.id === sf.id)) sf = null; if (!document.activeElement?.closest?.('input,textarea,select')) draw(); }));
   track(fb.watchPromos(l => { promos = l; if (tab === 'promos') draw(); }));
   track(fb.watchPayouts(l => { payouts = l; draw(); }));
   track(fb.watchSettings(s => { settings = s; if (tab === 'settings') draw(); }));
@@ -723,7 +723,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     try {
       const ref = await fb.placeOrder(o); fb.notifyNewOrder(ref.id, o);
       await fb.patchShipCall(c.id, { status:'ordered', orderId:ref.id, orderCode:o.code });
-      try { const sv = { lat:sf.pt.lat, lng:sf.pt.lng, link:mapLink(sf.pt.lat, sf.pt.lng), lastShop:c.shopName || '' }; await fb.saveShipCustomer(phone, sv); savedLoc[fb.shipPhoneKey(phone)] = sv; } catch (e) { console.warn('Chưa lưu được vị trí khách', e); }   // lần sau cùng SĐT: có sẵn vị trí
+      try { const sv = { lat:sf.pt.lat, lng:sf.pt.lng, link:mapLink(sf.pt.lat, sf.pt.lng), lastShop:c.shopName || '' }; await fb.saveShipCustomer(phone, sv); savedLoc[fb.shipPhoneKey(phone)] = sv; } catch (e) { console.warn('Chưa lưu được vị trí khách', e); setTimeout(() => toast('Đơn đã tạo nhưng CHƯA lưu được vị trí khách (kiểm tra đã dán firestore.rules mới chưa): ' + fb.errMsg(e)), 2500); }   // lần sau cùng SĐT: có sẵn vị trí
       toast('Đã tạo đơn ' + o.code + ' và báo shipper'); sf = null;
     } catch (er) { toast(fb.errMsg(er)); if (sf) sf.busy = false; }
     draw();

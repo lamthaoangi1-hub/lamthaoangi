@@ -236,8 +236,19 @@ export const watchNewShipCalls = cb => watch(query(collection(db, 'shipCalls'), 
 export const patchShipCall = (id, patch) => updateDoc(doc(db, 'shipCalls', id), { ...patch, updatedAt:Date.now() });
 /* Vị trí khách đã lưu (shipCustomers/{sđt}, chỉ Admin đọc/ghi): lần sau quán chỉ cần nhập SĐT là Admin có sẵn vị trí, không phải xin lại */
 export const shipPhoneKey = p => { const d = String(p || '').replace(/\D/g, ''); return d.startsWith('84') ? '0' + d.slice(2) : d; };
-export async function getShipCustomer(phone) { const s = await getDoc(doc(db, 'shipCustomers', shipPhoneKey(phone))); return s.exists() ? s.data() : null; }
 export const saveShipCustomer = (phone, d) => setDoc(doc(db, 'shipCustomers', shipPhoneKey(phone)), { ...d, phone:shipPhoneKey(phone), updatedAt:Date.now() }, { merge:true });
+export async function getShipCustomer(phone) {
+  const key = shipPhoneKey(phone); let err = null;
+  try { const s = await getDoc(doc(db, 'shipCustomers', key)); if (s.exists()) return s.data(); } catch (e) { err = e; }
+  /* Dự phòng: chưa có bản lưu thì lấy vị trí từ đơn Giao hàng cũ cùng SĐT người nhận (đơn tạo trước khi có tính năng lưu), rồi lưu lại luôn */
+  try {
+    const q = await getDocs(query(collection(db, 'orders'), where('receiverPhone', '==', key), limit(10)));
+    const o = q.docs.map(d => d.data()).filter(x => typeof x.lat === 'number' && typeof x.lng === 'number').sort((a, b) => ((b.createdAt && b.createdAt.seconds) || 0) - ((a.createdAt && a.createdAt.seconds) || 0))[0];
+    if (o) { const sv = { lat:o.lat, lng:o.lng, link:`https://www.google.com/maps?q=${o.lat},${o.lng}`, lastShop:o.shopName || '' }; try { await saveShipCustomer(phone, sv); } catch (e) { /* chưa lưu được cũng không sao */ } return sv; }
+  } catch (e) { err = err || e; }
+  if (err) throw err;
+  return null;
+}
 export async function notifyShipCall(callId) {   // báo Admin qua Zalo (chạy nền, không chặn việc gửi yêu cầu)
   if (!UPLOAD_URL) return;
   for (let i = 0; i < 3; i++) {
