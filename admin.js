@@ -1,6 +1,6 @@
-import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261107a';
+import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261109a';
 import { shopLink, copyText } from './shoplink.js?v=20261103d';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261107a';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261109a';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -16,6 +16,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
 
   /* ===== Shipper ONLINE (presence/{uid}, shipper tự bật/tắt; realtime) ===== */
   let presence = [];
+  let shipCalls = [], sf = null;   // Gọi ship: yêu cầu của quán (status new) + form tạo đơn đang mở
   const PRES_MAX = 12 * 3600 * 1000;   // bật online mà 12 giờ không hoạt động thì coi như đã offline (khớp với Apps Script)
   const presT = p => toDate(p.lastSeen)?.getTime() ?? Date.now();
   const presOn = p => p.online === true && Date.now() - presT(p) < PRES_MAX;
@@ -349,8 +350,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     if (sel.size) sel = new Set([...sel].filter(id => shops.some(s => s.id === id)));
     const pend = live.filter(o => o.status === 'pending').length;
     const pn = presence.filter(presOn).length;
-    const T = [['revenue', '📊 Doanh thu'], ['subsidy', '💸 Bù lỗ'], ['wallet', `👛 Ví tài xế${payouts.some(p => p.status === 'pending') ? `<span class="n">${payouts.filter(p => p.status === 'pending').length}</span>` : ''}`], ['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shops', 'Cửa hàng'], ['online', `🟢 Shipper online<span class="n" id="pres-n" style="background:var(--g);${pn ? '' : 'display:none'}">${pn}</span>`], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
-    root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ revenue:revenueView, subsidy:subsidyView, wallet:walletView, orders:ordersView, shops:shopsView, users:usersView, online:onlineView, promos:promosView, settings:settingsView }[tab]()}</main>`;
+    const T = [['revenue', '📊 Doanh thu'], ['subsidy', '💸 Bù lỗ'], ['wallet', `👛 Ví tài xế${payouts.some(p => p.status === 'pending') ? `<span class="n">${payouts.filter(p => p.status === 'pending').length}</span>` : ''}`], ['orders', `Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}`], ['shipcalls', `🛵 Gọi ship${shipCalls.length ? `<span class="n">${shipCalls.length}</span>` : ''}`], ['shops', 'Cửa hàng'], ['online', `🟢 Shipper online<span class="n" id="pres-n" style="background:var(--g);${pn ? '' : 'display:none'}">${pn}</span>`], ['users', 'Người dùng'], ['promos', 'Khuyến mãi'], ['settings', 'Liên hệ']];
+    root.innerHTML = `<div class="tabs">${T.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-t="${k}">${t}</button>`).join('')}</div><main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${{ shipcalls:shipView, revenue:revenueView, subsidy:subsidyView, wallet:walletView, orders:ordersView, shops:shopsView, users:usersView, online:onlineView, promos:promosView, settings:settingsView }[tab]()}</main>`;
     if (keep && $('#uq')) $('#uq').value = keep;
     applySector();
   }
@@ -413,6 +414,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   track(fb.watchPresence((l, e) => { presence = l; if (tab === 'online') draw(); else { const b = $('#pres-n'); const n = l.filter(presOn).length; if (b) { b.textContent = n; b.style.display = n ? '' : 'none'; } } }));
   const presClock = setInterval(() => { if (tab === 'online') draw(); }, 60000);   // làm mới nhãn "x phút trước"
   track(() => clearInterval(presClock));
+  track(fb.watchNewShipCalls((l, e) => { shipCalls = l.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0)); if (sf && !shipCalls.some(c => c.id === sf.id)) sf = null; if (!document.activeElement?.closest?.('input,textarea,select')) draw(); }));
   track(fb.watchPromos(l => { promos = l; if (tab === 'promos') draw(); }));
   track(fb.watchPayouts(l => { payouts = l; draw(); }));
   track(fb.watchSettings(s => { settings = s; if (tab === 'settings') draw(); }));
@@ -651,5 +653,71 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       }
       else if (g('[data-savesettings]')) { await fb.saveSettings({ hotline:$('#c-hot').value.trim(), email:$('#c-mail').value.trim(), zalo:$('#c-zalo').value.trim() }); toast('Đã lưu'); }
     } catch (er) { toast(fb.errMsg(er)); }
+  });
+  /* ===== Gọi ship: quán gửi SĐT khách → Admin xin định vị Zalo → dán link Google Maps → tạo đơn "Giao hàng" cho shipper ===== */
+  const digitsOnly = v => String(v || '').replace(/\D/g, '');
+  const zaloPhone = v => digitsOnly(v).replace(/^0/, '84');
+  const parseMaps = v => { v = String(v || '').trim(); for (const r of [/@(-?\d+\.\d+),(-?\d+\.\d+)/, /[?&](?:q|ll|query|destination|center)=(-?\d+\.\d+)(?:,|%2C)(-?\d+\.\d+)/i, /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/, /^(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)$/]) { const m = v.match(r); if (m) return { lat:+m[1], lng:+m[2] }; } return null; };
+  const haverKm = (a, b) => { const R = 6371, rad = x => x * Math.PI / 180, dLa = rad(b.lat - a.lat), dLo = rad(b.lng - a.lng), h = Math.sin(dLa / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+  const shipKm = (c, p) => Math.round(haverKm({ lat:c.shopLat, lng:c.shopLng }, p) * 1.3 * 10) / 10;   // cùng công thức web: đường thực tế ≈ 1.3 × đường chim bay
+  const shipFeeFor = km => 15000 + Math.max(0, Math.ceil(Math.round((km - 3.5) * 10) / 10)) * 3000;   // cùng bảng phí web: 15.000đ / 3,5 km đầu, +3.000đ mỗi km
+  const sfPtHtml = c => !sf.pt ? (sf.link.trim() ? '⚠ Chưa đọc được vị trí từ link này' : 'Dán link Google Maps khách gửi qua Zalo (hoặc toạ độ 10.77,106.69)') : `✅ Vị trí khách: <a href="${mapLink(sf.pt.lat, sf.pt.lng)}" target="_blank" rel="noopener">${sf.pt.lat}, ${sf.pt.lng}</a> · cách quán ~<b>${shipKm(c, sf.pt)} km</b>`;
+  const shipForm = () => {
+    const c = shipCalls.find(x => x.id === sf.id); if (!c) return '';
+    return `<div class="card" id="sf-form" style="border:2px solid var(--g)"><h3>Tạo đơn cho shipper · ${esc(c.shopName)}</h3>
+      <label class="f">Link Google Maps của khách<input type="text" id="sf-link" value="${esc(sf.link)}" placeholder="https://maps.app.goo.gl/… hoặc 10.77,106.69"></label>
+      <div class="muted" id="sf-pt" style="margin:4px 0 6px">${sfPtHtml(c)}</div>
+      <div class="grid"><label class="f">SĐT khách<input type="tel" id="sf-phone" value="${esc(sf.phone)}"></label><label class="f">Thu hộ (đ)<input type="number" id="sf-cod" min="0" value="${esc(sf.cod)}"></label></div>
+      <div class="grid"><label class="f">Phí ship (đ)<input type="number" id="sf-fee" min="0" max="300000" value="${esc(sf.fee)}"></label>
+      <label class="f">Ai trả phí ship<select id="sf-payer"><option value="sender" ${sf.payer === 'sender' ? 'selected' : ''}>Quán trả</option><option value="receiver" ${sf.payer === 'receiver' ? 'selected' : ''}>Khách trả</option></select></label></div>
+      <label class="f">Ghi chú / địa chỉ chữ (nếu có)<input type="text" id="sf-note" maxlength="250" value="${esc(sf.note)}"></label>
+      <div class="row" style="margin-top:10px"><button class="btn" data-sfmake ${sf.busy ? 'disabled' : ''}>${sf.busy ? 'Đang tạo…' : '🛵 Tạo đơn & báo shipper'}</button><button class="btn o" data-sfclose>Đóng</button></div></div>`;
+  };
+  function shipView() {
+    const rows = shipCalls.map(c => `<div class="card"${sf && sf.id === c.id ? ' style="border-color:var(--g)"' : ''}><div class="row sb"><b>${esc(c.shopName)}</b><span class="muted">${fmtTime(c.createdAtMs)}</span></div>
+      <div>Khách: <b>${esc(c.customerPhone)}</b>${c.cod ? ' · Thu hộ <b>' + money(c.cod) + '</b>' : ''}</div>${c.note ? `<div class="muted">${esc(c.note)}</div>` : ''}
+      <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px"><a class="btn sm o" href="https://zalo.me/${zaloPhone(c.customerPhone)}" target="_blank" rel="noopener">💬 Mở Zalo khách</a><a class="btn sm o" href="${mapLink(c.shopLat, c.shopLng)}" target="_blank" rel="noopener">📍 Vị trí quán</a><button class="btn sm" data-sfopen="${esc(c.id)}">Tạo đơn</button><button class="btn sm r" data-sfdel="${esc(c.id)}">Bỏ</button></div></div>`).join('') || '<div class="empty">Chưa có yêu cầu gọi ship nào.</div>';
+    return `<div class="row sb" style="margin-bottom:10px"><b>${shipCalls.length} yêu cầu chờ xử lý</b></div>${rows}${sf ? shipForm() : ''}`;
+  }
+  async function sfReadLink(resolve) {
+    if (!sf) return; const v = sf.link.trim(), c = shipCalls.find(x => x.id === sf.id); if (!c) return;
+    let p = parseMaps(v), el = $('#sf-pt');
+    if (!p && resolve && /^https?:\/\//i.test(v)) { if (el) el.textContent = 'Đang đọc link…'; p = await fb.resolveMapLink(v); }
+    if (!sf || sf.link.trim() !== v) return;   // đã sửa tiếp trong lúc chờ
+    sf.pt = p; el = $('#sf-pt'); if (el) el.innerHTML = sfPtHtml(c);
+    if (p && !sf.feeTouched) { sf.fee = String(shipFeeFor(shipKm(c, p))); const fe = $('#sf-fee'); if (fe) fe.value = sf.fee; }
+  }
+  async function sfMake() {
+    if (!sf || sf.busy) return; const c = shipCalls.find(x => x.id === sf.id); if (!c) return;
+    const phone = digitsOnly(sf.phone), fee = Math.round(+sf.fee || 0), cod = Math.max(0, Math.round(+sf.cod || 0));
+    if (!sf.pt) return toast('Chưa có vị trí khách. Hãy dán link Google Maps');
+    if (phone.length < 9) return toast('Số điện thoại khách chưa đúng');
+    if (fee < 0 || fee > 300000) return toast('Phí ship phải từ 0 đến 300.000đ');
+    const km = shipKm(c, sf.pt), note = sf.note.trim();
+    const o = { code:'LT' + Date.now().toString().slice(-6), uid:fb.currentUser().uid, customerName:c.shopName || 'Quán', customerPhone:c.shopPhone || '', type:'delivery', shopId:'svc-delivery', shopName:c.shopName || 'Quán', shopPhone:c.shopPhone || '', shopAddress:c.shopAddress || '',
+      shopLat:c.shopLat, shopLng:c.shopLng, address:(note || ('Khách ' + phone + ' (xem vị trí trên bản đồ)')).slice(0, 300), note:('Gọi ship từ quán' + (note ? ': ' + note : '')).slice(0, 300), lat:sf.pt.lat, lng:sf.pt.lng, locAcc:null,
+      receiverName:'Khách', receiverPhone:phone, goods:'Đơn của quán', weight:'', codAmount:cod, feePayer:sf.payer, items:[{ name:'Giao hàng của quán (ngoài app)', price:0, qty:1 }],
+      subtotal:0, discount:0, promoCode:'', shipFee:fee, distanceKm:km, total:fee, payment:'cash', status:'pending', shipCallId:c.id };
+    sf.busy = true; draw();
+    try {
+      const ref = await fb.placeOrder(o); fb.notifyNewOrder(ref.id, o);
+      await fb.patchShipCall(c.id, { status:'ordered', orderId:ref.id, orderCode:o.code });
+      toast('Đã tạo đơn ' + o.code + ' và báo shipper'); sf = null;
+    } catch (er) { toast(fb.errMsg(er)); if (sf) sf.busy = false; }
+    draw();
+  }
+  root.addEventListener('input', e => {
+    if (!sf || !e.target.id || !e.target.id.startsWith('sf-')) return;
+    const k = { 'sf-link':'link', 'sf-phone':'phone', 'sf-cod':'cod', 'sf-fee':'fee', 'sf-payer':'payer', 'sf-note':'note' }[e.target.id]; if (!k) return;
+    sf[k] = e.target.value; if (k === 'fee') sf.feeTouched = true; if (k === 'link') sfReadLink(false);
+  });
+  root.addEventListener('change', e => { if (sf && e.target.id === 'sf-link') sfReadLink(true); if (sf && e.target.id === 'sf-payer') sf.payer = e.target.value; });
+  root.addEventListener('click', async e => {
+    const o = e.target.closest('[data-sfopen]');
+    if (o) { const c = shipCalls.find(x => x.id === o.dataset.sfopen); if (!c) return; sf = { id:c.id, link:'', pt:null, phone:c.customerPhone || '', cod:String(c.cod || ''), fee:'', payer:'sender', note:'', feeTouched:false, busy:false }; draw(); setTimeout(() => { const f = $('#sf-form'); if (f) f.scrollIntoView({ behavior:'smooth', block:'start' }); }, 50); return; }
+    if (e.target.closest('[data-sfclose]')) { sf = null; draw(); return; }
+    if (e.target.closest('[data-sfmake]')) { await sfMake(); return; }
+    const d = e.target.closest('[data-sfdel]');
+    if (d) { if (!confirm('Bỏ yêu cầu gọi ship này?')) return; try { await fb.patchShipCall(d.dataset.sfdel, { status:'cancelled' }); toast('Đã bỏ yêu cầu'); } catch (er) { toast(fb.errMsg(er)); } }
   });
 } };

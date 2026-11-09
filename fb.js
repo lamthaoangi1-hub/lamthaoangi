@@ -229,6 +229,34 @@ export async function listOpenDrafts(shopId) {
   return s.docs.map(d => ({ id:d.id, ...d.data() })).sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
 }
 export const deleteDraft = id => deleteDoc(doc(db, 'drafts', id));
+/* ---- Gọi ship (shipCalls): quán nhập SĐT khách → Admin xin định vị qua Zalo → Admin tạo đơn Giao hàng cho shipper ---- */
+export const createShipCall = async d => (await withTimeout(addDoc(collection(db, 'shipCalls'), { ...d, status:'new', createdAtMs:Date.now(), createdBy:auth.currentUser.uid }), 30000, QUOTA_MSG)).id;
+export const watchShopShipCalls = (shopId, cb) => watch(query(collection(db, 'shipCalls'), where('shopId', '==', shopId), limit(30)), cb);
+export const watchNewShipCalls = cb => watch(query(collection(db, 'shipCalls'), where('status', '==', 'new')), cb);
+export const patchShipCall = (id, patch) => updateDoc(doc(db, 'shipCalls', id), { ...patch, updatedAt:Date.now() });
+export async function notifyShipCall(callId) {   // báo Admin qua Zalo (chạy nền, không chặn việc gửi yêu cầu)
+  if (!UPLOAD_URL) return;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const token = await idToken();
+      const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'notifyShipCall', token, callId }) });
+      const j = await res.json().catch(() => null);
+      console.log('[Báo gọi ship]', j);
+      if (j && j.ok) return;
+    } catch (e) { console.warn('Không gửi được thông báo gọi ship', e); }
+    await new Promise(r => setTimeout(r, 3000));
+  }
+}
+/* Link rút gọn maps.app.goo.gl không đọc được toạ độ ngay trên trình duyệt (CORS) → nhờ Apps Script mở link và trả toạ độ */
+export async function resolveMapLink(url) {
+  if (!UPLOAD_URL) return null;
+  try {
+    const token = await idToken();
+    const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'resolveMap', token, url }) });
+    const j = await res.json().catch(() => null);
+    return j && j.ok ? { lat:j.lat, lng:j.lng } : null;
+  } catch (e) { return null; }
+}
 export const removeShop = id => deleteDoc(doc(db, 'shops', id));
 /* Danh sách người dùng cho Admin: nhân sự (admin/seller/shipper) luôn lấy ĐỦ; khách lấy theo từng trang (mặc định 300) để tiết kiệm lượt đọc, bấm "Tải thêm" để lấy tiếp.
    Trước đây chỉ lấy 300 hồ sơ đầu (thứ tự theo mã ngẫu nhiên) nên chủ quán/shipper mới bị rớt khỏi danh sách. */
