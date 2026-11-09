@@ -683,10 +683,22 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   };
   function shipView() {
     const rows = shipCalls.map(c => `<div class="card"${sf && sf.id === c.id ? ' style="border-color:var(--g)"' : ''}><div class="row sb"><b>${esc(c.shopName)}</b><span class="muted">${fmtTime(c.createdAtMs)}</span></div>
-      <div>Khách: <b>${esc(c.customerPhone)}</b>${c.cod ? ' · Thu hộ <b>' + money(c.cod) + '</b>' : ''}</div>${savedLoc[fb.shipPhoneKey(c.customerPhone)] ? '<div style="color:var(--g);font-weight:600">✅ Đã có vị trí khách từ lần trước, không cần xin lại. Bấm Tạo đơn.</div>' : ''}${c.note ? `<div class="muted">${esc(c.note)}</div>` : ''}
-      <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px"><a class="btn sm o" href="https://zalo.me/${zaloPhone(c.customerPhone)}" target="_blank" rel="noopener">💬 Mở Zalo khách</a><a class="btn sm o" href="${mapLink(c.shopLat, c.shopLng)}" target="_blank" rel="noopener">📍 Vị trí quán</a><button class="btn sm" data-sfopen="${esc(c.id)}">Tạo đơn</button><button class="btn sm r" data-sfdel="${esc(c.id)}">Bỏ</button></div></div>`).join('') || '<div class="empty">Chưa có yêu cầu gọi ship nào.</div>';
+      <div>Khách: <b>${esc(c.customerPhone)}</b>${c.cod ? ' · Thu hộ <b>' + money(c.cod) + '</b>' : ''}</div>${shipSavedHtml(c)}${c.note ? `<div class="muted">${esc(c.note)}</div>` : ''}
+      <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px"><a class="btn sm o" href="https://zalo.me/${zaloPhone(c.customerPhone)}" target="_blank" rel="noopener">${savedLoc[fb.shipPhoneKey(c.customerPhone)] ? '💬 Xin lại vị trí' : '💬 Xin vị trí qua Zalo'}</a><a class="btn sm o" href="${mapLink(c.shopLat, c.shopLng)}" target="_blank" rel="noopener">📍 Vị trí quán</a>${savedLoc[fb.shipPhoneKey(c.customerPhone)] ? `<button class="btn sm" data-sfquick="${esc(c.id)}">🚀 Gửi đơn ngay</button><button class="btn sm o" data-sfopen="${esc(c.id)}">Sửa</button>` : `<button class="btn sm" data-sfopen="${esc(c.id)}">Tạo đơn (đã có link)</button>`}<button class="btn sm r" data-sfdel="${esc(c.id)}">Bỏ</button></div></div>`).join('') || '<div class="empty">Chưa có yêu cầu gọi ship nào.</div>';
     return `<div class="row sb" style="margin-bottom:10px"><b>${shipCalls.length} yêu cầu chờ xử lý</b></div>${rows}${sf ? shipForm() : ''}`;
   }
+  const sfInit = c => {
+    sf = { id:c.id, link:'', pt:null, phone:c.customerPhone || '', cod:String(c.cod || ''), fee:'', payer:'sender', note:'', feeTouched:false, busy:false };
+    const sv = savedLoc[fb.shipPhoneKey(c.customerPhone)];   // khách cũ: điền sẵn vị trí đã lưu + phí theo app
+    if (sv && sv.lat != null) { sf.pt = { lat:sv.lat, lng:sv.lng }; sf.link = sv.link || mapLink(sv.lat, sv.lng); sf.fee = String(shipQuote(c, sf.pt).fee); }
+    return sf;
+  };
+  const shipSavedHtml = c => {
+    const sv = savedLoc[fb.shipPhoneKey(c.customerPhone)];
+    if (!sv || sv.lat == null) return '<div style="color:var(--o,#e8590c);font-weight:600">🆕 Khách mới: nhắn Zalo xin vị trí, nhận link Google Maps rồi bấm Tạo đơn</div>';
+    const q = shipQuote(c, { lat:sv.lat, lng:sv.lng });
+    return `<div style="color:var(--g);font-weight:600">✅ Khách cũ · đã có vị trí (<a href="${mapLink(sv.lat, sv.lng)}" target="_blank" rel="noopener">xem bản đồ</a>) · ~${q.km} km · phí ${money(q.fee)}</div>`;
+  };
   async function sfReadLink(resolve) {
     if (!sf) return; const v = sf.link.trim(), c = shipCalls.find(x => x.id === sf.id); if (!c) return;
     let p = parseMaps(v), el = $('#sf-pt');
@@ -704,7 +716,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     if (fee < 0 || fee > 300000) return toast('Phí ship phải từ 0 đến 300.000đ');
     const q = shipQuote(c, sf.pt), km = q.km, note = sf.note.trim();
     const o = { code:'LT' + Date.now().toString().slice(-6), uid:fb.currentUser().uid, customerName:c.shopName || 'Quán', customerPhone:c.shopPhone || '', type:'delivery', shopId:'svc-delivery', shopName:c.shopName || 'Quán', shopPhone:c.shopPhone || '', shopAddress:c.shopAddress || '',
-      shopLat:c.shopLat, shopLng:c.shopLng, address:(note || ('Khách ' + phone + ' (xem vị trí trên bản đồ)')).slice(0, 300), note:('Gọi ship từ quán' + (note ? ': ' + note : '')).slice(0, 300), lat:sf.pt.lat, lng:sf.pt.lng, locAcc:null,
+      shopLat:c.shopLat, shopLng:c.shopLng, address:(note || ('Khách ' + phone + ' (xem vị trí trên bản đồ)')).slice(0, 300), note:('Gọi ship từ quán' + ([note, c.note].filter(Boolean).length ? ': ' + [note, c.note].filter(Boolean).join(' · ') : '')).slice(0, 300), lat:sf.pt.lat, lng:sf.pt.lng, locAcc:null,
       receiverName:'Khách', receiverPhone:phone, goods:'Đơn của quán', weight:'', codAmount:cod, feePayer:sf.payer, items:[{ name:'Giao hàng của quán (ngoài app)', price:0, qty:1 }],
       subtotal:0, discount:0, promoCode:'', shipFee:fee, ...(fee === q.fee ? { ...(q.night ? { nightFee:q.night } : {}), ...(q.wx ? { weatherFee:q.wx } : {}) } : {}), distanceKm:km, total:fee, payment:'cash', status:'pending', shipCallId:c.id };
     sf.busy = true; draw();
@@ -724,9 +736,10 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   root.addEventListener('change', e => { if (sf && e.target.id === 'sf-link') sfReadLink(true); if (sf && e.target.id === 'sf-payer') sf.payer = e.target.value; });
   root.addEventListener('click', async e => {
     const o = e.target.closest('[data-sfopen]');
-    if (o) { const c = shipCalls.find(x => x.id === o.dataset.sfopen); if (!c) return; sf = { id:c.id, link:'', pt:null, phone:c.customerPhone || '', cod:String(c.cod || ''), fee:'', payer:'sender', note:'', feeTouched:false, busy:false };
-      const sv = savedLoc[fb.shipPhoneKey(c.customerPhone)]; if (sv && sv.lat != null) { sf.pt = { lat:sv.lat, lng:sv.lng }; sf.link = sv.link || mapLink(sv.lat, sv.lng); sf.fee = String(shipQuote(c, sf.pt).fee); }
+    if (o) { const c = shipCalls.find(x => x.id === o.dataset.sfopen); if (!c) return; sfInit(c);
       draw(); setTimeout(() => { const f = $('#sf-form'); if (f) f.scrollIntoView({ behavior:'smooth', block:'start' }); }, 50); return; }
+    const qk = e.target.closest('[data-sfquick]');
+    if (qk) { const c = shipCalls.find(x => x.id === qk.dataset.sfquick); if (!c || (sf && sf.busy)) return; sfInit(c); await sfMake(); return; }   // khách cũ: 1 chạm là tạo đơn + báo shipper
     if (e.target.closest('[data-sfclose]')) { sf = null; draw(); return; }
     if (e.target.closest('[data-sfmake]')) { await sfMake(); return; }
     const d = e.target.closest('[data-sfdel]');
