@@ -106,8 +106,10 @@ async function notifyNewOrder(user, orderId, data) {
   }
 }
 
+let MAINT = { on:false, msg:'' };
 async function send() {
   if (sending || !LOC) return;
+  if (MAINT.on) return toast('Hệ thống đang bảo trì, chưa nhận đơn');
   if (!isOpenNow(SHOP)) return toast('Quán đang đóng cửa');
   const c = calc(); if (c.mode === 'need-loc') return toast('Hãy chia sẻ vị trí để tính phí giao hàng');
   sending = true;
@@ -179,6 +181,8 @@ function track(orderId, code, total) {
     if (!ss.exists()) return message('🏪', 'Quán không còn hoạt động', 'Vui lòng liên hệ quán để được hỗ trợ.');
     SHOP = ss.data();
     const c = st && st.exists() ? st.data() : {};
+    MAINT = c.maintenanceOn === true ? { on:true, msg:String(c.maintenanceMsg || '').trim().slice(0, 300) } : { on:false, msg:'' };
+    if (MAINT.on) return message('🛠', 'Hệ thống đang bảo trì', esc(MAINT.msg || 'Tạm thời chưa nhận đơn. Vui lòng quay lại sau ít phút. Xin lỗi vì sự bất tiện này!'), '<p style="margin-top:14px"><button class="btn sm" onclick="location.reload()">Tải lại</button></p>');
     const pp = Number(c.platformPct); PLAT = pp > 0 && pp <= 50 ? pp : 0;
     const wf = Math.round(Number(c.weatherFee)); WX = { on:c.weatherOn === true && wf > 0, fee:wf > 0 ? Math.min(wf, 100000) : 0, label:String(c.weatherLabel || '').trim().slice(0, 40) || 'Phụ phí thời tiết xấu' };
     ADDR = DRAFT.address || '';

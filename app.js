@@ -129,6 +129,18 @@
   const CART = { shop:null, q:{}, promo:'', shipPromo:'', note:'', address:null, loc:null, pay:'cash' };
   /* Giảm giá do Lâm Thao Ăn Gì chịu (Admin bật ở Liên hệ → settings/app.platformPct). Khách thấy giảm, quán vẫn nhận đủ tiền, Admin bù lại cho quán cuối ngày. */
   const PLAT = { pct:0 };
+  /* Chế độ bảo trì (Admin bật ở Liên hệ → settings/app: maintenanceOn, maintenanceMsg). Khách vẫn xem được web nhưng thấy thông báo và không đặt được đơn. */
+  const MAINT = { on:false, msg:'' };
+  const MAINT_DEFAULT = 'Hệ thống đang bảo trì, tạm thời chưa nhận đơn. Vui lòng quay lại sau ít phút. Xin lỗi vì sự bất tiện này!';
+  const maintBlock = () => { if (!MAINT.on) return false; toast('🛠 ' + (MAINT.msg || MAINT_DEFAULT)); return true; };
+  function renderMaintBar() {
+    let el = document.getElementById('maint-bar');
+    if (!MAINT.on) { if (el) el.remove(); document.body.classList.remove('is-maint'); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'maint-bar'; el.setAttribute('role', 'alert'); document.body.prepend(el); }
+    el.innerHTML = '<b>🛠 Hệ thống đang bảo trì</b><span></span>';
+    el.lastChild.textContent = MAINT.msg || MAINT_DEFAULT;
+    document.body.classList.add('is-maint');
+  }
   /* Link riêng từng quán: https://lamthaoangi.io.vn/?quan=<tên-quán-không-dấu> (hoặc ?quan=<mã quán>) */
   const slugOf = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   let DEEP = (() => { try { return (new URLSearchParams(location.search).get('quan') || '').trim(); } catch (e) { return ''; } })();
@@ -875,13 +887,14 @@
         <div class="co-pay">${BANK && CART.pay === 'bank' ? '🏦 Sau khi bấm đặt đơn, bạn sẽ nhận mã QR để chuyển khoản. Nội dung chuyển khoản là mã đơn.' : '💵 Thanh toán tiền mặt khi nhận hàng'}</div>
       </section>
 
-      <div class="co-foot"><button class="sheet-btn" data-placeorder ${CART.loc ? '' : 'disabled'}>${CART.loc ? 'Đặt đơn · ' + money(c.total) : 'Chia sẻ vị trí để đặt đơn'}</button></div>
+      <div class="co-foot"><button class="sheet-btn" data-placeorder ${CART.loc && !MAINT.on ? '' : 'disabled'}>${MAINT.on ? '🛠 Đang bảo trì – chưa nhận đơn' : CART.loc ? 'Đặt đơn · ' + money(c.total) : 'Chia sẻ vị trí để đặt đơn'}</button></div>
     </div>`);
     if (keepScroll) sheetEl.scrollTop = keepScroll;
   }
   const readCheckout = () => { CART.address = $('#co-addr')?.value ?? CART.address; CART.note = $('#co-note')?.value ?? CART.note; };
   async function placeOrderNow(btn) {
     readCheckout();
+    if (maintBlock()) return;
     const { s, lines } = cartData(); if (!s || !lines.length) return;
     if (s.open === false) return toast('Quán đang đóng cửa');
     if (!CART.loc) return toast('Vui lòng chia sẻ vị trí giao hàng để gửi đơn');
@@ -1152,6 +1165,7 @@
   }
 
   async function svcPlace(btn) {
+    if (maintBlock()) return;
     svcRead();
     const D = SV.type === 'delivery', q = svcQuote(); if (!q) return toast('Hãy ghim điểm trên bản đồ');
     if (q.far) return toast(`Quãng đường vượt ${MAXKM} km`);
@@ -1534,7 +1548,8 @@
       /* Quán tự đóng/mở theo giờ: mỗi 30 giây kiểm tra, có quán đổi trạng thái thì vẽ lại danh sách */
       setInterval(() => { if (SHOPS.length && SHOPS.map(x => x.open ? 1 : 0).join('') !== openSig) applyShops(); }, 30000);
       FB.watchPromos(l => { PROMOS = l.filter(p => p.active !== false); rebuildNotices(); if (S.tab === 'profile') renderProfile(); });
-      FB.watchSettings(c => { ['base', 'baseKm', 'perKm', 'road'].forEach(k => { const v = Number(c['ship' + k[0].toUpperCase() + k.slice(1)]); if (v > 0) SHIPCFG[k] = v; });
+      FB.watchSettings(c => { { const m = c.maintenanceOn === true; const msg = String(c.maintenanceMsg || '').trim().slice(0, 300); if (m !== MAINT.on || msg !== MAINT.msg) { MAINT.on = m; MAINT.msg = msg; renderMaintBar(); const sh = $('#sheet'); if (sh && !sh.hidden && sh.querySelector('.co')) checkoutSheet(); } }
+        ['base', 'baseKm', 'perKm', 'road'].forEach(k => { const v = Number(c['ship' + k[0].toUpperCase() + k.slice(1)]); if (v > 0) SHIPCFG[k] = v; });
         [['w2', 'shipW2'], ['w3', 'shipW3'], ['errand', 'errandFee']].forEach(([k, f]) => { if (c[f] != null && c[f] !== '' && Number(c[f]) >= 0) SVCCFG[k] = Number(c[f]); }); CONTACT = { ...CONTACT, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v)) };
         const bin = String(c.bankBin || '').replace(/\D/g, ''), acc = String(c.bankAccount || '').replace(/\s/g, '');
         const pp = Number(c.platformPct); const np = pp > 0 && pp <= 50 ? pp : 0;

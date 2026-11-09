@@ -103,6 +103,31 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // Vị trí khách đã lưu cho Gọi ship (id = số điện thoại dạng 0xxxxxxxxx): CHỈ Admin đọc/ghi (Apps Script đọc bằng quyền riêng của chủ script)
+    match /shipCustomers/{phone} { allow read, write: if isAdmin(); }
+
+    // Gọi ship (đơn ngoài app): quán gửi SĐT khách + vị trí quán; Admin liên hệ khách, tạo đơn Giao hàng rồi đánh dấu 'ordered'.
+    // Quán chỉ tạo / xem / hủy yêu cầu của quán mình (khi còn 'new'); Admin xem và sửa tất cả.
+    match /shipCalls/{id} {
+      allow read: if isAdmin() || (isSeller() && resource.data.shopId == me().shopId);
+      allow create: if isSeller() && request.resource.data.shopId == me().shopId
+        && request.resource.data.keys().hasOnly(['shopId', 'shopName', 'shopPhone', 'shopAddress', 'shopLat', 'shopLng', 'customerPhone', 'cod', 'note', 'status', 'createdAtMs', 'createdBy'])
+        && request.resource.data.status == 'new'
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.customerPhone is string && request.resource.data.customerPhone.size() >= 9 && request.resource.data.customerPhone.size() <= 15
+        && request.resource.data.note is string && request.resource.data.note.size() <= 300
+        && request.resource.data.cod is number && request.resource.data.cod >= 0 && request.resource.data.cod <= 20000000
+        && request.resource.data.shopLat is number && request.resource.data.shopLng is number
+        && request.resource.data.shopName is string && request.resource.data.shopName.size() <= 100
+        && request.resource.data.shopAddress is string && request.resource.data.shopAddress.size() <= 300
+        && request.resource.data.shopPhone is string && request.resource.data.shopPhone.size() <= 20
+        && request.resource.data.createdAtMs is number;
+      allow update: if isAdmin()
+        || (isSeller() && me().shopId == resource.data.shopId && resource.data.status == 'new'
+            && request.resource.data.status == 'cancelled' && changedOnly(['status', 'updatedAt']));
+      allow delete: if isAdmin();
+    }
+
     // Đơn hàng
     match /orders/{id} {
       allow read: if signedIn() && (
@@ -114,6 +139,9 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.status == 'pending'
+        // chế độ bảo trì (Admin bật ở settings/app.maintenanceOn): khách không đặt được đơn mới
+        && (!exists(/databases/$(database)/documents/settings/app)
+            || get(/databases/$(database)/documents/settings/app).data.get('maintenanceOn', false) != true)
         && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 40
         && request.resource.data.code is string && request.resource.data.code.size() <= 20
         && request.resource.data.address is string && request.resource.data.address.size() <= 300
