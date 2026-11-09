@@ -234,6 +234,10 @@ export const createShipCall = async d => (await withTimeout(addDoc(collection(db
 export const watchShopShipCalls = (shopId, cb) => watch(query(collection(db, 'shipCalls'), where('shopId', '==', shopId), limit(30)), cb);
 export const watchNewShipCalls = cb => watch(query(collection(db, 'shipCalls'), where('status', '==', 'new')), cb);
 export const patchShipCall = (id, patch) => updateDoc(doc(db, 'shipCalls', id), { ...patch, updatedAt:Date.now() });
+/* Vị trí khách đã lưu (shipCustomers/{sđt}, chỉ Admin đọc/ghi): lần sau quán chỉ cần nhập SĐT là Admin có sẵn vị trí, không phải xin lại */
+export const shipPhoneKey = p => { const d = String(p || '').replace(/\D/g, ''); return d.startsWith('84') ? '0' + d.slice(2) : d; };
+export async function getShipCustomer(phone) { const s = await getDoc(doc(db, 'shipCustomers', shipPhoneKey(phone))); return s.exists() ? s.data() : null; }
+export const saveShipCustomer = (phone, d) => setDoc(doc(db, 'shipCustomers', shipPhoneKey(phone)), { ...d, phone:shipPhoneKey(phone), updatedAt:Date.now() }, { merge:true });
 export async function notifyShipCall(callId) {   // báo Admin qua Zalo (chạy nền, không chặn việc gửi yêu cầu)
   if (!UPLOAD_URL) return;
   for (let i = 0; i < 3; i++) {

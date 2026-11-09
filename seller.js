@@ -1,7 +1,7 @@
-import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261109a';
+import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261109b';
 import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261023a';
 import { shopLink, copyText, siteBase } from './shoplink.js?v=20261103a';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261109a';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261109b';
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
@@ -90,11 +90,12 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
       <div class="muted">${c.cod ? 'Thu hộ ' + money(c.cod) + (c.note ? ' · ' : '') : ''}${esc(c.note || '')}</div></div>
       <div class="row"><span class="badge ${t[1]}">${t[0]}</span>${c.status === 'new' ? `<button class="btn sm r" data-cancelship="${esc(c.id)}">Hủy</button>` : ''}</div></div>`; }).join('') || '<div class="muted">Chưa có yêu cầu nào.</div>';
     return `<div class="card" id="sc-form"><h3>🛵 Gọi ship (đơn ngoài app)</h3>
-      <p class="muted" style="margin:4px 0 6px">Khách mua trực tiếp hoặc đặt qua Zalo/điện thoại? Bạn chỉ cần nhập số điện thoại khách. Admin sẽ liên hệ khách xin định vị rồi gọi shipper tới lấy hàng tại quán.</p>
+      <p class="muted" style="margin:4px 0 6px">Bạn chỉ cần nhập số điện thoại khách. Admin sẽ liên hệ khách xin định vị rồi gọi shipper tới lấy hàng. Khách đã từng giao thì hệ thống nhớ vị trí, không phải xin lại.</p>
       ${noGps ? '<p style="color:var(--red);font-weight:600">Quán chưa lưu vị trí GPS. Vào tab Cửa hàng → bấm "Chia sẻ vị trí quán" trước khi gọi ship.</p>' : ''}
-      <div class="grid"><label class="f">Số điện thoại khách *<input type="tel" id="sc-phone" inputmode="tel" maxlength="15" value="${esc(sc.phone)}" placeholder="09xx xxx xxx"></label>
-      <label class="f">Tiền thu hộ khách (đ)<input type="number" id="sc-cod" inputmode="numeric" min="0" value="${esc(sc.cod)}" placeholder="0"></label></div>
-      <label class="f">Ghi chú cho shipper<input type="text" id="sc-note" maxlength="300" value="${esc(sc.note)}" placeholder="VD: 2 phần cơm, gọi khách trước khi tới"></label>
+      <label class="f">Số điện thoại khách *<input type="tel" id="sc-phone" inputmode="tel" maxlength="15" value="${esc(sc.phone)}" placeholder="09xx xxx xxx"></label>
+      <details style="margin-top:8px"${sc.cod || sc.note ? ' open' : ''}><summary class="muted" style="cursor:pointer">Thêm tiền thu hộ / ghi chú (không bắt buộc)</summary>
+      <div class="grid"><label class="f">Tiền thu hộ khách (đ)<input type="number" id="sc-cod" inputmode="numeric" min="0" value="${esc(sc.cod)}" placeholder="0"></label>
+      <label class="f">Ghi chú cho shipper<input type="text" id="sc-note" maxlength="300" value="${esc(sc.note)}" placeholder="VD: 2 phần cơm"></label></div></details>
       <button class="btn" data-sendship ${noGps || scBusy ? 'disabled' : ''} style="margin-top:10px">${scBusy ? 'Đang gửi…' : 'Gửi yêu cầu cho Admin'}</button></div>
       <div class="card"><h3>Yêu cầu gần đây</h3>${rows}</div>`;
   }
