@@ -265,10 +265,10 @@
   /* ---------------- HOME ---------------- */
   /* Các mục trên trang chủ. Mỗi cửa hàng có trường sector (Admin chọn khi thêm / sửa quán): food | fresh | fashion | service. Không có = food. */
   const SECTORS = {
-    food:    { t:'Đồ ăn', img:'icon-food.png', ph:'Bạn muốn ăn gì hôm nay?', head:'Quán ngon gần bạn', cats:['Tất cả','Nổi bật','Bán chạy','Quán mới','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'], empty:'Các quán sẽ sớm có mặt ở đây.' },
-    fresh:   { t:'Thực phẩm sống', img:'icon-fresh.png', ph:'Bạn muốn mua gì hôm nay?', head:'Thực phẩm tươi sống', cats:['Tất cả','Nổi bật','Bán chạy','Quán mới','Thịt','Cá','Hải sản','Rau củ','Trứng'], empty:'Mục Thực phẩm sống sẽ sớm ra mắt.' },
-    fashion: { t:'Thời trang', img:'icon-fashion.png', ph:'Bạn muốn tìm cửa hàng nào?', head:'Cửa hàng thời trang', cats:['Tất cả','Nổi bật','Quán mới','Nữ','Nam','Trẻ em','Phụ kiện'], empty:'Mục Thời trang sẽ sớm ra mắt.' },
-    service: { t:'Dịch vụ khác', img:'icon-other.png', ph:'Bạn cần dịch vụ gì?', head:'Dịch vụ tại Lâm Thao', cats:['Tất cả','Nổi bật','Quán mới','Chụp ảnh','Makeup','Cúng - Lễ','Khác'], empty:'Các dịch vụ sẽ sớm có mặt ở đây.' },
+    food:    { t:'Đồ ăn', img:'icon-food.png', ph:'Bạn muốn ăn gì hôm nay?', head:'Quán ngon gần bạn', cats:['Tất cả','Quán gần bạn','Nổi bật','Bán chạy','Quán mới','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'], empty:'Các quán sẽ sớm có mặt ở đây.' },
+    fresh:   { t:'Thực phẩm sống', img:'icon-fresh.png', ph:'Bạn muốn mua gì hôm nay?', head:'Thực phẩm tươi sống', cats:['Tất cả','Quán gần bạn','Nổi bật','Bán chạy','Quán mới','Thịt','Cá','Hải sản','Rau củ','Trứng'], empty:'Mục Thực phẩm sống sẽ sớm ra mắt.' },
+    fashion: { t:'Thời trang', img:'icon-fashion.png', ph:'Bạn muốn tìm cửa hàng nào?', head:'Cửa hàng thời trang', cats:['Tất cả','Quán gần bạn','Nổi bật','Quán mới','Nữ','Nam','Trẻ em','Phụ kiện'], empty:'Mục Thời trang sẽ sớm ra mắt.' },
+    service: { t:'Dịch vụ khác', img:'icon-other.png', ph:'Bạn cần dịch vụ gì?', head:'Dịch vụ tại Lâm Thao', cats:['Tất cả','Quán gần bạn','Nổi bật','Quán mới','Chụp ảnh','Makeup','Cúng - Lễ','Khác'], empty:'Các dịch vụ sẽ sớm có mặt ở đây.' },
   };
   const sectorOf = s => (s && SECTORS[s.sector] ? s.sector : 'food');
   const SERVICES = Object.keys(SECTORS).map((k, i) => ({ k, t:SECTORS[k].t, img:SECTORS[k].img }));
@@ -296,11 +296,34 @@
         <div class="dots">${L.map((_, j) => `<i class="${j === i ? 'on' : ''}"></i>`).join('')}</div>`;
   };
 
+  /* ---- Danh mục "Quán gần bạn": chỉ xin vị trí khi khách bấm vào; sắp quán từ gần đến xa và hiện khoảng cách ---- */
+  const NEAR_CAT = 'Quán gần bạn';
+  const NEAR = { loc:null, at:0, state:'idle' };   // state: idle | loading | ok | denied | unsupported
+  const fmtKm = km => km < 1 ? Math.max(50, Math.round(km * 1000 / 50) * 50) + ' m' : km.toFixed(1).replace('.', ',') + ' km';
+  const nearRefresh = () => { const l = $('#home-list'); if (l && S.home.cat === NEAR_CAT) l.innerHTML = shopListHtml(); };
+  function nearAsk() {
+    if (!navigator.geolocation) { NEAR.state = 'unsupported'; return nearRefresh(); }
+    if (!NEAR.loc) NEAR.state = 'loading';
+    nearRefresh();
+    navigator.geolocation.getCurrentPosition(p => {
+      NEAR.loc = { lat:p.coords.latitude, lng:p.coords.longitude }; NEAR.at = Date.now(); NEAR.state = 'ok'; nearRefresh();
+    }, () => { if (!NEAR.loc) NEAR.state = 'denied'; nearRefresh(); }, { enableHighAccuracy:false, timeout:15000, maximumAge:120000 });
+  }
+  function nearBox() {
+    if (NEAR.state === 'loading') return `<div class="empty"><b>Đang xác định vị trí của bạn…</b>Vui lòng chọn "Cho phép" nếu trình duyệt hỏi.</div>`;
+    const msg = NEAR.state === 'unsupported' ? 'Thiết bị này không hỗ trợ định vị.' : 'Hãy cho phép truy cập vị trí để xem quán gần bạn nhất.';
+    return `<div class="empty"><b>Chưa có vị trí của bạn</b>${msg}${NEAR.state === 'unsupported' ? '' : `<button class="sheet-btn" style="margin-top:14px" data-nearallow>📍 Cho phép vị trí</button>${NEAR.state === 'denied' ? '<div class="sub" style="margin-top:10px;line-height:1.5">Nếu không thấy hộp hỏi, bạn đã chặn vị trí: bấm biểu tượng ổ khóa cạnh địa chỉ web → Vị trí → Cho phép, rồi bấm lại nút trên.</div>' : ''}`}</div>`;
+  }
   function filteredShops() {
     const hc = S.home.cat;
-    let list = SHOPS.filter(s => sectorOf(s) === S.home.sector).filter(s => hc === 'Tất cả' || (hc === 'Nổi bật' ? s.featured : hc === 'Bán chạy' ? s.hot : hc === 'Quán mới' ? s.isNew : (s.group.includes(hc) || norm(s.cat).includes(norm(hc)))));
+    if (hc === NEAR_CAT && !NEAR.loc) return [];
+    let list = SHOPS.filter(s => sectorOf(s) === S.home.sector).filter(s => hc === 'Tất cả' || hc === NEAR_CAT || (hc === 'Nổi bật' ? s.featured : hc === 'Bán chạy' ? s.hot : hc === 'Quán mới' ? s.isNew : (s.group.includes(hc) || norm(s.cat).includes(norm(hc)))));
     if (hc === 'Bán chạy') list = [...list].sort((a, b) => (b.sold - a.sold) || (b.hotFlag - a.hotFlag));
     if (hc === 'Quán mới') list = [...list].sort((a, b) => b.created - a.created);
+    if (hc === NEAR_CAT) {
+      list.forEach(s => { s._km = (s.lat != null && s.lng != null) ? haverKm(NEAR.loc, { lat:s.lat, lng:s.lng }) : null; });
+      list = [...list].sort((a, b) => (a._km == null) - (b._km == null) || (a._km - b._km));   // quán chưa có GPS xuống cuối
+    }
     const q = norm(S.home.q.trim());
     if (q) list = list.filter(s => norm(s.name + ' ' + s.cat + ' ' + s.menu.map(m => m[0]).join(' ')).includes(q));
     if (S.home.sort === 'rate') list = [...list].sort((a, b) => b.rate - a.rate);
@@ -311,7 +334,7 @@
   function shopCard(s, i = 0) {
     return `<article class="shop" data-shop="${s.id}" style="animation-delay:${Math.min(i, 5) * 35}ms">
       <img class="img" src="${s.img}" alt="${s.name}" loading="lazy" decoding="async">
-      <div class="info"><h3>${s.name}</h3><div class="cat">${s.homeCat}</div>${shopMeta(s)}${shopTags(s)}</div>
+      <div class="info"><h3>${s.name}</h3><div class="cat">${s.homeCat}</div>${S.home.cat === NEAR_CAT && s._km != null ? `<div class="cat" style="color:var(--green-d);font-weight:600">📍 Cách bạn ${fmtKm(s._km)}</div>` : ''}${shopMeta(s)}${shopTags(s)}</div>
       <button class="heart ${isFav(s.id) ? 'on' : ''}" data-heart="${s.id}" aria-label="Yêu thích">${ic('heart')}</button>
     </article>`;
   }
@@ -319,9 +342,10 @@
     const l = filteredShops();
     if (LIVE && !SHOPS.length) return `<div class="empty"><b>${shopsLoaded ? 'Chưa có quán nào' : 'Đang tải danh sách quán…'}</b>${shopsLoaded ? 'Các quán sẽ sớm có mặt ở đây.' : ''}</div>`;
     if (LIVE && shopsLoaded && !SHOPS.some(x => sectorOf(x) === S.home.sector)) return `<div class="empty"><b>Sắp ra mắt</b>${SECTORS[S.home.sector].empty}</div>`;
+    if (S.home.cat === NEAR_CAT && !NEAR.loc) return nearBox();
     return l.length ? l.map(shopCard).join('') : `<div class="empty"><b>Chưa tìm thấy quán phù hợp</b>Hãy thử từ khoá hoặc danh mục khác nhé.</div>`;
   }
-  const chipsHtml = () => SECTORS[S.home.sector].cats.map(c => `<button class="chip ${c === S.home.cat ? 'on' : ''}" data-cat="${c}">${c === 'Bán chạy' ? '🔥 ' : ''}${c}</button>`).join('');
+  const chipsHtml = () => SECTORS[S.home.sector].cats.map(c => `<button class="chip ${c === S.home.cat ? 'on' : ''}" data-cat="${c}">${c === 'Bán chạy' ? '🔥 ' : c === NEAR_CAT ? '📍 ' : ''}${c}</button>`).join('');
   /* Đổi mục (Đồ ăn / Thời trang / Thực phẩm sống…): chỉ cập nhật phần thay đổi, KHÔNG vẽ lại cả trang chủ (ảnh nền, banner…) nên bấm nhanh không bị khựng */
   function switchSector(k) {
     S.home.sector = k; S.home.cat = 'Tất cả'; S.home.q = ''; S.home.sort = 'default';
@@ -1240,8 +1264,13 @@
     const goBtn = t.closest('[data-go]'); if (goBtn) { go(goBtn.dataset.go); return; }
     const shop = t.closest('[data-shop]'); if (shop) { openShopPage(SHOPS.find(x => x.id === shop.dataset.shop)); return; }
 
+    if (t.closest('[data-nearallow]')) { nearAsk(); return; }
     const cat = t.closest('[data-cat]');
-    if (cat) { S.home.cat = cat.dataset.cat; $$('#home-chips .chip').forEach(c => c.classList.toggle('on', c === cat)); $('#home-list').innerHTML = shopListHtml(); return; }
+    if (cat) {
+      S.home.cat = cat.dataset.cat; $$('#home-chips .chip').forEach(c => c.classList.toggle('on', c === cat)); $('#home-list').innerHTML = shopListHtml();
+      if (S.home.cat === NEAR_CAT && (!NEAR.loc || Date.now() - NEAR.at > 180000)) nearAsk();   // xin vị trí khi khách bấm danh mục (làm mới nếu đã quá 3 phút)
+      return;
+    }
     const fcat = t.closest('[data-fcat]');
     if (fcat) { S.fav.cat = fcat.dataset.fcat; renderFavorites(); return; }
     const svc = t.closest('[data-svc]');
@@ -1370,24 +1399,18 @@
     }, 4000);
   }
 
-  /* ---------------- Mỗi lần khách vào web: mời cho phép Vị trí + Thông báo ----------------
-     Chỉ hỏi những quyền chưa được cấp / chưa bị chặn. Mỗi lượt truy cập hỏi 1 lần; bấm "Để sau" thì lần vào web sau hỏi lại.
+  /* ---------------- Mỗi lần khách vào web: mời bật Thông báo (KHÔNG xin quyền Vị trí khi vào web; vị trí chỉ hỏi khi khách bấm nút định vị) ----------------
+     Chỉ hỏi quyền chưa được cấp / chưa bị chặn. Mỗi lượt truy cập hỏi 1 lần; bấm "Để sau" thì lần vào web sau hỏi lại.
      Hỏi qua nút bấm của khách (trình duyệt tin cậy hơn và Safari bắt buộc) thay vì bật hộp thoại trình duyệt tự động. */
   async function permStates() {
-    let geo = 'unsupported', notif = 'unsupported';
-    if (navigator.geolocation) {
-      geo = 'prompt';
-      try { if (navigator.permissions && navigator.permissions.query) geo = (await navigator.permissions.query({ name:'geolocation' })).state; }
-      catch (e) { try { if (localStorage.getItem('geoOK') === '1') geo = 'granted'; } catch (e2) {} }
-    }
+    let notif = 'unsupported';
     if (FB) { const st = FB.pushState(S.user ? S.user.uid : ''); notif = st === 'off' ? 'granted' : st; }   // 'default' | 'granted' | 'denied' | 'unsupported'
-    return { geo, notif };
+    return { notif };
   }
   function permSheet(st) {
-    const needGeo = st.geo === 'prompt', needNotif = st.notif === 'default';
+    const needNotif = st.notif === 'default';
     const row = (ico, t, sub) => `<div style="display:flex;gap:12px;align-items:flex-start;margin-top:14px"><div style="font-size:26px;line-height:1">${ico}</div><div><b style="font-size:15px">${t}</b><div class="sub" style="margin-top:2px;line-height:1.45">${sub}</div></div></div>`;
-    openSheet(`<h3>Cho phép để đặt món nhanh hơn</h3>
-      ${needGeo ? row('📍', 'Vị trí', 'Tính phí ship chính xác và giao đúng nơi bạn đang đứng.') : ''}
+    openSheet(`<h3>Bật thông báo đơn hàng</h3>
       ${needNotif ? row('🔔', 'Thông báo', 'Báo ngay khi tài xế nhận đơn, quán chuẩn bị xong và đang giao, kể cả khi bạn đóng web.') : ''}
       <button class="sheet-btn" style="margin-top:18px" data-permallow>Cho phép</button>
       <button class="sheet-btn" style="background:var(--chip);color:var(--ink)" onclick="document.getElementById('sheet-backdrop').click()">Để sau</button>`);
@@ -1399,9 +1422,6 @@
       try {
         if (S.user) await FB.enablePush(S.user.uid); else await Notification.requestPermission();
       } catch (e) {}
-    }
-    if (before.geo === 'prompt') {
-      await new Promise(res => navigator.geolocation.getCurrentPosition(() => { try { localStorage.setItem('geoOK', '1'); } catch (e) {} done.push('vị trí'); res(); }, () => res(), { enableHighAccuracy:false, timeout:15000, maximumAge:600000 }));
     }
     const after = await permStates();
     if (before.notif === 'default' && after.notif === 'granted') done.push('thông báo');
@@ -1415,7 +1435,7 @@
       try { if (sessionStorage.getItem('permAsk') === '1') return; } catch (e) {}
       if (shopPageOpen || !$('#sheet').hidden) { if (tries < 6) permAskOnVisit(tries + 1); return; }   // đang xem quán / đang mở bảng khác: đợi rồi thử lại
       const st = await permStates();
-      if (st.geo !== 'prompt' && st.notif !== 'default') return;   // đã cấp hoặc đã bị chặn thì không hỏi nữa
+      if (st.notif !== 'default') return;   // đã cấp hoặc đã bị chặn thì không hỏi nữa
       try { sessionStorage.setItem('permAsk', '1'); } catch (e) {}
       permSheet(st);
     }, tries ? 5000 : 3500);
