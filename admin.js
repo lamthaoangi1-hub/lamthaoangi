@@ -728,7 +728,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     if (!sf.pt) return toast('Chưa có vị trí khách. Hãy dán link Google Maps');
     if (phone.length < 9) return toast('Số điện thoại khách chưa đúng');
     if (fee < 0 || fee > 300000) return toast('Phí ship phải từ 0 đến 300.000đ');
-    const q = shipQuote(c, sf.pt), km = q.km, note = sf.note.trim();
+    const pt = { lat:sf.pt.lat, lng:sf.pt.lng };   // bản sao: sf có thể bị đặt null khi listener chạy giữa các await
+    const q = shipQuote(c, pt), km = q.km, note = sf.note.trim();
     const o = { code:'LT' + Date.now().toString().slice(-6), uid:fb.currentUser().uid, customerName:c.shopName || 'Quán', customerPhone:c.shopPhone || '', type:'delivery', shopId:'svc-delivery', shopName:c.shopName || 'Quán', shopPhone:c.shopPhone || '', shopAddress:c.shopAddress || '',
       shopLat:c.shopLat, shopLng:c.shopLng, address:(note || ('Khách ' + phone + ' (xem vị trí trên bản đồ)')).slice(0, 300), note:('Gọi ship từ quán' + ([note, c.note].filter(Boolean).length ? ': ' + [note, c.note].filter(Boolean).join(' · ') : '')).slice(0, 300), lat:sf.pt.lat, lng:sf.pt.lng, locAcc:null,
       receiverName:'Khách', receiverPhone:phone, goods:'Đơn của quán', weight:'', codAmount:cod, feePayer:sf.payer, items:[{ name:'Giao hàng của quán (ngoài app)', price:0, qty:1 }],
@@ -736,8 +737,9 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     sf.busy = true; draw();
     try {
       const ref = await fb.placeOrder(o); fb.notifyNewOrder(ref.id, o);
+      // Lưu vị trí khách NGAY (dùng bản sao tọa độ): patchShipCall bên dưới làm yêu cầu rời danh sách "new" → listener đặt sf = null → đọc sf.pt sau đó sẽ lỗi "reading 'pt'"
+      try { const sv = { lat:pt.lat, lng:pt.lng, link:mapLink(pt.lat, pt.lng), lastShop:c.shopName || '' }; await fb.saveShipCustomer(phone, sv); savedLoc[fb.shipPhoneKey(phone)] = sv; } catch (e) { console.warn('Chưa lưu được vị trí khách', e); setTimeout(() => toast('Đơn đã tạo nhưng CHƯA lưu được vị trí khách (kiểm tra đã dán firestore.rules mới chưa): ' + fb.errMsg(e)), 2500); }   // lần sau cùng SĐT: có sẵn vị trí
       await fb.patchShipCall(c.id, { status:'ordered', orderId:ref.id, orderCode:o.code });
-      try { const sv = { lat:sf.pt.lat, lng:sf.pt.lng, link:mapLink(sf.pt.lat, sf.pt.lng), lastShop:c.shopName || '' }; await fb.saveShipCustomer(phone, sv); savedLoc[fb.shipPhoneKey(phone)] = sv; } catch (e) { console.warn('Chưa lưu được vị trí khách', e); setTimeout(() => toast('Đơn đã tạo nhưng CHƯA lưu được vị trí khách (kiểm tra đã dán firestore.rules mới chưa): ' + fb.errMsg(e)), 2500); }   // lần sau cùng SĐT: có sẵn vị trí
       toast('Đã tạo đơn ' + o.code + ' và báo shipper'); sf = null;
     } catch (er) { toast(fb.errMsg(er)); if (sf) sf.busy = false; }
     draw();
