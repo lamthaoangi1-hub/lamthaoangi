@@ -377,14 +377,7 @@ export const watchMyPayouts = (uid, cb) => watch(query(collection(db, 'payouts')
 export const watchPayouts = cb => watch(collection(db, 'payouts'), cb);
 export const requestPayout = d => addDoc(collection(db, 'payouts'), { uid:d.uid, name:d.name, phone:d.phone, amount:d.amount, bankName:d.bankName, bankAccount:d.bankAccount, bankHolder:d.bankHolder, status:'pending', createdAt:serverTimestamp() });
 export const setPayout = (id, patch) => updateDoc(doc(db, 'payouts', id), patch);
-/* ---- Ví nhà bán hàng: Admin tài trợ giảm giá (platformOff) → cộng vào ví quán khi đơn giao xong. Tài khoản ngân hàng do Apps Script kiểm tra tên chủ TK rồi lưu ở sellerBanks/{uid} (client không ghi được) ---- */
+/* ---- Ví nhà bán hàng: Admin tài trợ giảm giá (platformOff) → cộng vào ví quán khi đơn giao xong. Tài khoản ngân hàng quán tự nhập 1 lần ở sellerBanks/{uid}, sau đó bị khóa (chỉ Admin sửa/xóa) ---- */
 export const watchMyBank = (uid, cb) => onSnapshot(doc(db, 'sellerBanks', uid), s => cb(s.exists() ? s.data() : null), () => cb(null));
-export async function saveSellerBank(bin, bankName, account) {
-  if (!UPLOAD_URL) throw new Error('Chưa cấu hình Google Apps Script (upload-config.js)');
-  const token = await idToken();
-  const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'saveSellerBank', token, bin, bankName, account }) });
-  const j = await res.json().catch(() => null);
-  if (!j || !j.ok) throw new Error((j && j.error) || 'Không kiểm tra được tài khoản, thử lại sau');
-  return j;
-}
+export const saveSellerBank = (uid, shopId, bin, bankName, account, holder) => setDoc(doc(db, 'sellerBanks', uid), { uid, shopId, bankBin:String(bin), bankName, bankAccount:String(account), bankHolder:String(holder).toUpperCase().slice(0, 60), updatedAt:serverTimestamp() });   // Rules chỉ cho TẠO 1 lần; quán không sửa/xóa được, chỉ Admin
 export const requestShopPayout = d => addDoc(collection(db, 'payouts'), { kind:'shop', shopId:d.shopId, uid:d.uid, name:d.name, phone:d.phone, amount:d.amount, bankName:d.bankName, bankAccount:d.bankAccount, bankHolder:d.bankHolder, status:'pending', createdAt:serverTimestamp() });

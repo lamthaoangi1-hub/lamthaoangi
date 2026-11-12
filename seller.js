@@ -5,7 +5,7 @@ import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
-  let tab = 'orders', shipCalls = [], sc = { phone:'', cod:'', note:'' }, scBusy = false, cf = 'all', cq = '', draft = { q:{}, name:'', phone:'', addr:'', note:'' }, drafts = null, lastLink = '', draftBusy = false, shop = null, settings = {}, orders = [], err = '', fil = 'active', period = 'month', payouts = [], bank = null, bf = { bin:'', acc:'', amt:'', edit:false, busy:false };
+  let tab = 'orders', shipCalls = [], sc = { phone:'', cod:'', note:'' }, scBusy = false, cf = 'all', cq = '', draft = { q:{}, name:'', phone:'', addr:'', note:'' }, drafts = null, lastLink = '', draftBusy = false, shop = null, settings = {}, orders = [], err = '', fil = 'active', period = 'month', payouts = [], bank = null, bf = { bin:'', acc:'', holder:'', amt:'', edit:false, busy:false };
   /* ---- Ví nhà bán hàng: phần giảm giá do Admin tài trợ (platformOff) của đơn đã giao xong được cộng vào ví. Quán nhập STK (hệ thống kiểm tra tên chủ TK rồi lưu) và gửi yêu cầu rút cho Admin ---- */
   const BANKS = [['Vietcombank', '970436'], ['VietinBank', '970415'], ['BIDV', '970418'], ['Agribank', '970405'], ['MB Bank', '970422'], ['Techcombank', '970407'], ['ACB', '970416'], ['VPBank', '970432'], ['TPBank', '970423'], ['Sacombank', '970403'], ['VIB', '970441'], ['SHB', '970443'], ['HDBank', '970437'], ['OCB', '970448'], ['MSB', '970426'], ['SeABank', '970440'], ['LPBank', '970449'], ['Eximbank', '970431'], ['Nam A Bank', '970428'], ['Bac A Bank', '970409'], ['PVcomBank', '970412']];
   const PST = { pending:['Chờ Admin chuyển', 'bankwait'], paid:['Đã chuyển khoản', 'bank'], rejected:['Bị từ chối (đã hoàn lại ví)', ''] };
@@ -14,12 +14,13 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
   function walletTab() {
     const w = walletInfo(), pct = Number(shop.sponsorPct) || 0;
     const cr = orders.filter(o => walletCredit(o) > 0).sort(newestFirst).slice(0, 40), ps = [...myPay()].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).slice(0, 20);
-    const bankCard = bank && !bf.edit
-      ? `<div class="card"><h3>Tài khoản nhận tiền</h3><div style="margin:6px 0">🏦 <b>${esc(bank.bankName || '')}</b> · <b>${esc(bank.bankAccount || '')}</b><br>Chủ tài khoản: <b>${esc(bank.bankHolder || '')}</b> <span class="badge ok">✓ Đã xác minh</span></div><p class="muted" style="margin:0 0 8px">Tên chủ tài khoản do ngân hàng trả về, không tự nhập được. Tiền rút sẽ chuyển đúng tài khoản này.</p><button class="btn sm o" data-editbank>Đổi tài khoản</button></div>`
-      : `<div class="card"><h3>${bank ? 'Đổi tài khoản nhận tiền' : 'Nhập tài khoản nhận tiền'}</h3><p class="muted" style="margin:0 0 8px">Chọn ngân hàng và nhập số tài khoản. Hệ thống tự kiểm tra tên chủ tài khoản với ngân hàng rồi mới lưu.</p>
+    const bankCard = bank
+      ? `<div class="card"><h3>Tài khoản nhận tiền</h3><div style="margin:6px 0">🏦 <b>${esc(bank.bankName || '')}</b> · <b>${esc(bank.bankAccount || '')}</b><br>Chủ tài khoản: <b>${esc(bank.bankHolder || '')}</b> <span class="badge ok">🔒 Đã khóa</span></div><p class="muted" style="margin:0">Tài khoản đã lưu và khóa, quán không tự sửa được. Tiền rút sẽ chuyển đúng tài khoản này. Muốn đổi, hãy liên hệ Admin.</p></div>`
+      : `<div class="card"><h3>Nhập tài khoản nhận tiền</h3><p class="muted" style="margin:0 0 8px">Chọn ngân hàng, nhập số tài khoản và tên chủ tài khoản. <b>Sau khi lưu sẽ bị khóa, không tự sửa được</b> nên hãy kiểm tra thật kỹ.</p>
         <div class="grid"><label class="f">Ngân hàng<select id="wb-bank" ${bf.busy ? 'disabled' : ''}><option value="">— Chọn ngân hàng —</option>${BANKS.map(([n, b]) => `<option value="${b}" ${bf.bin === b ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-        <label class="f">Số tài khoản<input type="text" id="wb-acc" inputmode="numeric" maxlength="19" value="${esc(bf.acc)}" ${bf.busy ? 'disabled' : ''}></label></div>
-        <div class="row" style="margin-top:12px;gap:8px"><button class="btn" data-savebank ${bf.busy ? 'disabled' : ''}>${bf.busy ? 'Đang kiểm tra…' : '🔎 Kiểm tra tên & lưu'}</button>${bank ? '<button class="btn o" data-cancelbank>Hủy</button>' : ''}</div></div>`;
+        <label class="f">Số tài khoản<input type="text" id="wb-acc" inputmode="numeric" maxlength="19" value="${esc(bf.acc)}" ${bf.busy ? 'disabled' : ''}></label>
+        <label class="f">Tên chủ tài khoản (không dấu, viết hoa)<input type="text" id="wb-holder" placeholder="NGUYEN VAN A" maxlength="60" value="${esc(bf.holder || '')}" ${bf.busy ? 'disabled' : ''}></label></div>
+        <div class="row" style="margin-top:12px;gap:8px"><button class="btn" data-savebank ${bf.busy ? 'disabled' : ''}>${bf.busy ? 'Đang lưu…' : '💾 Lưu tài khoản'}</button></div></div>`;
     return `<div class="section-heading"><h2>Ví nhà bán hàng</h2><p>${pct ? `Admin đang tài trợ <b>${pct}%</b> giá trị món cho khách đặt quán bạn. ` : 'Quán bạn hiện chưa được Admin tài trợ giảm giá. '}Khách được giảm, <b>quán vẫn nhận đủ tiền món</b>; phần giảm do Admin chịu được <b>cộng vào ví</b> khi đơn giao thành công. Bạn rút về tài khoản ngân hàng bằng cách gửi yêu cầu cho Admin.</p></div>
       <div class="stat"><div class="card"><b>${money(w.bal)}</b><span class="muted">Số dư ví (rút được)</span></div><div class="card"><b>${money(w.earned)}</b><span class="muted">Tổng đã cộng vào ví</span></div><div class="card"><b>${money(w.used)}</b><span class="muted">Đã rút / đang chờ</span></div></div>
       ${bankCard}
@@ -157,16 +158,16 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
   track(true ? fb.watchShopShipCalls(me.shopId, l => { shipCalls = l.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0)); if (!document.activeElement?.closest?.('input,textarea,select')) draw(); }) : () => {});
   bindMenuEditor(root); bindImgUpload(root);
   root.addEventListener('input', e => { if (e.target.id === 'c-q') { cq = e.target.value; refreshList(); return; } const k = { 'c-name':'name', 'c-phone':'phone', 'c-addr':'addr', 'c-note':'note' }[e.target.id]; if (k) draft[k] = e.target.value; });
-  root.addEventListener('input', e => { const m = { 'wb-bank':'bin', 'wb-acc':'acc', 'w-amt':'amt' }[e.target.id]; if (m) bf[m] = e.target.value; });
+  root.addEventListener('input', e => { const m = { 'wb-bank':'bin', 'wb-acc':'acc', 'wb-holder':'holder', 'w-amt':'amt' }[e.target.id]; if (m) bf[m] = e.target.value; });
   root.addEventListener('click', async e => {
-    if (e.target.closest('[data-editbank]')) { bf.edit = true; draw(); return; }
-    if (e.target.closest('[data-cancelbank]')) { bf.edit = false; draw(); return; }
     if (e.target.closest('[data-savebank]')) {
-      if (bf.busy) return; const acc = String(bf.acc || '').replace(/\s/g, ''), b = BANKS.find(x => x[1] === bf.bin);
+      if (bf.busy || bank) return; const acc = String(bf.acc || '').replace(/\s/g, ''), b = BANKS.find(x => x[1] === bf.bin), holder = String(bf.holder || '').trim().replace(/\s+/g, ' ');
       if (!b) return toast('Hãy chọn ngân hàng'); if (!/^\d{6,19}$/.test(acc)) return toast('Số tài khoản chưa đúng (6–19 chữ số)');
+      if (holder.length < 3) return toast('Hãy nhập tên chủ tài khoản');
+      if (!confirm('Lưu tài khoản và KHÓA, không tự sửa được sau này?\n\n' + b[0] + ' – ' + acc + '\n' + holder.toUpperCase())) return;
       bf.busy = true; draw();
-      try { const j = await fb.saveSellerBank(b[1], b[0], acc); bf = { ...bf, edit:false, acc:'', bin:'' }; toast('Đã xác minh và lưu: ' + (j.holder || '')); }
-      catch (er) { toast(er.message || fb.errMsg(er)); }
+      try { await fb.saveSellerBank(me.uid, me.shopId, b[1], b[0], acc, holder); bf = { ...bf, acc:'', bin:'', holder:'' }; toast('Đã lưu và khóa tài khoản nhận tiền'); }
+      catch (er) { toast(fb.errMsg(er)); }
       bf.busy = false; draw(); return;
     }
     const wd = e.target.closest('[data-withdraw]');
