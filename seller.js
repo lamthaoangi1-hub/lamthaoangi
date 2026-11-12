@@ -1,37 +1,33 @@
-import { report, periodControl, metrics, note, dailyView, subsidyOf } from './revenue.js?v=20261109d';
+import { report, periodControl, metrics, note, dailyView, walletCredit } from './revenue.js?v=20261112a';
 import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261023a';
 import { shopLink, copyText, siteBase } from './shoplink.js?v=20261103a';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261109d';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261112a';
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
-  let tab = 'orders', shipCalls = [], sc = { phone:'', cod:'', note:'' }, scBusy = false, cf = 'all', cq = '', draft = { q:{}, name:'', phone:'', addr:'', note:'' }, drafts = null, lastLink = '', draftBusy = false, shop = null, settings = {}, orders = [], err = '', fil = 'active', period = 'month', subPaid = {};
-  /* Tiền Lâm Thao Ăn Gì bù cho quán (phần giảm giá khách được hưởng do Admin chịu), theo ngày giao thành công */
-  const pad2 = n => String(n).padStart(2, '0');
-  const dayKeyOf = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-  const dmy = k => k.split('-').reverse().join('/');
-  const subByDay = () => { const m = new Map(); orders.forEach(o => { const v = subsidyOf(o), d = toDate(o.updatedAt || o.createdAt); if (!v || !d) return; const k = dayKeyOf(d), c = m.get(k) || { count:0, amount:0 }; c.count++; c.amount += v; m.set(k, c); }); return m; };
-  const recentKeys = n => Array.from({ length:n }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - i); return dayKeyOf(d); });
-  const subState = (k, amt) => { const p = subPaid[k]; if (!(k in subPaid)) return { cls:'', text:'…', done:false }; if (!p) return { cls:'warn', text:'Chưa chuyển', done:false }; if (p.amount >= amt) return { cls:'ok', text:'Đã chuyển ' + fmtTime(p.at), done:true }; return { cls:'warn', text:`Đã nhận ${money(p.amount)}, còn thiếu ${money(amt - p.amount)}`, done:false }; };
-  let subBusy = false;
-  const loadSubPaid = async () => {
-    if (subBusy || !me.shopId) return;
-    const by = subByDay(), need = recentKeys(7).filter(k => by.has(k) && !(k in subPaid)); if (!need.length) return;
-    subBusy = true;
-    try { Object.assign(subPaid, await fb.getShopSettlements(me.shopId, need)); } catch (e) { /* chưa đọc được thì giữ trạng thái "…" */ }
-    subBusy = false; if (tab === 'orders' || tab === 'revenue') draw();
-  };
-  const subCard = () => {
-    const by = subByDay(), t = by.get(dayKeyOf(new Date())), past = recentKeys(7).slice(1).filter(k => by.has(k) && !subState(k, by.get(k).amount).done);
-    if (!t && !past.length && !by.size) return '';
-    const st = t ? subState(dayKeyOf(new Date()), t.amount) : null;
-    return `<div class="card" style="background:#f0fbf4;border:1px solid #b7e4c7"><h3>🎁 Lâm Thao Ăn Gì bù cho quán</h3>
-      <p class="muted" style="margin:2px 0 6px">Khách được giảm giá khi đặt món, <b>quán vẫn nhận đủ tiền món</b>. Phần giảm do Lâm Thao Ăn Gì chịu và chuyển khoản bù cho quán cuối ngày (chỉ tính đơn đã giao thành công).</p>
-      <div class="row sb"><span>Hôm nay: <b class="total">${money(t ? t.amount : 0)}</b> <span class="muted">· ${t ? t.count : 0} đơn</span></span>${st ? `<span class="badge ${st.cls}">${esc(st.text)}</span>` : '<span class="muted">chưa có đơn</span>'}</div>
-      ${past.map(k => { const s2 = subState(k, by.get(k).amount); return `<div class="row sb" style="margin-top:6px"><span class="muted">Ngày ${dmy(k)}: <b>${money(by.get(k).amount)}</b> (${by.get(k).count} đơn)</span><span class="badge ${s2.cls}">${esc(s2.text)}</span></div>`; }).join('')}</div>`;
-  };
-  const subTable = () => { const by = [...subByDay()].sort((a, b) => b[0].localeCompare(a[0])).slice(0, 30); if (!by.length) return '';
-    return `<div class="card"><h3>Tiền Lâm Thao Ăn Gì bù theo ngày</h3><div class="table-scroll"><table><thead><tr><th>Ngày</th><th>Đơn</th><th>Số tiền bù</th><th>Trạng thái</th></tr></thead><tbody>${by.map(([k, v]) => { const st = subState(k, v.amount); return `<tr><td>${dmy(k)}</td><td>${v.count}</td><td><b>${money(v.amount)}</b></td><td><span class="badge ${st.cls}">${esc(st.text)}</span></td></tr>`; }).join('')}</tbody></table></div><p class="muted" style="margin-top:6px">Chỉ hiện trạng thái cho 7 ngày gần nhất.</p></div>`; };
+  let tab = 'orders', shipCalls = [], sc = { phone:'', cod:'', note:'' }, scBusy = false, cf = 'all', cq = '', draft = { q:{}, name:'', phone:'', addr:'', note:'' }, drafts = null, lastLink = '', draftBusy = false, shop = null, settings = {}, orders = [], err = '', fil = 'active', period = 'month', payouts = [], bank = null, bf = { bin:'', acc:'', amt:'', edit:false, busy:false };
+  /* ---- Ví nhà bán hàng: phần giảm giá do Admin tài trợ (platformOff) của đơn đã giao xong được cộng vào ví. Quán nhập STK (hệ thống kiểm tra tên chủ TK rồi lưu) và gửi yêu cầu rút cho Admin ---- */
+  const BANKS = [['Vietcombank', '970436'], ['VietinBank', '970415'], ['BIDV', '970418'], ['Agribank', '970405'], ['MB Bank', '970422'], ['Techcombank', '970407'], ['ACB', '970416'], ['VPBank', '970432'], ['TPBank', '970423'], ['Sacombank', '970403'], ['VIB', '970441'], ['SHB', '970443'], ['HDBank', '970437'], ['OCB', '970448'], ['MSB', '970426'], ['SeABank', '970440'], ['LPBank', '970449'], ['Eximbank', '970431'], ['Nam A Bank', '970428'], ['Bac A Bank', '970409'], ['PVcomBank', '970412']];
+  const PST = { pending:['Chờ Admin chuyển', 'bankwait'], paid:['Đã chuyển khoản', 'bank'], rejected:['Bị từ chối (đã hoàn lại ví)', ''] };
+  const myPay = () => payouts.filter(p => p.kind === 'shop');
+  const walletInfo = () => { const earned = orders.reduce((a, o) => a + walletCredit(o), 0), used = myPay().filter(p => p.status !== 'rejected').reduce((a, p) => a + Number(p.amount || 0), 0); return { earned, used, bal:Math.max(0, earned - used) }; };
+  function walletTab() {
+    const w = walletInfo(), pct = Number(shop.sponsorPct) || 0;
+    const cr = orders.filter(o => walletCredit(o) > 0).sort(newestFirst).slice(0, 40), ps = [...myPay()].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).slice(0, 20);
+    const bankCard = bank && !bf.edit
+      ? `<div class="card"><h3>Tài khoản nhận tiền</h3><div style="margin:6px 0">🏦 <b>${esc(bank.bankName || '')}</b> · <b>${esc(bank.bankAccount || '')}</b><br>Chủ tài khoản: <b>${esc(bank.bankHolder || '')}</b> <span class="badge ok">✓ Đã xác minh</span></div><p class="muted" style="margin:0 0 8px">Tên chủ tài khoản do ngân hàng trả về, không tự nhập được. Tiền rút sẽ chuyển đúng tài khoản này.</p><button class="btn sm o" data-editbank>Đổi tài khoản</button></div>`
+      : `<div class="card"><h3>${bank ? 'Đổi tài khoản nhận tiền' : 'Nhập tài khoản nhận tiền'}</h3><p class="muted" style="margin:0 0 8px">Chọn ngân hàng và nhập số tài khoản. Hệ thống tự kiểm tra tên chủ tài khoản với ngân hàng rồi mới lưu.</p>
+        <div class="grid"><label class="f">Ngân hàng<select id="wb-bank" ${bf.busy ? 'disabled' : ''}><option value="">— Chọn ngân hàng —</option>${BANKS.map(([n, b]) => `<option value="${b}" ${bf.bin === b ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label class="f">Số tài khoản<input type="text" id="wb-acc" inputmode="numeric" maxlength="19" value="${esc(bf.acc)}" ${bf.busy ? 'disabled' : ''}></label></div>
+        <div class="row" style="margin-top:12px;gap:8px"><button class="btn" data-savebank ${bf.busy ? 'disabled' : ''}>${bf.busy ? 'Đang kiểm tra…' : '🔎 Kiểm tra tên & lưu'}</button>${bank ? '<button class="btn o" data-cancelbank>Hủy</button>' : ''}</div></div>`;
+    return `<div class="section-heading"><h2>Ví nhà bán hàng</h2><p>${pct ? `Admin đang tài trợ <b>${pct}%</b> giá trị món cho khách đặt quán bạn. ` : 'Quán bạn hiện chưa được Admin tài trợ giảm giá. '}Khách được giảm, <b>quán vẫn nhận đủ tiền món</b>; phần giảm do Admin chịu được <b>cộng vào ví</b> khi đơn giao thành công. Bạn rút về tài khoản ngân hàng bằng cách gửi yêu cầu cho Admin.</p></div>
+      <div class="stat"><div class="card"><b>${money(w.bal)}</b><span class="muted">Số dư ví (rút được)</span></div><div class="card"><b>${money(w.earned)}</b><span class="muted">Tổng đã cộng vào ví</span></div><div class="card"><b>${money(w.used)}</b><span class="muted">Đã rút / đang chờ</span></div></div>
+      ${bankCard}
+      <div class="card"><h3>Rút tiền</h3><label class="f">Số tiền muốn rút (đ)<input type="number" id="w-amt" min="10000" step="1000" value="${esc(bf.amt)}" placeholder="Tối thiểu 10.000"></label>
+        <button class="btn" style="margin-top:12px" data-withdraw ${!bank || w.bal < 10000 ? 'disabled' : ''}>${!bank ? 'Nhập tài khoản ngân hàng trước' : w.bal < 10000 ? 'Số dư chưa đủ 10.000đ' : 'Gửi yêu cầu rút tiền'}</button></div>
+      <div class="card"><h3>Lịch sử rút tiền</h3>${ps.length ? ps.map(p => `<div class="row sb" style="padding:6px 0;border-top:1px solid #eef0f2"><span><b>${money(p.amount)}</b><br><span class="muted">${esc(fmtTime(p.createdAt))} · ${esc(p.bankName || '')} ${esc(p.bankAccount || '')}</span></span><span class="${(PST[p.status] || ['', ''])[1]}">${esc((PST[p.status] || [p.status])[0])}</span></div>`).join('') : '<div class="muted">Chưa có yêu cầu rút nào</div>'}</div>
+      <div class="card"><h3>Các đơn được cộng vào ví</h3>${cr.length ? cr.map(o => `<div class="row sb" style="padding:6px 0;border-top:1px solid #eef0f2"><span>#${esc(o.code)} <span class="muted">· ${esc(fmtTime(o.updatedAt || o.createdAt))}${o.platformPct ? ' · ' + o.platformPct + '%' : ''}</span></span><b style="color:var(--g)">+${money(walletCredit(o))}</b></div>`).join('') : '<div class="muted">Chưa có đơn nào được cộng vào ví</div>'}</div>`;
+  }
 
   function orderCard(o) {
     const items = (o.items || []).map(i => `<li>${i.qty} x ${esc(i.name)} <span class="muted">${money(i.price * i.qty)}</span></li>`).join('');
@@ -43,17 +39,17 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
     return `<div class="card"><div class="row sb"><b>#${esc(o.code)}${o.viaSeller ? ' <span class="badge info">📝 Quán tạo hộ</span>' : ''}</b>${badge(o.status)}</div>${cust}${o.rating ? `<div style="margin-top:4px;color:#f5a623">${'★'.repeat(o.rating)}${'☆'.repeat(5 - o.rating)} <span class="muted">Khách đánh giá ${o.rating}/5 sao</span></div>` : ''}
       <ul class="items">${items}</ul>${o.note ? `<p class="muted">Ghi chú: ${esc(o.note)}</p>` : ''}
       <div class="row sb"><span>Tiền món quán nhận: <b class="total">${money(Math.max(0, (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0)))}</b> <span class="muted">· phí ship khách trả cho shipper, không tính vào quán${o.shipperName ? ' · Shipper: ' + esc(o.shipperName) : ''}</span></span>
-      <span class="muted">${showC ? 'Quán xem đơn và giao theo thông tin khách' : 'Quán chỉ xem đơn – shipper nhận và giao'}</span></div>${o.platformOff ? `<div class="muted" style="margin-top:6px">🎁 Lâm Thao Ăn Gì giảm ${o.platformPct ? o.platformPct + '% ' : ''}cho khách: <b>${money(o.platformOff)}</b> – <b>quán vẫn nhận đủ</b>, Admin sẽ chuyển khoản bù cuối ngày.</div>` : ''}${o.shopShip ? `<div class="muted" style="margin-top:6px">Quán hỗ trợ phí ship (freeship): <b>-${money(o.shopShip)}</b> · Quán thực nhận: <b>${money(Math.max(0, (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0) - o.shopShip))}</b></div>` : ''}</div>`;
+      <span class="muted">${showC ? 'Quán xem đơn và giao theo thông tin khách' : 'Quán chỉ xem đơn – shipper nhận và giao'}</span></div>${o.platformOff ? `<div class="muted" style="margin-top:6px">🎁 Lâm Thao Ăn Gì giảm ${o.platformPct ? o.platformPct + '% ' : ''}cho khách: <b>${money(o.platformOff)}</b> – <b>quán vẫn nhận đủ</b>, số này được cộng vào <b>Ví</b> khi đơn giao thành công.</div>` : ''}${o.shopShip ? `<div class="muted" style="margin-top:6px">Quán hỗ trợ phí ship (freeship): <b>-${money(o.shopShip)}</b> · Quán thực nhận: <b>${money(Math.max(0, (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0) - o.shopShip))}</b></div>` : ''}</div>`;
   }
   function ordersTab() {
     const act = o => ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(o.status);
     const list = [...orders].sort(newestFirst).filter(o => fil === 'active' ? act(o) : !act(o)).slice(0, 80);
     const today = orders.filter(o => o.status === 'done' && sameDay(o.updatedAt));
-    return subCard() + `<div class="stat"><div class="card"><b>${orders.filter(o => o.status === 'pending').length}</b><span class="muted">Chờ xác nhận</span></div><div class="card"><b>${today.length}</b><span class="muted">Đơn xong hôm nay</span></div><div class="card"><b>${money(today.reduce((a, o) => a + (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0), 0))}</b><span class="muted">Doanh thu hôm nay</span></div></div>
+    return `<div class="stat"><div class="card"><b>${orders.filter(o => o.status === 'pending').length}</b><span class="muted">Chờ xác nhận</span></div><div class="card"><b>${today.length}</b><span class="muted">Đơn xong hôm nay</span></div><div class="card"><b>${money(today.reduce((a, o) => a + (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0), 0))}</b><span class="muted">Doanh thu hôm nay</span></div></div>
       <div class="row" style="margin-bottom:10px"><button class="btn sm ${fil === 'active' ? '' : 'o'}" data-fil="active">Đang xử lý</button><button class="btn sm ${fil === 'past' ? '' : 'o'}" data-fil="past">Đã xong / hủy</button></div>
       ${list.length ? list.map(orderCard).join('') : '<div class="empty">Chưa có đơn</div>'}`;
   }
-  function revenueTab() { const r = report(orders, period); return `<div class="section-heading"><h2>Doanh thu cửa hàng</h2><p>Chi tiết hoạt động kinh doanh của ${esc(shop.name)}</p></div>${periodControl(period)}${metrics(r)}${note}${dailyView(r)}${subTable()}`; }
+  function revenueTab() { const r = report(orders, period); return `<div class="section-heading"><h2>Doanh thu cửa hàng</h2><p>Chi tiết hoạt động kinh doanh của ${esc(shop.name)}</p></div>${periodControl(period)}${metrics(r)}${note}${dailyView(r)}`; }
   /* ---- Tạo đơn hộ khách: quán chọn món → tạo link → khách mở link, chia sẻ vị trí và gửi ---- */
   const menuList = () => (shop.menu || []).map((m, i) => ({ i, name:m.name, price:+m.price || 0, cat:String(m.cat || '').trim(), ok:m.available !== false })).filter(m => m.ok && m.name);
   const nz = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
@@ -145,21 +141,47 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
   }
   function draw() {
     const pend = orders.filter(o => o.status === 'pending').length;
-    root.innerHTML = `<div class="tabs"><button class="${tab === 'orders' ? 'on' : ''}" data-t="orders">Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}</button><button class="${tab === 'create' ? 'on' : ''}" data-t="create">📝 Tạo đơn hộ</button><button class="${tab === 'ship' ? 'on' : ''}" data-t="ship">🛵 Gọi ship${shipCalls.filter(c => c.status === 'new').length ? `<span class="n">${shipCalls.filter(c => c.status === 'new').length}</span>` : ''}</button><button class="${tab === 'revenue' ? 'on' : ''}" data-t="revenue">📊 Doanh thu</button><button class="${tab === 'menu' ? 'on' : ''}" data-t="menu">Thực đơn</button><button class="${tab === 'shop' ? 'on' : ''}" data-t="shop">Cửa hàng</button></div>
-      <main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${!shop ? '<div class="empty">Đang tải cửa hàng…</div>' : tab === 'orders' ? ordersTab() : tab === 'create' ? createTab() : tab === 'ship' ? shipTab() : tab === 'menu' ? menuTab() : tab === 'revenue' ? revenueTab() : shopTab()}</main>`;
+    root.innerHTML = `<div class="tabs"><button class="${tab === 'orders' ? 'on' : ''}" data-t="orders">Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}</button><button class="${tab === 'create' ? 'on' : ''}" data-t="create">📝 Tạo đơn hộ</button><button class="${tab === 'ship' ? 'on' : ''}" data-t="ship">🛵 Gọi ship${shipCalls.filter(c => c.status === 'new').length ? `<span class="n">${shipCalls.filter(c => c.status === 'new').length}</span>` : ''}</button><button class="${tab === 'revenue' ? 'on' : ''}" data-t="revenue">📊 Doanh thu</button><button class="${tab === 'wallet' ? 'on' : ''}" data-t="wallet">👛 Ví</button><button class="${tab === 'menu' ? 'on' : ''}" data-t="menu">Thực đơn</button><button class="${tab === 'shop' ? 'on' : ''}" data-t="shop">Cửa hàng</button></div>
+      <main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${!shop ? '<div class="empty">Đang tải cửa hàng…</div>' : tab === 'orders' ? ordersTab() : tab === 'create' ? createTab() : tab === 'ship' ? shipTab() : tab === 'menu' ? menuTab() : tab === 'revenue' ? revenueTab() : tab === 'wallet' ? walletTab() : shopTab()}</main>`;
   }
   let first = true;
   track(fb.watchShop(me.shopId, (s, e) => { shop = s; if (e) err = fb.errMsg(e); else if (!s) err = 'Không tìm thấy cửa hàng được gán cho bạn.'; if (tab === 'orders' || tab === 'revenue' || first) draw(); }));
   track(fb.watchShopOrders(me.shopId, (l, e) => {
     if (e) err = fb.errMsg(e);
     if (!first && l.filter(o => o.status === 'pending').length > orders.filter(o => o.status === 'pending').length) { beep(); toast('Có đơn mới!'); }
-    orders = l; first = false; if (tab === 'orders' || tab === 'revenue') draw();
-    loadSubPaid();
+    orders = l; first = false; if (tab === 'orders' || tab === 'revenue' || tab === 'wallet') draw();
   }));
   track(fb.watchSettings(s => { settings = s; if (tab === 'orders') draw(); }));
+  track(fb.watchMyPayouts(me.uid, l => { payouts = l; if (tab === 'wallet') draw(); }));
+  track(fb.watchMyBank(me.uid, b => { bank = b; if (tab === 'wallet') draw(); }));
   track(true ? fb.watchShopShipCalls(me.shopId, l => { shipCalls = l.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0)); if (!document.activeElement?.closest?.('input,textarea,select')) draw(); }) : () => {});
   bindMenuEditor(root); bindImgUpload(root);
   root.addEventListener('input', e => { if (e.target.id === 'c-q') { cq = e.target.value; refreshList(); return; } const k = { 'c-name':'name', 'c-phone':'phone', 'c-addr':'addr', 'c-note':'note' }[e.target.id]; if (k) draft[k] = e.target.value; });
+  root.addEventListener('input', e => { const m = { 'wb-bank':'bin', 'wb-acc':'acc', 'w-amt':'amt' }[e.target.id]; if (m) bf[m] = e.target.value; });
+  root.addEventListener('click', async e => {
+    if (e.target.closest('[data-editbank]')) { bf.edit = true; draw(); return; }
+    if (e.target.closest('[data-cancelbank]')) { bf.edit = false; draw(); return; }
+    if (e.target.closest('[data-savebank]')) {
+      if (bf.busy) return; const acc = String(bf.acc || '').replace(/\s/g, ''), b = BANKS.find(x => x[1] === bf.bin);
+      if (!b) return toast('Hãy chọn ngân hàng'); if (!/^\d{6,19}$/.test(acc)) return toast('Số tài khoản chưa đúng (6–19 chữ số)');
+      bf.busy = true; draw();
+      try { const j = await fb.saveSellerBank(b[1], b[0], acc); bf = { ...bf, edit:false, acc:'', bin:'' }; toast('Đã xác minh và lưu: ' + (j.holder || '')); }
+      catch (er) { toast(er.message || fb.errMsg(er)); }
+      bf.busy = false; draw(); return;
+    }
+    const wd = e.target.closest('[data-withdraw]');
+    if (wd) {
+      const w = walletInfo(), amt = Math.round(Number(bf.amt) || 0);
+      if (!bank) return toast('Hãy nhập và lưu tài khoản ngân hàng trước');
+      if (amt < 10000) return toast('Số tiền rút tối thiểu 10.000đ');
+      if (amt > w.bal) return toast('Số tiền vượt quá số dư ví (' + money(w.bal) + ')');
+      if (!confirm('Rút ' + money(amt) + ' về ' + bank.bankName + ' – ' + bank.bankAccount + ' (' + bank.bankHolder + ')?')) return;
+      wd.disabled = true;
+      try { await fb.requestShopPayout({ shopId:me.shopId, uid:me.uid, name:(shop && shop.name) || me.name || '', phone:me.phone || (shop && shop.phone) || '', amount:amt, bankName:bank.bankName, bankAccount:bank.bankAccount, bankHolder:bank.bankHolder }); bf.amt = ''; toast('Đã gửi yêu cầu rút tiền, chờ Admin chuyển khoản'); }
+      catch (er) { toast(fb.errMsg(er)); }
+      draw(); return;
+    }
+  });
   root.addEventListener('input', e => { const k = { 'sc-phone':'phone', 'sc-cod':'cod', 'sc-note':'note' }[e.target.id]; if (k) sc[k] = e.target.value; });
   root.addEventListener('click', async e => {
     if (e.target.closest('[data-sendship]')) {

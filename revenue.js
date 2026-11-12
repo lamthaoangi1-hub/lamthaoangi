@@ -1,11 +1,14 @@
 /* Báo cáo doanh thu: chỉ đơn hoàn thành, không gồm phí giao hàng.
    Dùng updatedAt (thời điểm đơn hoàn thành), theo múi giờ trình duyệt. */
-import { money, esc, toDate } from './panel.js?v=20261109d';
+import { money, esc, toDate } from './panel.js?v=20261112a';
 const dateKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 /* Quán thực nhận = tiền món − giảm giá − phí ship quán hỗ trợ + phần giảm giá do Lâm Thao Ăn Gì chịu (platformOff: khách được giảm nhưng quán vẫn nhận đủ, Admin bù lại) */
 export const earned = o => o.status === 'done' && !['delivery','errand'].includes(o.type) ? Math.max(0, Number(o.subtotal || 0) - Number(o.discount || 0) + Number(o.platformOff || 0) - Number(o.shopShip || 0)) : 0;
 /* Số tiền Admin phải bù cho quán của 1 đơn (chỉ đơn đã giao thành công) */
 export const subsidyOf = o => o.status === 'done' && !['delivery','errand'].includes(o.type) ? Math.max(0, Number(o.platformOff || 0)) : 0;
+/* Ví nhà bán hàng: số tiền Admin tài trợ (platformOff) của đơn đã giao được CỘNG VÀO VÍ quán. Chỉ tính đơn tạo từ mốc này trở đi (00:00 12/11/2026 giờ VN) để không tính lại những đơn trước đây đã bù lỗ theo ngày. */
+export const SPONSOR_WALLET_FROM = Date.UTC(2026, 10, 11, 17, 0, 0);
+export const walletCredit = o => { const v = subsidyOf(o); if (!v) return 0; const d = toDate(o.createdAt || o.updatedAt); return d && d.getTime() >= SPONSOR_WALLET_FROM ? v : 0; };
 export const periodStart = (period, now = new Date()) => {
   const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   if (period === 'week') d.setDate(d.getDate() - 6);

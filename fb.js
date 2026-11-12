@@ -372,25 +372,19 @@ export const setPresence = (uid, d) => setDoc(doc(db, 'presence', uid), { uid, .
 export const watchMyPresence = (uid, cb) => onSnapshot(doc(db, 'presence', uid), s => cb(s.exists() ? s.data() : null), () => cb(null));
 export const watchPresence = cb => watch(collection(db, 'presence'), cb);
 export const saveSettings = d => setDoc(doc(db, 'settings', 'app'), d, { merge:true });
-/* Bù lỗ giảm giá nền tảng: settlements/{yyyy-mm-dd} = { paid: { shopId: { at, amount } } } – Admin đánh dấu đã chuyển khoản bù cho quán */
-export async function getSettlements(dayKeys) {
-  const out = {};
-  await Promise.all(dayKeys.map(async k => { const d = await getDoc(doc(db, 'settlements', k)); out[k] = d.exists() ? (d.data().paid || {}) : {}; }));
-  return out;
-}
-export const setSettlement = (dayKey, shopId, info) => Promise.all([
-  setDoc(doc(db, 'settlements', dayKey), { paid:{ [shopId]:info } }, { merge:true }),
-  setDoc(doc(db, 'shopSettlements', dayKey + '_' + shopId), { shopId, day:dayKey, at:info ? info.at : null, amount:info ? info.amount : 0 })   // bản để chủ quán xem mình đã được bù chưa
-]);
-/* Chủ quán: xem Admin đã chuyển khoản bù chưa, theo từng ngày → { 'yyyy-mm-dd': { at, amount } | null } */
-export async function getShopSettlements(shopId, dayKeys) {
-  const out = {};
-  await Promise.all(dayKeys.map(async k => { const d = await getDoc(doc(db, 'shopSettlements', k + '_' + shopId)); const v = d.exists() ? d.data() : null; out[k] = v && v.at ? { at:v.at, amount:Number(v.amount) || 0 } : null; }));
-  return out;
-}
-
 /* ---- Ví tài xế: phần phí ship do Admin chịu (freeship / voucher ship) được cộng vào ví khi đơn giao xong; tài xế gửi yêu cầu rút, Admin chuyển khoản rồi duyệt ---- */
 export const watchMyPayouts = (uid, cb) => watch(query(collection(db, 'payouts'), where('uid', '==', uid)), cb);
 export const watchPayouts = cb => watch(collection(db, 'payouts'), cb);
 export const requestPayout = d => addDoc(collection(db, 'payouts'), { uid:d.uid, name:d.name, phone:d.phone, amount:d.amount, bankName:d.bankName, bankAccount:d.bankAccount, bankHolder:d.bankHolder, status:'pending', createdAt:serverTimestamp() });
 export const setPayout = (id, patch) => updateDoc(doc(db, 'payouts', id), patch);
+/* ---- Ví nhà bán hàng: Admin tài trợ giảm giá (platformOff) → cộng vào ví quán khi đơn giao xong. Tài khoản ngân hàng do Apps Script kiểm tra tên chủ TK rồi lưu ở sellerBanks/{uid} (client không ghi được) ---- */
+export const watchMyBank = (uid, cb) => onSnapshot(doc(db, 'sellerBanks', uid), s => cb(s.exists() ? s.data() : null), () => cb(null));
+export async function saveSellerBank(bin, bankName, account) {
+  if (!UPLOAD_URL) throw new Error('Chưa cấu hình Google Apps Script (upload-config.js)');
+  const token = await idToken();
+  const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'saveSellerBank', token, bin, bankName, account }) });
+  const j = await res.json().catch(() => null);
+  if (!j || !j.ok) throw new Error((j && j.error) || 'Không kiểm tra được tài khoản, thử lại sau');
+  return j;
+}
+export const requestShopPayout = d => addDoc(collection(db, 'payouts'), { kind:'shop', shopId:d.shopId, uid:d.uid, name:d.name, phone:d.phone, amount:d.amount, bankName:d.bankName, bankAccount:d.bankAccount, bankHolder:d.bankHolder, status:'pending', createdAt:serverTimestamp() });

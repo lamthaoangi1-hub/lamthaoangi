@@ -115,6 +115,9 @@ function doPost(e) {
     if (body.action === 'adminList') return adminList(body);
     if (body.action === 'backfill') return backfillWeb(body);
     if (body.action === 'zaloChats') return zaloChatsApi(body);
+    if (body.action === 'notifyShipCall') return notifyShipCall(body);
+    if (body.action === 'resolveMap') return resolveMapUrl(body);
+    if (body.action === 'saveSellerBank') return saveSellerBank(body);
     return uploadImage(body);
   } catch (err) {
     return out({ ok: false, error: 'Lỗi máy chủ: ' + err });
@@ -1130,4 +1133,178 @@ function testNotify() {
     customerName: 'Khách thử', customerPhone: '0900000000', address: 'Thôn thử, Lâm Thao', note: 'Đây là tin thử' };
   sendOrderEmail(order, {});
   String(props().getProperty('ZALO_ADMIN_IDS') || '').split(',').map(s => s.trim()).filter(Boolean).forEach(id => Logger.log(id + ': ' + sendZalo(id, zaloText(order, {}))));
+}
+
+// ===================== GỌI SHIP (đơn ngoài app) =====================
+// Quán gửi yêu cầu (shipCalls/{id}: SĐT khách) → báo Admin qua Zalo để Admin liên hệ khách xin định vị.
+function notifyShipCall(body) {
+  if (!body.token || !body.callId) return out({ ok: false, error: 'Thiếu dữ liệu' });
+  const uid = verifyToken(body.token);
+  if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn' });
+  const me = getDoc('users/' + uid, body.token);
+  if (!me || (me.role !== 'seller' && me.role !== 'admin')) return out({ ok: false, error: 'Không có quyền' });
+  const call = getDoc('shipCalls/' + body.callId, body.token);   // đọc bằng token của quán → luật bảo mật đảm bảo yêu cầu thật và thuộc quán này
+  if (!call || (me.role === 'seller' && call.shopId !== me.shopId)) return out({ ok: false, error: 'Không tìm thấy yêu cầu' });
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const cache = CacheService.getScriptCache(), key = 'shipcall_' + body.callId;
+    if (cache.get(key)) return out({ ok: true, duplicate: true });
+    cache.put(key, '1', 21600);
+  } finally { lock.releaseLock(); }
+  const phone = String(call.customerPhone || '').replace(/\D/g, ''), zl = phone.replace(/^0/, '84');
+  let saved = null; try { saved = getDocAdmin('shipCustomers/' + phone.replace(/^84/, '0'), body.token); } catch (e) {}
+  const text = '🛵 GỌI SHIP từ ' + (call.shopName || 'quán') + '\nKhách: ' + call.customerPhone + (call.cod ? '\nThu hộ: ' + money(call.cod) : '') + (call.note ? '\nGhi chú: ' + call.note : '') +
+    (saved && saved.lat != null ? '\n✅ ĐÃ CÓ VỊ TRÍ KHÁCH từ lần trước → vào lamthaoangi.io.vn/quanly.html → tab Gọi ship → bấm Tạo đơn (không cần xin định vị).' : '\nNhắn Zalo xin định vị: https://zalo.me/' + zl + '\nSau đó vào lamthaoangi.io.vn/quanly.html → tab Gọi ship để tạo đơn.');
+  let sent = 0;
+  String(props().getProperty('ZALO_ADMIN_IDS') || '').split(',').map(x => x.trim()).filter(Boolean).forEach(id => { try { if (sendZalo(id, text)) sent++; } catch (e) { console.error('Zalo gọi ship: ' + e); } });
+  if (!sent) { try { CacheService.getScriptCache().remove('shipcall_' + body.callId); } catch (e) {} return out({ ok: false, error: 'Chưa gửi được Zalo cho Admin' }); }
+  return out({ ok: true, sent: sent });
+}
+
+// Admin dán link rút gọn (maps.app.goo.gl…) → mở link, lấy toạ độ khách trả về cho form tạo đơn. Chỉ Admin, chỉ domain Google Maps.
+function parseLatLngText(s) {
+  s = String(s || '');
+  const rs = [/@(-?\d+\.\d+),(-?\d+\.\d+)/, /[?&](?:q|ll|query|destination|center)=(-?\d+\.\d+)(?:,|%2C)(-?\d+\.\d+)/i, /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/];
+  // Chỉ nhận toạ độ nằm trong Việt Nam: trang Google trả về toạ độ mặc định giữa nước Mỹ (37.0625,-95.677) khi link chỉ có địa chỉ chữ
+  for (let i = 0; i < rs.length; i++) { const m = s.match(rs[i]); if (m && +m[1] >= 8 && +m[1] <= 24 && +m[2] >= 102 && +m[2] <= 110) return { lat: +m[1], lng: +m[2] }; }
+  return null;
+}
+function resolveMapUrl(body) {
+  if (!body.token || !body.url) return out({ ok: false, error: 'Thiếu dữ liệu' });
+  const uid = verifyToken(body.token);
+  if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn' });
+  const me = getDoc('users/' + uid, body.token);
+  if (!me || me.role !== 'admin') return out({ ok: false, error: 'Chỉ Admin' });
+  const okHost = u => /^https:\/\/(maps\.app\.goo\.gl|goo\.gl|g\.co|(www\.)?google\.[a-z.]+|maps\.google\.[a-z.]+)(\/|$)/i.test(u);
+  let url = String(body.url).trim();
+  for (let i = 0; i < 6; i++) {
+    if (!okHost(url)) return out({ ok: false, error: 'Chỉ hỗ trợ link Google Maps' });
+    const p = parseLatLngText(url); if (p) return out({ ok: true, lat: p.lat, lng: p.lng });
+    const r = UrlFetchApp.fetch(url, { followRedirects: false, muteHttpExceptions: true });
+    const code = r.getResponseCode(), loc = r.getHeaders()['Location'] || r.getHeaders()['location'];
+    if (code >= 300 && code < 400 && loc) { url = loc; continue; }
+    const p2 = parseLatLngText(r.getContentText().slice(0, 200000)); if (p2) return out({ ok: true, lat: p2.lat, lng: p2.lng });   // trang cuối: lấy toạ độ trong nội dung
+    break;
+  }
+  return out({ ok: false, error: 'Link này chỉ có địa chỉ chữ, không có ghim vị trí. Hãy xin khách gửi lại vị trí (Gửi vị trí hiện tại) qua Zalo.' });
+}
+// ============================================================
+//  VÍ NHÀ BÁN HÀNG: quán nhập ngân hàng + số tài khoản → script hỏi ngân hàng (qua VietQR) lấy TÊN CHỦ TÀI KHOẢN → lưu vào sellerBanks/{uid}.
+//  Chủ quán không tự ghi được tên (Firestore Rules cấm ghi), nên tên luôn là tên do ngân hàng trả về.
+//  Cần 1 lần: đăng ký https://my.vietqr.io lấy Client ID + API Key → Apps Script → Project Settings → Script Properties
+//  thêm VIETQR_CLIENT_ID và VIETQR_API_KEY.
+// ============================================================
+function saveSellerBank(body) {
+  if (!body.token) return out({ ok: false, error: 'Thiếu dữ liệu' });
+  const uid = verifyToken(body.token);
+  if (!uid) return out({ ok: false, error: 'Phiên đăng nhập hết hạn' });
+  const me = getDocAdmin('users/' + uid, body.token);
+  if (!me || me.role !== 'seller' || !me.shopId) return out({ ok: false, error: 'Chỉ nhà bán hàng đã gắn cửa hàng' });
+  const bin = String(body.bin || '').replace(/\D/g, ''), acc = String(body.account || '').replace(/\s/g, ''), bankName = String(body.bankName || '').slice(0, 40);
+  if (!/^\d{6}$/.test(bin)) return out({ ok: false, error: 'Chưa chọn ngân hàng' });
+  if (!/^\d{6,19}$/.test(acc)) return out({ ok: false, error: 'Số tài khoản chưa đúng (6–19 chữ số)' });
+  const id = props().getProperty('VIETQR_CLIENT_ID'), key = props().getProperty('VIETQR_API_KEY');
+  if (!id || !key) return out({ ok: false, error: 'Hệ thống chưa bật kiểm tra tên tài khoản. Hãy báo Admin cài VIETQR_CLIENT_ID và VIETQR_API_KEY trong Apps Script.' });
+  const cache = CacheService.getScriptCache(), tk = 'bankchk_' + uid;
+  if (cache.get(tk)) return out({ ok: false, error: 'Bạn thao tác quá nhanh, đợi vài giây rồi thử lại' });
+  cache.put(tk, '1', 8);
+  let j = null;
+  try {
+    const r = UrlFetchApp.fetch('https://api.vietqr.io/v2/lookup', { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { 'x-client-id': id, 'x-api-key': key }, payload: JSON.stringify({ bin: Number(bin), accountNumber: acc }) });
+    if (r.getResponseCode() === 429) return out({ ok: false, error: 'Dịch vụ kiểm tra tài khoản đang quá tải, thử lại sau ít phút' });
+    j = JSON.parse(r.getContentText());
+  } catch (e) { console.error('saveSellerBank lookup: ' + e); return out({ ok: false, error: 'Không kết nối được dịch vụ kiểm tra tài khoản, thử lại sau' }); }
+  const holder = j && j.code === '00' && j.data && j.data.accountName ? String(j.data.accountName).trim().slice(0, 100) : '';
+  if (!holder) {
+    const msg = { '41': 'Ngân hàng này chưa hỗ trợ kiểm tra tên tài khoản', '42': 'Số tài khoản không tồn tại hoặc không hợp lệ', '21': 'Số tài khoản không hợp lệ', '45': 'Hệ thống ngân hàng đang bận, thử lại sau ít phút' }[j && j.code];
+    return out({ ok: false, error: msg || 'Không tìm thấy tên chủ tài khoản, kiểm tra lại ngân hàng và số tài khoản' });
+  }
+  const f = { uid: { stringValue: uid }, shopId: { stringValue: String(me.shopId) }, bankBin: { stringValue: bin }, bankName: { stringValue: bankName },
+    bankAccount: { stringValue: acc }, bankHolder: { stringValue: holder }, verified: { booleanValue: true }, updatedAt: { timestampValue: new Date().toISOString() } };
+  const w = UrlFetchApp.fetch(FS + 'sellerBanks/' + uid, { method: 'patch', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, payload: JSON.stringify({ fields: f }) });
+  if (w.getResponseCode() !== 200) { console.error('saveSellerBank ghi lỗi ' + w.getResponseCode() + ': ' + w.getContentText()); return out({ ok: false, error: 'Không lưu được tài khoản, thử lại sau' }); }
+  return out({ ok: true, holder: holder });
+}
+function thongKeDonTheoQuan() {
+  const FROM = new Date(2026, 10, 1);          // 01/11/2026 (tháng tính từ 0)
+  const TO   = new Date(2026, 10, 12);         // đến hết hôm nay 11/11
+  const ss = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID') || SHEET_ID);
+  const sh = ss.getSheetByName(SHEET_ORDERS);
+  const vals = sh.getDataRange().getValues(), H = vals[0];
+  const ix = n => H.indexOf(n);
+  const toDate = v => { if (v instanceof Date) return v; const s = String(v).trim(); if (/^\d{12,}$/.test(s)) return new Date(+s); const d = new Date(s); return isNaN(d) ? null : d; };
+
+  const all = {}, done = {};
+  vals.slice(1).forEach(r => {
+    const d = toDate(r[ix('createdAt')]);
+    if (!d || d < FROM || d >= TO) return;
+    if (String(r[ix('type')] || '') !== '') return;            // bỏ đơn Giao hàng / Mua hộ, chỉ tính đơn đồ ăn của quán
+    const shop = r[ix('shopName')] || '(không tên)', st = r[ix('status')];
+    if (st === 'cancelled') return;
+    all[shop] = (all[shop] || 0) + 1;
+    if (st === 'done') done[shop] = (done[shop] || 0) + 1;
+  });
+
+  const rows = Object.keys(all).map(s => [s, all[s], done[s] || 0]).sort((a, b) => b[1] - a[1]);
+  const out = ss.getSheetByName('ThongKeQuan') || ss.insertSheet('ThongKeQuan');
+  out.clear();
+  out.getRange(1, 1, 1, 3).setValues([['Quán', 'Tổng đơn (không tính hủy)', 'Đã giao xong']]).setFontWeight('bold');
+  if (rows.length) out.getRange(2, 1, rows.length, 3).setValues(rows);
+  Logger.log(rows.map((r, i) => (i + 1) + '. ' + r[0] + ': ' + r[1] + ' đơn (xong ' + r[2] + ')').join('\n') + '\nTổng: ' + rows.reduce((s, r) => s + r[1], 0));
+}
+
+// ============================================================
+//  KIỂM TRA ĐƠN CỦA TẤT CẢ CÁC QUÁN: đơn đồ ăn + Gọi ship (book ship) + Tạo đơn hộ → số đơn & số đã hoàn thành
+//  Cách chạy: Apps Script → chọn hàm kiemTraDonTatCaQuan → Run. Kết quả ghi vào sheet "KiemTraDonQuan".
+//  Đổi khoảng ngày ở dòng TU_NGAY / DEN_NGAY (để trống = từ mùng 1 tháng này đến hết hôm nay).
+// ============================================================
+function phanLoaiDonQuan(r) {   // r: {type, note, status}. Trả về 'food' | 'hộ' | 'ship' | null (null = bỏ qua)
+  const type = String(r.type || ''), note = String(r.note || '');
+  if (type === '') return /Quán tạo đơn hộ khách/.test(note) ? 'ho' : 'food';
+  if (type === 'delivery' && /^Gọi ship từ quán/.test(note)) return 'ship';
+  return null;                  // Giao hàng / Mua hộ do khách tự đặt: không thuộc quán nào
+}
+function tongHopDonQuan(rows, from, to) {   // rows: [{createdAt: Date, shopName, status, type, note}]
+  const kq = {};
+  rows.forEach(r => {
+    if (!r.createdAt || r.createdAt < from || r.createdAt >= to) return;
+    if (r.status === 'cancelled') return;
+    const k = phanLoaiDonQuan(r); if (!k) return;
+    const s = kq[r.shopName || '(không tên)'] || (kq[r.shopName || '(không tên)'] = { food: [0, 0], ho: [0, 0], ship: [0, 0] });
+    s[k][0]++; if (r.status === 'done') s[k][1]++;
+  });
+  return kq;
+}
+function kiemTraDonTatCaQuan() {
+  const TU_NGAY = '', DEN_NGAY = '';   // ví dụ '2026-11-01' và '2026-11-12' (DEN_NGAY tính hết ngày đó); để trống = tháng này đến hôm nay
+  const now = new Date();
+  const from = TU_NGAY ? new Date(TU_NGAY + 'T00:00:00+07:00') : new Date(now.getFullYear(), now.getMonth(), 1);
+  const to = DEN_NGAY ? new Date(new Date(DEN_NGAY + 'T00:00:00+07:00').getTime() + 864e5) : new Date(now.getTime() + 864e5 - (now.getTime() % 864e5));
+  const ss = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('SHEET_ID') || SHEET_ID);
+  const sh = ss.getSheetByName(SHEET_ORDERS);
+  const vals = sh.getDataRange().getValues(), H = vals[0], ix = n => H.indexOf(n);
+  const toDate = v => { if (v instanceof Date) return v; const s = String(v).trim(); if (/^\d{12,}$/.test(s)) return new Date(+s); const d = new Date(s); return isNaN(d) ? null : d; };
+  const rows = vals.slice(1).map(r => ({ createdAt: toDate(r[ix('createdAt')]), shopName: r[ix('shopName')], status: r[ix('status')], type: r[ix('type')], note: r[ix('note')] }));
+  const kq = tongHopDonQuan(rows, from, to);
+  const data = Object.keys(kq).map(q => {
+    const s = kq[q], tong = s.food[0] + s.ho[0] + s.ship[0], xong = s.food[1] + s.ho[1] + s.ship[1];
+    return [q, s.food[0], s.food[1], s.ho[0], s.ho[1], s.ship[0], s.ship[1], tong, xong, tong - xong];
+  }).sort((a, b) => b[7] - a[7]);
+  const out = ss.getSheetByName('KiemTraDonQuan') || ss.insertSheet('KiemTraDonQuan');
+  out.clear();
+  const head = ['Quán', 'Đơn đồ ăn', '…hoàn thành', 'Đơn quán tạo hộ', '…hoàn thành', 'Gọi ship (book ship)', '…hoàn thành', 'Tổng đơn (không tính hủy)', 'Tổng hoàn thành', 'Chưa xong'];
+  out.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
+  if (data.length) {
+    out.getRange(2, 1, data.length, head.length).setValues(data);
+    const tot = ['TỔNG'].concat(head.slice(1).map((_, c) => data.reduce((s, r) => s + r[c + 1], 0)));
+    out.getRange(data.length + 2, 1, 1, head.length).setValues([tot]).setFontWeight('bold');
+  }
+  out.setFrozenRows(1);
+  // In bảng ngay ở "Nhật ký thực thi" (Execution log) của Apps Script
+  const lines = data.map((r, i) => (i + 1) + '. ' + r[0] + ' | Đồ ăn ' + r[2] + '/' + r[1] + ' | Quán tạo hộ ' + r[4] + '/' + r[3] + ' | Gọi ship ' + r[6] + '/' + r[5] + ' | Tổng ' + r[8] + '/' + r[7] + ' xong (còn ' + r[9] + ')');
+  const sum = c => data.reduce((t, r) => t + r[c], 0);
+  console.log('Từ ' + Utilities.formatDate(from, 'Asia/Ho_Chi_Minh', 'dd/MM/yyyy') + ' đến ' + Utilities.formatDate(new Date(to.getTime() - 1), 'Asia/Ho_Chi_Minh', 'dd/MM/yyyy') + ' — định dạng "hoàn thành/tổng"\n' + (lines.join('\n') || '(không có đơn)') + '\nTỔNG: ' + sum(8) + '/' + sum(7) + ' đơn hoàn thành (còn ' + sum(9) + ' chưa xong)');
+  return data;
 }
