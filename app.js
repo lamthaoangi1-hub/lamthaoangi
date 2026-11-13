@@ -12,6 +12,7 @@
     chevLeft:'<path d="M15 5l-7 7 7 7"/>',
     arrowRight:'<path d="M5 12h14M13 6l6 6-6 6"/>',
     search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+    hist:'<path d="M3 12a9 9 0 1 0 3-6.700L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
     sliders:'<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
     truck:'<path d="M2.5 7h10v9h-10zM12.5 10h4.2l3 3v3h-7.2"/><circle cx="6.5" cy="17.5" r="1.7"/><circle cx="16.5" cy="17.5" r="1.7"/>',
     heart:'<path d="M12 20s-7.500-4.600-7.500-10A4.300 4.300 0 0 1 12 7.400 4.300 4.300 0 0 1 19.500 10c0 5.400-7.500 10-7.500 10z"/>',
@@ -153,7 +154,7 @@
     if (S.tab !== 'home') go('home', false);
     openShopPage(sh);
   }
-  const SP = { id:null, cat:'Tất cả' };
+  const SP = { id:null, cat:'Tất cả', q:'', sq:false };
   let shopPageOpen = false;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const zaloLink = () => { const z = String(CONTACT.zalo || '').trim(); if (!z) return ''; if (/^(https?:)?\/\//i.test(z)) return z; if (/^(zalo\.me|chat\.zalo\.me)\//i.test(z)) return 'https://' + z; const d = z.replace(/[\s.\-()]/g, '').replace(/^\+?84/, '0'); return /^\d{8,15}$/.test(d) ? 'https://zalo.me/' + d : ''; };
@@ -265,10 +266,10 @@
   /* ---------------- HOME ---------------- */
   /* Các mục trên trang chủ. Mỗi cửa hàng có trường sector (Admin chọn khi thêm / sửa quán): food | fresh | fashion | service. Không có = food. */
   const SECTORS = {
-    food:    { t:'Đồ ăn', img:'icon-food.png', ph:'Bạn muốn ăn gì hôm nay?', head:'Quán ngon gần bạn', cats:['Tất cả','Quán gần bạn','Nổi bật','Bán chạy','Quán mới','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'], empty:'Các quán sẽ sớm có mặt ở đây.' },
+    food:    { t:'Đồ ăn', img:'cat-1.png', ph:'Bạn muốn ăn gì hôm nay?', head:'Quán ngon gần bạn', cats:['Tất cả','Quán gần bạn','Nổi bật','Bán chạy','Quán mới','Cơm','Phở','Bún','Đồ uống','Ăn vặt','Lẩu'], empty:'Các quán sẽ sớm có mặt ở đây.' },
     fresh:   { t:'Thực phẩm sống', img:'icon-fresh.png', ph:'Bạn muốn mua gì hôm nay?', head:'Thực phẩm tươi sống', cats:['Tất cả','Quán gần bạn','Nổi bật','Bán chạy','Quán mới','Thịt','Cá','Hải sản','Rau củ','Trứng'], empty:'Mục Thực phẩm sống sẽ sớm ra mắt.' },
     fashion: { t:'Thời trang', img:'icon-fashion.png', ph:'Bạn muốn tìm cửa hàng nào?', head:'Cửa hàng thời trang', cats:['Tất cả','Quán gần bạn','Nổi bật','Quán mới','Nữ','Nam','Trẻ em','Phụ kiện'], empty:'Mục Thời trang sẽ sớm ra mắt.' },
-    service: { t:'Dịch vụ khác', img:'icon-other.png', ph:'Bạn cần dịch vụ gì?', head:'Dịch vụ tại Lâm Thao', cats:['Tất cả','Quán gần bạn','Nổi bật','Quán mới','Chụp ảnh','Makeup','Cúng - Lễ','Khác'], empty:'Các dịch vụ sẽ sớm có mặt ở đây.' },
+    service: { t:'Dịch vụ khác', img:'cat-4.png', ph:'Bạn cần dịch vụ gì?', head:'Dịch vụ tại Lâm Thao', cats:['Tất cả','Quán gần bạn','Nổi bật','Quán mới','Chụp ảnh','Makeup','Cúng - Lễ','Khác'], empty:'Các dịch vụ sẽ sớm có mặt ở đây.' },
   };
   const sectorOf = s => (s && SECTORS[s.sector] ? s.sector : 'food');
   const SERVICES = Object.keys(SECTORS).map((k, i) => ({ k, t:SECTORS[k].t, img:SECTORS[k].img }));
@@ -358,26 +359,102 @@
     const h = $('#shops-anchor h2'); if (h) h.textContent = sec.head;
     $('#home-chips').innerHTML = chipsHtml();
     list.innerHTML = shopListHtml();
+    const ex = $('#tn-extra'); if (ex) ex.innerHTML = tnExtra();
+  }
+  /* ---- Giao diện Lâm Thao: danh mục, "Hôm nay ăn gì?", "Quán hot", nút quay "Ăn gì?" ---- */
+  const TN_CATS = [
+    { k:'food', t:'Đồ ăn', img:'cat-1.png' }, { k:'fresh', t:'Thực phẩm sống', img:'icon-fresh.png' },
+    { k:'fashion', t:'Thời trang', img:'icon-fashion.png' }, { k:'service', t:'Dịch vụ khác', img:'cat-4.png' },
+  ];
+  const tnCats = () => TN_CATS.map(c => `<button class="service ${c.k && c.k === S.home.sector ? 'active' : ''}" ${c.k ? `data-svc="${c.k}"` : `data-act="${c.act}"`}><span class="ic"><img src="${c.img}" alt="" width="40" height="40" loading="eager" decoding="async"></span>${c.t}</button>`).join('');
+  let TN_SEED = Math.random();
+  const tnPick = (list, n) => [...list].map((s, i) => [s, Math.abs(Math.sin((i + 1) * 9301 + TN_SEED * 49297)) ]).sort((x, y) => x[1] - y[1]).slice(0, n).map(x => x[0]);
+  const tnEta = s => s.eta ? String(s.eta).replace(/\s*phút.*/i, '') + ' phút' : '';
+  const tnRate = s => `<span class="tn-rate">★ ${s.rate ? s.rate.toFixed(1) : 'Mới'}${tnEta(s) ? ' · ' + tnEta(s) : ''}</span>`;
+  function tnExtra() {
+    if (S.home.sector !== 'food' || S.home.q.trim()) return '';
+    const food = SHOPS.filter(s => sectorOf(s) === 'food' && s.open !== false);
+    if (!food.length) return '';
+    const today = tnPick(food, 8);
+    return `<div class="tn-sec"><span class="tn-ico">💡</span><div><h4>Hôm nay ăn gì?</h4><p>Gợi ý cho bạn những món ngon</p></div><button class="tn-more" data-act="see-all">Xem tất cả</button></div>
+      <div class="tn-hs">${today.map(s => `<article class="tn-card" data-shop="${s.id}"><img src="${s.img}" alt="${esc(s.name)}" loading="lazy" decoding="async"><h5>${s.name}</h5><p>${tnRate(s)}</p></article>`).join('')}</div>
+      ${hotSectionHtml('hot-all')}`;
+  }
+  /* ---- Quán hot: mỗi lần 1 quán + 3 món, tự chuyển sau 3,5 giây (dùng chung Trang chủ & Cá nhân) ---- */
+  const HOT = { i:0, pause:0 };
+  const hasDish = s => s.menu.some(m => m[2] !== false && m[0]);
+  const hotShops = n => {
+    const all = SHOPS.filter(s => sectorOf(s) === 'food' && s.open !== false && s.hotHome === true)   /* chỉ quán Admin đã tick "Quán hot" */
+      .sort((a, b) => (b.hot - a.hot) || (b.featured - a.featured) || (b.sold - a.sold) || (b.rate - a.rate));
+    const withMenu = all.filter(hasDish);
+    return (withMenu.length ? withMenu : all).slice(0, n);   // chỉ quay vòng các quán đã có món; chưa quán nào có món thì mới hiện quán trống
+  };
+  const hotTags = s => `${s.sale ? `<span>Giảm ${s.sale}%</span>` : '<span>Món ngon</span>'}${s.ship ? `<span>Freeship từ ${s.ship}</span>` : '<span>Được yêu thích</span>'}`;
+  const hotHead = act => `<div class="tn-sec"><span class="tn-ico tn-flame">🔥</span><div><h4>Quán hot được yêu thích</h4><p>Những quán nổi bật nhất tuần này</p></div><button class="tn-more" data-act="${act}">Xem tất cả</button></div>`;
+  /* 3 món: ưu tiên món đang bán và có ảnh */
+  const shuffle = arr => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  /* Ngẫu nhiên 3 món đang bán (mỗi lần quán hiện lên bốc lại); ưu tiên món có ảnh, thiếu thì bù món chưa có ảnh */
+  const hotDishes = s => { const ok = s.menu.filter(m => m[2] !== false && m[0]); return [...shuffle(ok.filter(m => m[4])), ...shuffle(ok.filter(m => !m[4]))].slice(0, 3); };
+  const hotSlide = s => {
+    const d = hotDishes(s);
+    return `<article class="hot-card" data-shop="${s.id}"><span class="tn-rb">HOT</span>
+      <div class="hc-top"><img class="hc-img" src="${s.img}" alt="${esc(s.name)}" decoding="async"><div class="hc-info"><h5>${s.name}</h5><p>${tnRate(s)}</p><div class="tn-tags">${hotTags(s)}</div></div></div>
+      ${d.length ? `<div class="hc-dishes">${d.map(m => `<div class="hc-dish">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy" decoding="async">` : `<div class="ph">${(m[0] || '?').trim().charAt(0).toUpperCase()}</div>`}<b>${m[0]}</b><span>${money(m[1])}</span></div>`).join('')}</div>` : ''}</article>`;
+  };
+  function hotRotHtml() {
+    const l = hotShops(6); if (!l.length) return '';
+    const i = HOT.i % l.length;
+    return `<div class="hot-rot" data-n="${l.length}"><div class="hot-stage">${hotSlide(l[i])}</div><div class="hot-dots">${l.map((_, j) => `<button class="${j === i ? 'on' : ''}" data-hotgo="${j}" aria-label="Quán hot ${j + 1}"></button>`).join('')}</div></div>`;
+  }
+  const hotSectionHtml = act => { const h = hotRotHtml(); return h ? hotHead(act) + h : ''; };
+  function hotShow(j, dir = 1) {
+    const l = hotShops(6); if (!l.length) return;
+    HOT.i = ((j % l.length) + l.length) % l.length;
+    $$('.hot-rot').forEach(r => {
+      if (+r.dataset.n !== l.length) { r.outerHTML = hotRotHtml(); return; }
+      const st = r.querySelector('.hot-stage'); if (!st) return;
+      $$('.hot-dots button', r).forEach((b, k) => b.classList.toggle('on', k === HOT.i));
+      st.className = 'hot-stage leave' + (dir < 0 ? ' back' : '');
+      clearTimeout(st._t);
+      st._t = setTimeout(() => {
+        st.innerHTML = hotSlide(l[HOT.i]);
+        st.className = 'hot-stage enter' + (dir < 0 ? ' back' : '');
+      }, 230);
+    });
+  }
+  let hotTimer;
+  function startHot() {
+    clearInterval(hotTimer);
+    hotTimer = setInterval(() => {
+      if (document.hidden || shopPageOpen || Date.now() < HOT.pause || (S.tab !== 'home' && S.tab !== 'profile')) return;
+      if (!$('.hot-rot')) return;
+      hotShow(HOT.i + 1);
+    }, 3500);
+  }
+  const hotRefresh = () => { $$('.hot-rot').forEach(r => { const h = r.parentElement; if (h) { const html = hotRotHtml(); if (html) r.outerHTML = html; } }); };
+  function tnSpin() {
+    const food = SHOPS.filter(s => sectorOf(s) === 'food' && s.open !== false);
+    if (!food.length) return toast('Chưa có quán nào đang mở cửa');
+    const s = food[Math.floor(Math.random() * food.length)];
+    toast('🎰 Hôm nay ăn: ' + s.name); setTimeout(() => openShopPage(s), 900);
   }
   function renderHome() {
     const el = $('#view-home');
     const scroll = el.scrollTop;
     el.innerHTML = `
-      <div class="hero tall hung compact">
-        <img class="hero-photo" src="den-hung.jpg" alt="Cổng Đền Hùng, Phú Thọ" fetchpriority="high" decoding="async">
-        <div class="hero-top">${locBtn()}${bellBtn()}</div>
-        <div style="margin-top:8px">${logo('sm')}</div>
-        <p class="tagline">Đặt món dễ dàng – Ngon gần nhà</p>
+      <div class="tn-hd">
+        <div class="tn-row"><span>Giao đến:</span><button class="tn-chip" data-act="area">${esc(S.area)}</button><span class="tn-sp"></span>${bellBtn()}</div>
+        <button class="tn-addr" data-act="area">${fx.pinF}<b>${esc(S.user && S.user.address ? S.user.address : 'Chưa chọn địa chỉ')}</b></button>
       </div>
-      <div class="search-float"><label class="search">${ic('search')}<input id="home-q" type="search" placeholder="${SECTORS[S.home.sector].ph}" value="${S.home.q.replace(/"/g, '&quot;')}" autocomplete="off"><button class="filter-btn" data-act="filter" aria-label="Bộ lọc">${ic('sliders')}</button></label></div>
-      <div class="services">${SERVICES.map(s => `<button class="service ${s.k === S.home.sector ? 'active' : ''} ${s.tint ? 'tint' : ''}" data-svc="${s.k}"><span class="ic"><img src="${s.img}?v=1" alt="" width="56" height="56" loading="eager" decoding="async"></span>${s.t}</button>`).join('')}</div>
-      <div class="banner-wrap" id="banner-wrap" ${S.home.sector === 'food' ? '' : 'hidden'}><div class="banner" id="banner">${bannerInner()}</div></div>
+      <div class="tn-srch"><label class="search">${ic('search')}<input id="home-q" type="search" placeholder="${SECTORS[S.home.sector].ph}" value="${S.home.q.replace(/"/g, '&quot;')}" autocomplete="off"><button class="filter-btn" data-act="filter" aria-label="Bộ lọc">${ic('sliders')}</button></label></div>
+      <div class="services tn-cats">${tnCats()}</div>
+      <div id="tn-extra">${tnExtra()}</div>
       <div class="section-head" id="shops-anchor"><h2>${SECTORS[S.home.sector].head}</h2><button class="see-all" data-act="see-all">Xem tất cả ${ic('chevRight')}</button></div>
       <div class="chips" id="home-chips">${chipsHtml()}</div>
       <div class="shop-list" id="home-list">${shopListHtml()}</div>`;
-    el.scrollTop = scroll;
+    el.scrollTop = scroll; startHot();
     const q = $('#home-q');
-    q.addEventListener('input', e => { S.home.q = e.target.value; $('#home-list').innerHTML = shopListHtml(); });
+    q.addEventListener('input', e => { S.home.q = e.target.value; $('#home-list').innerHTML = shopListHtml(); const ex = $('#tn-extra'); if (ex) ex.innerHTML = tnExtra(); });
   }
   let slideTimer;
   function startSlider() {
@@ -561,15 +638,14 @@
 
   /* ---------------- PROFILE ---------------- */
   const menuItem = (act, icon, color, t, sub, extra = '') => `<button class="mi ${extra}" data-menu="${act}"><span class="mic ${color}">${icon}</span><span class="mt"><b>${t}</b><small>${sub}</small></span>${ic('chevRight', 'ch')}</button>`;
-  const fmtPhone = p => p.replace(/(\d{4})(\d{3})(\d{3})/, '$1 $2 $3');
+  const fmtPhone = p => String(p == null ? '' : p).replace(/(\d{4})(\d{3})(\d{3})/, '$1 $2 $3') || 'Chưa có số điện thoại';
   function renderProfile() {
     const el = $('#view-profile');
     if (S.user) {
       el.innerHTML = `
-        <div class="hero" style="padding-bottom:110px"><div style="padding-top:34px"><div class="page-title" style="font-size:28px">Cá nhân</div><p class="page-sub">Quản lý tài khoản của bạn</p></div></div>
-        <div class="profile-card" style="margin-top:-96px">
-          <div class="pc-top" data-menu="account"><div class="avatar"><img src="avatar.jpg" alt="${esc(S.user.name)}"><span class="cam">${ic('camera')}</span></div>
-            <div class="pc-info"><h2>${esc(S.user.name)}</h2><div class="phone">${fmtPhone(S.user.phone)}</div><span class="member">${fx.crown.replace('<svg','<svg width="24" height="24"')}${LIVE ? 'Thành viên' : 'Thành viên bạc'} ${ic('chevRight')}</span></div></div>
+        <div class="profile-card" style="margin-top:calc(16px + env(safe-area-inset-top,0px))">
+          <div class="pc-top" data-menu="account"><div class="avatar"><img src="avatar.jpg" alt="${esc(S.user.name || '')}"><span class="cam">${ic('camera')}</span></div>
+            <div class="pc-info"><h2>${esc(S.user.name || 'Khách hàng')}</h2><div class="phone">${fmtPhone(S.user.phone)}</div><span class="member">${fx.crown.replace('<svg','<svg width="24" height="24"')}${LIVE ? 'Thành viên' : 'Thành viên bạc'} ${ic('chevRight')}</span></div></div>
           <div class="stats"><button class="stat pts" data-menu="points"><span class="ic">${fx.coin}</span><span style="text-align:left"><small>Điểm tích lũy</small><b>${LIVE ? S.points : 820} điểm</b></span>${ic('chevRight', 'ch')}</button>
             <button class="stat cp" data-menu="coupons"><span class="ic">${fx.giftSm}</span><span style="text-align:left"><small>Ưu đãi của bạn</small><b>${LIVE ? PROMOS.length : 3} mã giảm giá</b></span>${ic('chevRight', 'ch')}</button></div>
         </div>
@@ -579,22 +655,28 @@
           ${menuItem('address', fx.pinF, '', 'Địa chỉ đã lưu', 'Quản lý các địa chỉ giao hàng')}
           ${menuItem('payment', fx.walletF, '', 'Phương thức thanh toán', LIVE ? 'Tiền mặt, Chuyển khoản' : 'Thẻ ngân hàng, Ví điện tử, Tiền mặt')}
           ${menuItem('coupons', fx.ticketF, '', 'Mã giảm giá', 'Xem và sử dụng các ưu đãi của bạn')}
+          ${menuItem('favs', fx.heartF, '', 'Quán yêu thích', 'Những quán bạn đã lưu')}
         </div>
         <div class="group-title">Hỗ trợ &amp; Cài đặt</div>
         <div class="menu">
+          ${menuItem('reg-seller', ic('shop'), '', 'Đăng ký bán hàng', 'Mở quán của bạn trên Lâm Thao Ăn Gì')}
+          ${menuItem('reg-driver', ic('truck'), '', 'Đăng ký tài xế', 'Trở thành tài xế giao hàng')}
           ${menuItem('help', ic('headset'), '', 'Trung tâm hỗ trợ', 'Giải đáp thắc mắc, liên hệ chúng tôi')}
           ${LIVE ? menuItem('pushset', ic('bell'), '', 'Thông báo đơn hàng', 'Nhận tin khi đơn đổi trạng thái') : ''}
           ${LIVE ? menuItem('policy', ic('doc'), '', 'Chính sách & Điều khoản', 'Điều khoản sử dụng, bảo mật thông tin') : menuItem('settings', ic('gear'), '', 'Cài đặt', 'Ngôn ngữ, thông báo, quyền riêng tư')}
           ${menuItem('logout', ic('logout'), '', 'Đăng xuất', 'Thoát khỏi tài khoản hiện tại', 'danger')}
-        </div><div class="pad-bottom"></div>`;
+        </div><div id="profile-hot">${hotSectionHtml('hot-all')}</div><div class="pad-bottom"></div>`;
     } else {
       el.innerHTML = `
         <div class="hero" style="padding-bottom:50px"><div style="padding-top:34px"><div class="page-title" style="font-size:28px">Cá nhân</div><p class="page-sub">Đăng nhập để quản lý đơn hàng,<br>địa chỉ và ưu đãi của bạn</p></div></div>
         <div class="guest-card"><div class="guest-top"><div class="ghost">${fx.guestUser}</div>
           <div><h2>Bạn chưa đăng nhập</h2><p>Đăng nhập hoặc đăng ký để trải nghiệm đầy đủ tính năng và nhận nhiều ưu đãi hấp dẫn từ Lâm Thao Ăn Gì!</p></div></div>
           <div class="guest-btns"><button class="btn primary" data-auth="login">${ic('login')}Đăng nhập</button><button class="btn outline" data-auth="register">${ic('user')}Đăng ký</button></div></div>
+        <div id="profile-hot">${hotSectionHtml('hot-all')}</div>
         <div class="group-title">Tiện ích khác</div>
         <div class="menu">
+          ${menuItem('reg-seller', ic('shop'), '', 'Đăng ký bán hàng', 'Mở quán của bạn trên Lâm Thao Ăn Gì')}
+          ${menuItem('reg-driver', ic('truck'), '', 'Đăng ký tài xế', 'Trở thành tài xế giao hàng')}
           ${menuItem('help', ic('headset'), '', 'Trung tâm hỗ trợ', 'Giải đáp thắc mắc, liên hệ chúng tôi')}
           ${menuItem('policy', fx.gearBlue, 'blue', 'Chính sách &amp; Điều khoản', 'Xem các chính sách, điều khoản sử dụng')}
           ${LIVE ? '' : menuItem('lang', fx.globeP, 'purple', 'Ngôn ngữ', 'Lựa chọn ngôn ngữ ứng dụng')}
@@ -602,6 +684,7 @@
           ${LIVE ? '' : menuItem('notif', fx.bellR, 'red', 'Cài đặt thông báo', 'Quản lý thông báo và nhận ưu đãi')}
         </div><div class="pad-bottom"></div>`;
     }
+    startHot();
   }
 
   /* ---------------- AUTH ---------------- */
@@ -688,9 +771,10 @@
       : `<button class="sp-add" data-qty="${i}" data-d="1" aria-label="Thêm món">+</button>`;
   }
   function spItem(s, i) {
-    const m = s.menu[i];
-    return `<div class="sp-item ${m[2] === false ? 'off' : ''}">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy">` : `<div class="ph">${(m[0] || '?').trim().charAt(0).toUpperCase()}</div>`}
-      <div class="in"><b>${m[0]}</b>${m[5] ? `<em>${m[5]}</em>` : ''}<span>${money(m[1])}</span></div><div id="ctl-${i}">${spCtl(s, i)}</div></div>`;
+    const m = s.menu[i], sale = s.sale > 0 && sectorOf(s) !== 'service' ? s.sale : 0, now = sale ? Math.round(m[1] * (100 - sale) / 100) : m[1];
+    return `<div class="sp2-item ${m[2] === false ? 'off' : ''}"><div class="sp2-pic">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy">` : SP_NOIMG}</div>
+      <div class="sp2-in"><b>${m[0]}</b>${m[5] ? `<em>${m[5]}</em>` : ''}<div class="sp2-price"><strong>${money(now)}</strong>${sale ? `<s>${money(m[1])}</s><i>-${sale}%</i>` : ''}</div></div>
+      <div class="sp2-ctl" id="ctl-${i}">${spCtl(s, i)}</div></div>`;
   }
   /* Thời trang: sản phẩm hiện dạng thẻ lớn, 2 thẻ / 1 hàng, đủ ảnh + tên + thông tin sản phẩm */
   function spProduct(s, i) {
@@ -721,34 +805,71 @@
     const m = s.menu[i];
     return `<div class="sv-card">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy">` : ''}<div class="sv-in"><b>${m[0]}</b>${m[5] ? `<p>${m[5]}</p>` : ''}<span>${m[1] ? 'Từ ' + money(m[1]) : 'Liên hệ báo giá'}</span></div></div>`;
   }
+  const SP_NOIMG = '<svg viewBox="0 0 64 64" fill="none" stroke="#b4b9bf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 30c0-8 7-13 14-13s14 5 14 13zM8 36h28M10 36c0 6 3 9 8 9h8c5 0 8-3 8-9"/><path d="M42 24h16l-2 26H44zM40 24h20M49 24l2-8"/></svg>';
+  const SP_I = {
+    group:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.6 2.7-6 6-6s6 2.4 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.2c3 .1 4.9 2.1 4.9 5"/></svg>',
+    share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="6" r="2.6"/><circle cx="18" cy="18" r="2.6"/><path d="M8.3 10.8l7.4-3.6M8.3 13.2l7.4 3.6"/></svg>',
+    search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+    clock:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#12a150"/><path d="M12 6.5V12l3.5 2" stroke="#fff" stroke-width="2" stroke-linecap="round" fill="none"/></svg>',
+    check:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#12a150"/><path d="M7.5 12.5l3 3 6-6.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
+  };
+  /* Dải "Ưu đãi" của quán: giảm giá quán, freeship, giảm thêm đặt online, voucher đang chạy */
+  function spPromos(s) {
+    const a = [], sec = sectorOf(s); if (sec === 'service') return a;
+    if (s.sale) a.push(`Giảm ${s.sale}% toàn thực đơn`);
+    if (s.freeShipAll) a.push('Miễn phí ship mọi đơn'); else if (s.ship) a.push(`Freeship cho đơn từ ${s.ship}`);
+    { const pp = platPctOf(s); if (pp > 0) a.push(`Giảm thêm ${pp}% cho đơn đặt online`); }
+    PROMOS.slice(0, 4).forEach(p => { try { a.push(promoLabel(p) + (+p.min > 0 ? ' cho đơn từ ' + money(+p.min) : '')); } catch (e) { /* bỏ qua voucher lỗi */ } });
+    return a;
+  }
+  function spGroupsHtml(s) {
+    const groups = menuGroups(s), names = [...groups.keys()], sec = sectorOf(s), q = norm(String(SP.q || '').trim());
+    if (SP.cat !== 'Tất cả' && !groups.has(SP.cat)) SP.cat = 'Tất cả';
+    const match = i => !q || norm(s.menu[i][0] + ' ' + s.menu[i][5]).includes(q);
+    const out = names.filter(n => SP.cat === 'Tất cả' || n === SP.cat).map(n => {
+      const ids = groups.get(n).filter(match); if (!ids.length) return '';
+      return sec === 'fashion' ? `<div class="pg-wrap"><h3 class="pg-h">${n}<small>(${ids.length})</small></h3><div class="pg-grid">${ids.map(i => spProduct(s, i)).join('')}</div></div>`
+        : sec === 'service' ? `<div class="sp-group"><h3>${n}<small>(${ids.length})</small></h3>${ids.map(i => spService(s, i)).join('')}</div>`
+        : `<section class="sp2-sec"><h3>${n}</h3>${ids.map(i => spItem(s, i)).join('')}</section>`;
+    }).join('');
+    return out || `<div class="empty">${q ? 'Không tìm thấy món phù hợp' : sec === 'service' ? 'Chưa cập nhật dịch vụ' : sec === 'fashion' ? 'Chưa cập nhật sản phẩm' : 'Quán chưa cập nhật thực đơn'}</div>`;
+  }
   function renderShopPage() {
     const s = SHOPS.find(x => x.id === SP.id), page = $('#shop-page'); if (!s) return;
-    const sc = page.scrollTop, groups = menuGroups(s), names = [...groups.keys()], sec = sectorOf(s);
+    const sc = page.scrollTop, groups = menuGroups(s), names = [...groups.keys()], sec = sectorOf(s), d = s._d || {};
     if (SP.cat !== 'Tất cả' && !groups.has(SP.cat)) SP.cat = 'Tất cả';
-    const shown = names.filter(n => SP.cat === 'Tất cả' || n === SP.cat);
     const tel = String(s.phone || '').replace(/\D/g, '');
-    const rowHtml = n => sec === 'fashion' ? `<div class="pg-wrap"><h3 class="pg-h">${n}<small>(${groups.get(n).length})</small></h3><div class="pg-grid">${groups.get(n).map(i => spProduct(s, i)).join('')}</div></div>`
-      : sec === 'service' ? `<div class="sp-group"><h3>${n}<small>(${groups.get(n).length})</small></h3>${groups.get(n).map(i => spService(s, i)).join('')}</div>`
-      : `<div class="sp-group"><h3>${n}<small>(${groups.get(n).length})</small></h3>${groups.get(n).map(i => spItem(s, i)).join('')}</div>`;
-    page.innerHTML = `<div class="sp-top"><button class="sp-back" data-shopback>${ic('chevLeft')}Quay lại</button>
-        <button class="heart ${isFav(s.id) ? 'on' : ''}" data-heart="${s.id}" data-sheet="1" aria-label="Yêu thích">${ic('heart')}</button></div>
-      <div class="sp-card"><div class="sp-head"><img class="sp-logo" src="${s.img}" alt="${s.name}">
-        <div><h2>${s.name}${s.open === false ? `<span class="sp-closed">${closedNote(s)}</span>` : ''}</h2><div class="sp-cat">${s.cat}</div>${hoursNote(s)}
-        ${s.address ? `<div class="sp-addr">${ic('mapPin')}<span>${s.address}</span></div>` : ''}</div></div>
-        <div class="sp-info">${s.rate ? `<div class="sp-rate">${fx.star}Đánh giá (${s.rate.toFixed(1)}${s.rc ? ' · ' + s.rc + ' lượt' : ''})</div>` : ''}
-          ${shopMeta(s)}${shopTags(s)}${s.desc ? `<p class="sp-desc">${s.desc}</p>` : ''}</div></div>
-      ${names.length > 1 ? `<div class="sp-chips">${['Tất cả', ...names].map(n => `<button class="${n === SP.cat ? 'on' : ''}" data-spcat="${n}">${n}</button>`).join('')}</div>` : ''}
-      ${shown.map(rowHtml).join('') || `<div class="empty">${sec === 'service' ? 'Chưa cập nhật dịch vụ' : sec === 'fashion' ? 'Chưa cập nhật sản phẩm' : 'Quán chưa cập nhật thực đơn'}</div>`}
+    const tabs = names.length > 1 ? ['Tất cả', ...names] : names;
+    const hrs = d.autoHours && d.openAt && d.closeAt ? `Hôm nay: ${d.openAt} - ${d.closeAt}` : 'Mở cửa cả ngày';
+    const promos = spPromos(s);
+    page.innerHTML = `<div class="sp2-bar"><button class="sp2-back" data-shopback aria-label="Quay lại">${ic('chevLeft')}</button><span class="sp2-title">${s.name}</span>
+        <button class="heart sp2-heart ${isFav(s.id) ? 'on' : ''}" data-heart="${s.id}" data-sheet="1" aria-label="Yêu thích">${ic('heart')}</button></div>
+      <div class="sp2-cover"><img class="sp2-bg" src="${s.img}" alt=""><img class="sp2-thumb" src="${s.img}" alt="${s.name}"></div>
+      <div class="sp2-info">
+        <h2>${s.name}</h2>
+        <div class="sp2-rate"><span class="sp2-star">★</span><b>${s.rate ? s.rate.toFixed(1) : 'Mới'}</b><span class="sp2-rc">(${s.rc || 0})</span>${sec !== 'service' ? `<i class="sp2-dot">·</i><span class="sp2-eta">${ic('clock')}${s.eta} chuẩn bị món</span>` : ''}</div>
+        <div class="sp2-hours"><span class="sp2-ico">${SP_I.clock}</span><span>${hrs}</span><span class="sp2-open ${s.open === false ? 'off' : 'on'}">${s.open === false ? closedNote(s) : `${SP_I.check}Đang mở cửa`}</span></div>
+        ${s.address ? `<div class="sp2-addr">${ic('mapPin')}<span>${s.address}</span></div>` : ''}
+        ${promos.length ? `<div class="sp2-promos">${promos.map(t => `<span class="sp2-pchip"><b>Ưu đãi</b><i>${t}</i></span>`).join('')}</div>` : ''}
+        <div class="sp2-acts"><button data-spgroup>${SP_I.group}Đặt nhóm</button><button data-spshare>${SP_I.share}Chia sẻ</button></div>
+        ${s.desc ? `<p class="sp2-desc">${s.desc}</p>` : ''}
+      </div>
+      <div class="sp2-sticky"><div class="sp2-tabs">${tabs.map(n => `<button class="${(n === SP.cat) || (tabs.length === 1) ? 'on' : ''}" data-spcat="${n}">${n}</button>`).join('')}<button class="sp2-sbtn" data-spsearch aria-label="Tìm món">${SP_I.search}</button></div>
+        <div class="sp2-search" ${SP.sq ? '' : 'hidden'}><input id="sp-q" type="search" placeholder="Tìm món trong quán…" value="${esc(SP.q || '')}" autocomplete="off"></div></div>
+      <div id="sp-groups">${spGroupsHtml(s)}</div>
       <div class="sp-spacer"></div>
       ${sec === 'service' ? (tel ? `<div class="sv-bar"><a class="sv-call" href="tel:${tel}">📞 Gọi ngay</a><a class="sv-zalo" href="https://zalo.me/${tel}" target="_blank" rel="noopener">💬 Nhắn Zalo</a></div>` : '')
         : `<button class="sp-cartbar empty" id="cart-bar" data-cart><span id="cb-l">Giỏ hàng (0 ${sec === 'fashion' ? 'sản phẩm' : 'món'})</span><b id="cb-t">0đ</b></button>`}`;
+    page.classList.toggle('scrolled', sc > 170);
     page.scrollTop = sc;
+    const qi = $('#sp-q', page);
+    if (qi) qi.addEventListener('input', e => { SP.q = e.target.value; const g = $('#sp-groups'); if (g) g.innerHTML = spGroupsHtml(s); });
     updateCartUI();
   }
   function openShopPage(s) {
     if (!s || !s.menu) return;
     if (LIVE && sectorOf(s) !== 'service' && CART.shop !== s.id) { CART.shop = s.id; CART.q = {}; CART.promo = ''; CART.shipPromo = ''; }
-    SP.id = s.id; SP.cat = 'Tất cả';
+    SP.id = s.id; SP.cat = 'Tất cả'; SP.q = ''; SP.sq = false;
     const page = $('#shop-page');
     renderShopPage(); page.classList.add('open'); page.scrollTop = 0;
     if (!shopPageOpen) history.pushState({ sp:1 }, '', '#shop');
@@ -967,21 +1088,13 @@
 
   /* ---------------- ROUTER ---------------- */
   const TABS = [
-    ['home','Trang chủ','home'], ['orders','Đơn hàng','clipboard'], ['favorites','Yêu thích','heart'],
-    ['notifications','Thông báo','chat'], ['profile','Cá nhân','user'],
+    ['home','Trang chủ','home'], ['orders','Hoạt động','hist'], ['notifications','Hộp thư','mail'], ['profile','Tài khoản','user'],
   ];
   const renderers = { home:renderHome, orders:renderOrders, favorites:renderFavorites, notifications:renderNotifications, profile:renderProfile, auth:renderAuth };
   function renderNav() {
     $('#nav').innerHTML = TABS.map(([k, t, i]) => {
       const on = S.tab === k;
-      let svg = ic(i);
-      if (on) {
-        if (k === 'home') svg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.800L2.500 11.200a1 1 0 0 0 .7 1.800H5v7a1 1 0 0 0 1 1h3.500v-6h5v6H18a1 1 0 0 0 1-1v-7h1.800a1 1 0 0 0 .7-1.800z"/></svg>';
-        if (k === 'orders') svg = '<svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M8.500 3a2 2 0 0 0-2 2H6a2.500 2.500 0 0 0-2.500 2.500v11A2.500 2.500 0 0 0 6 21h12a2.500 2.500 0 0 0 2.500-2.500v-11A2.500 2.500 0 0 0 18 5h-.5a2 2 0 0 0-2-2zm.5 2.500h6V4.500H9zM8 11h8v1.700H8zm0 4h6v1.700H8z"/></svg>';
-        if (k === 'favorites') svg = fx.heartF;
-        if (k === 'notifications') svg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.500a6.500 6.500 0 0 0-6.500 6.500v4.200L3.600 16.300a1 1 0 0 0 .8 1.700h15.200a1 1 0 0 0 .8-1.700l-1.900-3.100V9A6.500 6.500 0 0 0 12 2.500zM9.500 19.500a2.500 2.500 0 0 0 5 0z"/></svg>';
-        if (k === 'profile') svg = fx.userF;
-      }
+      const svg = ic(i);
       const badge = k === 'notifications' && unreadCount() ? '<span class="badge"></span>' : '';
       return `<button class="${on ? 'on' : ''}" data-go="${k}" aria-label="${t}">${svg}${t}${badge}</button>`;
     }).join('');
@@ -990,13 +1103,17 @@
     if (!renderers[tab]) tab = 'home';
     S.tab = tab; hideShopPage();
     $$('.view').forEach(v => v.classList.remove('active'));
-    renderers[tab]();
+    try { renderers[tab](); }
+    catch (err) {
+      console.error('Lỗi hiển thị tab ' + tab, err);
+      $('#view-' + tab).innerHTML = `<div class="empty" style="padding:90px 24px 24px"><b>Không hiển thị được trang này</b>Vui lòng thử lại.<div style="margin-top:16px"><button class="btn primary" onclick="location.reload()">Tải lại trang</button></div></div>`;
+    }
     const v = $('#view-' + tab); v.classList.add('active');
     if (tab !== 'home' || true) v.scrollTop = 0;
     $('#app').classList.toggle('no-nav', tab === 'auth');
     $('#nav').style.display = tab === 'auth' ? 'none' : 'flex';
     $('#views').style.bottom = tab === 'auth' ? '0' : 'var(--nav-h)';
-    renderNav();
+    renderNav(); document.body.classList.toggle('tab-home', tab === 'home');
     if (push && location.hash !== '#' + tab) history.pushState(null, '', '#' + tab);
   }
   window.addEventListener('popstate', () => { if (shopPageOpen) { hideShopPage(); return; } go(location.hash.slice(1) || 'home', false); });
@@ -1346,7 +1463,10 @@
     if (a === 'filter') return openSheet(`<h3>Sắp xếp &amp; lọc</h3>${[['default','Mặc định'],['rate','Đánh giá cao nhất'],['fast','Giao nhanh nhất'],['sale','Đang giảm giá']].map(([k, l]) => `<button class="opt ${S.home.sort === k ? 'sel' : ''}" data-setsort="${k}">${l}${S.home.sort === k ? `<span class="tick">${ic('check')}</span>` : ''}</button>`).join('')}`);
     if (a === 'filter-fav') return openSheet(`<h3>Sắp xếp yêu thích</h3>${[['recent','Mới lưu nhất'],['rate','Đánh giá cao'],['name','Tên A - Z']].map(([k, l]) => `<button class="opt ${S.fav.sort === k ? 'sel' : ''}" data-setfsort="${k}">${l}${S.fav.sort === k ? `<span class="tick">${ic('check')}</span>` : ''}</button>`).join('')}`);
     if (a === 'order-now') return $('#shops-anchor').scrollIntoView({ behavior:'smooth', block:'start' });
-    if (a === 'see-all') { S.home.cat = 'Tất cả'; S.home.q = ''; S.home.sort = 'default'; renderHome(); return toast('Đang hiển thị tất cả'); }
+    if (a === 'svc-delivery') return openService('delivery');
+    if (a === 'svc-errand') return openService('errand');
+    if (a === 'spin') return tnSpin();
+    if (a === 'hot-all' || a === 'see-all') { e.preventDefault(); S.home.sector = 'food'; S.home.cat = 'Tất cả'; S.home.q = ''; S.home.sort = 'default'; if (S.tab === 'home') renderHome(); else go('home'); setTimeout(() => { const an = document.getElementById('shops-anchor'); if (an) an.scrollIntoView({ behavior:'smooth', block:'start' }); }, 80); return; }
     if (a === 'fav-all') { $('#fav-body').scrollIntoView({ behavior:'smooth' }); return; }
     if (a === 'orders-search') { S.orders.search = !S.orders.search; if (!S.orders.search) S.orders.q = ''; renderOrders(); if (S.orders.search) $('#orders-q').focus(); return; }
   });
@@ -1467,6 +1587,20 @@
     if (k === 'coupons') return openSheet(`<h3>Mã giảm giá của bạn</h3>${(LIVE ? PROMOS.map(p => [esc(p.code), (isShipPromo(p) ? '🚚 ' : '') + esc(p.desc)]) : [['GIAM30K','Giảm 30K cho đơn từ 100K'],['CUOITUAN','Giảm 20K cho đơn từ 80K'],['FREESHIP','Miễn phí giao hàng đơn từ 60K']]).map(([c, d]) => `<div class="row-kv"><span><b>${c}</b><br><small style="color:var(--ink-2)">${d}</small></span><button style="color:var(--green-d);font-weight:700" data-copy="${c}">Sao chép</button></div>`).join('')}<p class="sub" style="margin-top:10px">Voucher được chọn trực tiếp ở bước Xác nhận đơn hàng khi đặt món.</p>`);
     if (k === 'points') return openSheet(`<h3>Điểm tích lũy</h3><div style="font-family:var(--font-h);font-weight:700;font-size:28px;color:var(--green-d);margin-top:10px">${LIVE ? S.points : 820} điểm</div><div class="sub">${LIVE ? 'Tích 1 điểm cho mỗi 1.000đ của đơn đã hoàn thành' : 'Còn 180 điểm để lên hạng Vàng'}</div>`);
     if (k === 'lang') return openSheet(`<h3>Ngôn ngữ</h3><button class="opt sel">Tiếng Việt<span class="tick">${ic('check')}</span></button><button class="opt" data-sheetmsg="English – sắp ra mắt">English</button>`);
+    if (k === 'favs') return go('favorites');
+    if (k === 'reg-seller' || k === 'reg-driver') {
+      const seller = k === 'reg-seller', zl = zaloLink();
+      const who = (S.user && (S.user.name || S.user.phone)) ? ` Tên: ${S.user.name || '...'}${S.user.phone ? ' - SĐT: ' + S.user.phone : ''}.` : '';
+      const msg = seller
+        ? `Chào Admin Lâm Thao Ăn Gì, mình muốn đăng ký BÁN HÀNG trên web.${who} Tên quán: ... Địa chỉ quán: ... Món bán chính: ... Nhờ Admin hướng dẫn giúp mình. Cảm ơn!`
+        : `Chào Admin Lâm Thao Ăn Gì, mình muốn đăng ký làm TÀI XẾ giao hàng.${who} Họ tên: ... Số điện thoại: ... Khu vực chạy: ... Loại xe và biển số: ... Nhờ Admin hướng dẫn giúp mình. Cảm ơn!`;
+      if (!zl) return openSheet(`<h3>${seller ? 'Đăng ký bán hàng' : 'Đăng ký tài xế'}</h3><p style="margin:8px 0 4px;color:var(--ink-2);line-height:1.5">Vui lòng liên hệ Admin để đăng ký.</p>${contactOpts()}`);
+      try { navigator.clipboard.writeText(msg).catch(() => {}); } catch (e) {}
+      toast('Đã sao chép lời nhắn. Dán vào Zalo rồi gửi cho Admin nhé!');
+      const u = zl + (zl.includes('?') ? '&' : '?') + 'text=' + encodeURIComponent(msg);
+      window.open(u, '_blank', 'noopener');
+      return;
+    }
     if (k === 'contact') return openSheet(`<h3>Liên hệ Lâm Thao Ăn Gì</h3>${contactOpts()}`);
     if (k === 'notif' || k === 'settings') return openSheet(`<h3>${k === 'notif' ? 'Cài đặt thông báo' : 'Cài đặt'}</h3>${['Thông báo đơn hàng','Thông báo ưu đãi','Thông báo hệ thống'].map(x => `<div class="row-kv"><span>${x}</span><b style="color:var(--green-d)">Bật</b></div>`).join('')}`);
     if (k === 'policy') return policySheet('both');
@@ -1508,7 +1642,7 @@
     const cr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().getTime() : (+d._cr || 0), sold = +d.sold || 0;   // sold: số đơn đã giao, Admin cập nhật tự động
     return {
       id:d.id, _d:d, sector:(['fresh', 'fashion', 'service'].includes(d.sector) ? d.sector : 'food'), name:esc(d.name), cat:esc(cat), homeCat:esc(cat), img:esc(d.img || 'hero.svg'), rate:+d.rate || 0, rc:esc(d.rc || ''),
-      eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, freeShipAll:!!d.freeShipAll, sale:+d.sale || 0, order:(d.order == null || isNaN(+d.order)) ? 9999 : +d.order, featured:!!d.featured, sold, hotFlag:d.hot === true ? 1 : 0, hot:d.hot === true || sold >= 10, created:cr, isNew:d.isNew === true || (cr > 0 && Date.now() - cr < 30 * 864e5),
+      eta:esc(d.eta || '15 - 30 phút'), ship:free ? Math.round(free / 1000) + 'K' : '', shipFee:d.shipFee ?? 15000, freeShipMin:free, freeShipAll:!!d.freeShipAll, sale:+d.sale || 0, hotHome:d.hotHome === true, order:(d.order == null || isNaN(+d.order)) ? 9999 : +d.order, featured:!!d.featured, sold, hotFlag:d.hot === true ? 1 : 0, hot:d.hot === true || sold >= 10, created:cr, isNew:d.isNew === true || (cr > 0 && Date.now() - cr < 30 * 864e5),
       group:((d.group && d.group.length) ? d.group : [cat.split('•')[0].trim()]).map(esc), desc:esc(d.desc || ''),
       menu:(d.menu || []).map(m => [esc(m.name), +m.price || 0, m.available !== false, esc(m.cat || ''), esc(m.img || ''), esc(m.desc || ''), esc(m.sizes || ''), esc(m.colors || ''), esc(m.mat || '')]), lat:d.lat ?? null, lng:d.lng ?? null, get open() { return shopOpenNow(d); }, phone:esc(d.phone || ''), address:esc(d.address || ''),
     };
@@ -1558,8 +1692,10 @@
         if (S.tab === 'home' && $('#banner') && S.home.sector === 'food') $('#banner').innerHTML = bannerInner();
         if (shopPageOpen) { if (SHOPS.some(x => x.id === SP.id)) renderShopPage(); }
         if (S.tab === 'home' && $('#home-list')) $('#home-list').innerHTML = shopListHtml();
+        if (S.tab === 'home' && $('#tn-extra')) $('#tn-extra').innerHTML = tnExtra();
         else if (S.tab === 'favorites' && $('#fav-body')) { $('#fav-body').innerHTML = favBody(); bindFavSort(); }
         else if (S.tab === 'orders') rebuildOrders();
+        else if (S.tab === 'profile' && $('#profile-hot')) { $('#profile-hot').innerHTML = hotSectionHtml('hot-all'); }
       };
       FB.watchShops((l, err) => {
         if (err) return toast('Không tải được danh sách quán');
@@ -1593,6 +1729,39 @@
 
   /* Tải sẵn lớp dữ liệu Firebase ngay từ đầu (song song với việc vẽ trang) thay vì đợi vẽ xong mới tải */
   const fbReady = import('./fb.js?v=20261113a'); fbReady.catch(() => {});
+  function boot() {
+    const first = location.hash.slice(1);
+    go(renderers[first] ? first : 'home', false);
+    history.replaceState(null, '', '#' + S.tab);
+    startSlider();
+  }
+  /* ---- Quán hot: chấm tròn, vuốt, tạm dừng khi chạm; Trang quán: tìm món, chia sẻ, thanh tiêu đề ---- */
+  document.addEventListener('click', e => {
+    const g = e.target.closest && e.target.closest('[data-hotgo]');
+    if (g) { HOT.pause = Date.now() + 6000; hotShow(+g.dataset.hotgo); }
+  });
+  let hotX = null;
+  document.addEventListener('touchstart', e => { if (e.target.closest && e.target.closest('.hot-rot')) { hotX = e.touches[0].clientX; HOT.pause = Date.now() + 6000; } else hotX = null; }, { passive:true });
+  document.addEventListener('touchend', e => {
+    if (hotX == null) return; const dx = e.changedTouches[0].clientX - hotX; hotX = null;
+    if (Math.abs(dx) > 40) hotShow(HOT.i + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
+  }, { passive:true });
+  const shopUrl = s => { const sl = slugOf(s._d && s._d.name), dup = !sl || SHOPS.some(x => x.id !== s.id && slugOf(x._d && x._d.name) === sl); return location.origin + location.pathname.replace(/[^/]*$/, '') + '?quan=' + encodeURIComponent(dup ? s.id : sl); };
+  document.addEventListener('click', e => {
+    const t = e.target.closest && e.target.closest('[data-spshare],[data-spgroup],[data-spsearch]'); if (!t) return;
+    const s = SHOPS.find(x => x.id === SP.id); if (!s) return;
+    if (t.hasAttribute('data-spsearch')) {
+      SP.sq = !SP.sq; const box = $('#shop-page .sp2-search'), qi = $('#sp-q');
+      if (box) box.hidden = !SP.sq;
+      if (SP.sq) { if (qi) qi.focus(); } else if (SP.q) { SP.q = ''; if (qi) qi.value = ''; const gr = $('#sp-groups'); if (gr) gr.innerHTML = spGroupsHtml(s); }
+      return;
+    }
+    const name = (s._d && s._d.name) || 'quán này', url = shopUrl(s), grp = t.hasAttribute('data-spgroup');
+    const text = grp ? `Cùng đặt món nhóm tại ${name} nhé! Vào chọn món chung với mình:` : `Quán ${name} – đặt món online, giao tận nơi tại Lâm Thao:`;
+    if (navigator.share) { navigator.share({ title:name, text, url }).catch(() => {}); return; }
+    (navigator.clipboard ? navigator.clipboard.writeText(text + ' ' + url) : Promise.reject()).then(() => toast('Đã sao chép link quán, gửi cho bạn bè nhé'), () => { try { prompt('Sao chép link dưới đây:', url); } catch (er) { /* bỏ qua */ } });
+  });
+  (() => { const pg = $('#shop-page'); if (pg) pg.addEventListener('scroll', () => pg.classList.toggle('scrolled', pg.scrollTop > 170), { passive:true }); })();
   function boot() {
     const first = location.hash.slice(1);
     go(renderers[first] ? first : 'home', false);
