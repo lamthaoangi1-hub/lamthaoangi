@@ -19,7 +19,7 @@ const MAX_BYTES = 3 * 1024 * 1024;
 const SITE_ORIGIN = 'https://lamthaoangi.io.vn';        // địa chỉ website (dùng cho biểu tượng + link khi khách bấm vào thông báo đẩy)
 
 const ADMIN_EMAIL = 'lamthaoangi1@gmail.com';             // Gmail nhận thông báo đơn mới (có thể ghi nhiều, cách nhau dấu phẩy)
-const SITE_URL = 'https://lamthaoangi.io.vn/quanly.html';  // link trang quản lý (đăng nhập chung) gắn vào email báo đơn
+const SITE_URL = 'https://lamthaoangi.com/quanly.html';  // link trang quản lý (đăng nhập chung) gắn vào email báo đơn
 const QUOTA_MSG = 'Không thể tải lên, vui lòng liên hệ quản trị.';   // hiện cho người dùng khi Firestore hết hạn mức miễn phí trong ngày (mã 429)
 
 // ----- Google Sheet lưu trữ -----
@@ -1136,7 +1136,7 @@ function testNotify() {
 }
 
 // ===================== GỌI SHIP (đơn ngoài app) =====================
-// Quán gửi yêu cầu (shipCalls/{id}: SĐT khách) → báo Admin qua Zalo để Admin liên hệ khách xin định vị.
+// Quán gửi yêu cầu (shipCalls/{id}: SĐT khách) → báo Admin qua Zalo + Gmail để Admin liên hệ khách xin định vị.
 function notifyShipCall(body) {
   if (!body.token || !body.callId) return out({ ok: false, error: 'Thiếu dữ liệu' });
   const uid = verifyToken(body.token);
@@ -1153,12 +1153,30 @@ function notifyShipCall(body) {
   } finally { lock.releaseLock(); }
   const phone = String(call.customerPhone || '').replace(/\D/g, ''), zl = phone.replace(/^0/, '84');
   let saved = null; try { saved = getDocAdmin('shipCustomers/' + phone.replace(/^84/, '0'), body.token); } catch (e) {}
-  const text = '🛵 GỌI SHIP từ ' + (call.shopName || 'quán') + '\nKhách: ' + call.customerPhone + (call.cod ? '\nThu hộ: ' + money(call.cod) : '') + (call.note ? '\nGhi chú: ' + call.note : '') +
-    (saved && saved.lat != null ? '\n✅ ĐÃ CÓ VỊ TRÍ KHÁCH từ lần trước → vào lamthaoangi.io.vn/quanly.html → tab Gọi ship → bấm Tạo đơn (không cần xin định vị).' : '\nNhắn Zalo xin định vị: https://zalo.me/' + zl + '\nSau đó vào lamthaoangi.io.vn/quanly.html → tab Gọi ship để tạo đơn.');
-  let sent = 0;
+  const hasLoc = !!(saved && saved.lat != null);
+  const guide = hasLoc ? 'ĐÃ CÓ VỊ TRÍ KHÁCH từ lần trước → vào ' + SITE_URL + ' → tab Gọi ship → bấm "Gửi đơn ngay" (không cần xin định vị).'
+    : 'Nhắn Zalo xin định vị: https://zalo.me/' + zl + '\nSau đó vào ' + SITE_URL + ' → tab Gọi ship để tạo đơn.';
+  const text = '🛵 GỌI SHIP từ ' + (call.shopName || 'quán') + '\nKhách: ' + call.customerPhone + (call.cod ? '\nThu hộ: ' + money(call.cod) : '') + (call.note ? '\nGhi chú: ' + call.note : '') + '\n' + (hasLoc ? '✅ ' : '') + guide;
+  let sent = 0, mailed = 0;
+  // 1) Zalo cho Admin
   String(props().getProperty('ZALO_ADMIN_IDS') || '').split(',').map(x => x.trim()).filter(Boolean).forEach(id => { try { if (sendZalo(id, text)) sent++; } catch (e) { console.error('Zalo gọi ship: ' + e); } });
-  if (!sent) { try { CacheService.getScriptCache().remove('shipcall_' + body.callId); } catch (e) {} return out({ ok: false, error: 'Chưa gửi được Zalo cho Admin' }); }
-  return out({ ok: true, sent: sent });
+  // 2) Gmail cho Admin
+  try {
+    const html = '<div style="font-family:Arial,sans-serif;font-size:15px;color:#222">'
+      + '<h2 style="margin:0 0 8px;color:#e8590c">🛵 Quán gọi ship</h2>'
+      + '<p><b>Quán:</b> ' + esc(call.shopName || '') + (call.shopPhone ? ' · <a href="tel:' + esc(call.shopPhone) + '">' + esc(call.shopPhone) + '</a>' : '') + '<br>'
+      + (call.shopAddress ? '<b>Địa chỉ quán:</b> ' + esc(call.shopAddress) + '<br>' : '')
+      + '<b>SĐT khách:</b> <a href="tel:' + esc(call.customerPhone) + '">' + esc(call.customerPhone) + '</a><br>'
+      + (call.cod ? '<b>Thu hộ:</b> ' + money(call.cod) + '<br>' : '')
+      + (call.note ? '<b>Ghi chú:</b> ' + esc(call.note) + '<br>' : '') + '</p>'
+      + '<p>' + (hasLoc ? '✅ <b>Đã có vị trí khách</b> từ lần trước, chỉ cần bấm <b>Gửi đơn ngay</b> trong trang quản lý.'
+          : '🆕 Khách mới: <a href="https://zalo.me/' + zl + '">nhắn Zalo xin định vị</a>, sau đó vào trang quản lý → tab Gọi ship để tạo đơn.') + '</p>'
+      + (SITE_URL ? '<p><a href="' + SITE_URL + '">Mở trang quản lý</a></p>' : '') + '</div>';
+    MailApp.sendEmail({ to: ADMIN_EMAIL, subject: '🛵 Gọi ship – ' + (call.shopName || 'quán') + ' – khách ' + call.customerPhone, htmlBody: html, body: text, name: 'Lâm Thao Ăn Gì?' });
+    mailed = 1;
+  } catch (e) { console.error('Gmail gọi ship: ' + e); }
+  if (!sent && !mailed) { try { CacheService.getScriptCache().remove('shipcall_' + body.callId); } catch (e) {} return out({ ok: false, error: 'Chưa gửi được thông báo cho Admin' }); }
+  return out({ ok: true, sent: sent, mailed: mailed });
 }
 
 // Admin dán link rút gọn (maps.app.goo.gl…) → mở link, lấy toạ độ khách trả về cho form tạo đơn. Chỉ Admin, chỉ domain Google Maps.
@@ -1203,22 +1221,24 @@ function saveSellerBank(body) {
   const bin = String(body.bin || '').replace(/\D/g, ''), acc = String(body.account || '').replace(/\s/g, ''), bankName = String(body.bankName || '').slice(0, 40);
   if (!/^\d{6}$/.test(bin)) return out({ ok: false, error: 'Chưa chọn ngân hàng' });
   if (!/^\d{6,19}$/.test(acc)) return out({ ok: false, error: 'Số tài khoản chưa đúng (6–19 chữ số)' });
-  const id = props().getProperty('VIETQR_CLIENT_ID'), key = props().getProperty('VIETQR_API_KEY');
+  const id = String(props().getProperty('VIETQR_CLIENT_ID') || '').trim(), key = String(props().getProperty('VIETQR_API_KEY') || '').trim();
   if (!id || !key) return out({ ok: false, error: 'Hệ thống chưa bật kiểm tra tên tài khoản. Hãy báo Admin cài VIETQR_CLIENT_ID và VIETQR_API_KEY trong Apps Script.' });
   const cache = CacheService.getScriptCache(), tk = 'bankchk_' + uid;
   if (cache.get(tk)) return out({ ok: false, error: 'Bạn thao tác quá nhanh, đợi vài giây rồi thử lại' });
   cache.put(tk, '1', 8);
-  let j = null;
+  let j = null, http = 0, raw = '';
   try {
     const r = UrlFetchApp.fetch('https://api.vietqr.io/v2/lookup', { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
       headers: { 'x-client-id': id, 'x-api-key': key }, payload: JSON.stringify({ bin: Number(bin), accountNumber: acc }) });
     if (r.getResponseCode() === 429) return out({ ok: false, error: 'Dịch vụ kiểm tra tài khoản đang quá tải, thử lại sau ít phút' });
-    j = JSON.parse(r.getContentText());
+    http = r.getResponseCode(); raw = r.getContentText(); j = JSON.parse(raw);
   } catch (e) { console.error('saveSellerBank lookup: ' + e); return out({ ok: false, error: 'Không kết nối được dịch vụ kiểm tra tài khoản, thử lại sau' }); }
   const holder = j && j.code === '00' && j.data && j.data.accountName ? String(j.data.accountName).trim().slice(0, 100) : '';
   if (!holder) {
     const msg = { '41': 'Ngân hàng này chưa hỗ trợ kiểm tra tên tài khoản', '42': 'Số tài khoản không tồn tại hoặc không hợp lệ', '21': 'Số tài khoản không hợp lệ', '45': 'Hệ thống ngân hàng đang bận, thử lại sau ít phút' }[j && j.code];
-    return out({ ok: false, error: msg || 'Không tìm thấy tên chủ tài khoản, kiểm tra lại ngân hàng và số tài khoản' });
+    console.error('saveSellerBank: VietQR HTTP ' + http + ' bin=' + bin + ' acc=' + acc + ' → ' + String(raw).slice(0, 300));
+    // kèm mã lỗi thật của VietQR để biết do khóa/gói hay do số tài khoản
+    return out({ ok: false, error: (msg || 'Không tìm thấy tên chủ tài khoản, kiểm tra lại ngân hàng và số tài khoản') + ' [VietQR ' + http + ' ' + ((j && j.code) || '') + ' ' + String((j && (j.desc || j.message)) || '').slice(0, 80) + ']' });
   }
   const f = { uid: { stringValue: uid }, shopId: { stringValue: String(me.shopId) }, bankBin: { stringValue: bin }, bankName: { stringValue: bankName },
     bankAccount: { stringValue: acc }, bankHolder: { stringValue: holder }, verified: { booleanValue: true }, updatedAt: { timestampValue: new Date().toISOString() } };

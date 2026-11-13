@@ -1592,7 +1592,7 @@
   }
 
   /* Tải sẵn lớp dữ liệu Firebase ngay từ đầu (song song với việc vẽ trang) thay vì đợi vẽ xong mới tải */
-  const fbReady = import('./fb.js?v=20261112a'); fbReady.catch(() => {});
+  const fbReady = import('./fb.js?v=20261113a'); fbReady.catch(() => {});
   function boot() {
     const first = location.hash.slice(1);
     go(renderers[first] ? first : 'home', false);

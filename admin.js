@@ -637,7 +637,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   function shipView() {
     const rows = shipCalls.map(c => `<div class="card"${sf && sf.id === c.id ? ' style="border-color:var(--g)"' : ''}><div class="row sb"><b>${esc(c.shopName)}</b><span class="muted">${fmtTime(c.createdAtMs)}</span></div>
       <div>Khách: <b>${esc(c.customerPhone)}</b>${c.cod ? ' · Thu hộ <b>' + money(c.cod) + '</b>' : ''}</div>${shipSavedHtml(c)}${c.note ? `<div class="muted">${esc(c.note)}</div>` : ''}
-      <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px"><a class="btn sm o" href="https://zalo.me/${zaloPhone(c.customerPhone)}" target="_blank" rel="noopener">${savedLoc[fb.shipPhoneKey(c.customerPhone)] ? '💬 Xin lại vị trí' : '💬 Xin vị trí qua Zalo'}</a><a class="btn sm o" href="${mapLink(c.shopLat, c.shopLng)}" target="_blank" rel="noopener">📍 Vị trí quán</a>${savedLoc[fb.shipPhoneKey(c.customerPhone)] ? `<button class="btn sm" data-sfquick="${esc(c.id)}">🚀 Gửi đơn ngay</button><button class="btn sm o" data-sfopen="${esc(c.id)}">Sửa</button>` : `<button class="btn sm" data-sfopen="${esc(c.id)}">Tạo đơn (đã có link)</button>`}<button class="btn sm r" data-sfdel="${esc(c.id)}">Bỏ</button></div></div>`).join('') || '<div class="empty">Chưa có yêu cầu gọi ship nào.</div>';
+      <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px"><a class="btn sm o" href="https://zalo.me/${zaloPhone(c.customerPhone)}" target="_blank" rel="noopener">${savedLoc[fb.shipPhoneKey(c.customerPhone)] ? '💬 Xin lại vị trí' : '💬 Xin vị trí qua Zalo'}</a><a class="btn sm o" href="${mapLink(c.shopLat, c.shopLng)}" target="_blank" rel="noopener">📍 Vị trí quán</a>${savedLoc[fb.shipPhoneKey(c.customerPhone)] ? `<button class="btn sm" data-sfquick="${esc(c.id)}">🚀 Gửi đơn ngay</button><button class="btn sm o" data-sfopen="${esc(c.id)}">Sửa</button>` : `<button class="btn sm" data-sfopen="${esc(c.id)}">Tạo đơn (đã có link)</button>`}<button class="btn sm" style="background:#2b8a3e" data-sfdone="${esc(c.id)}" title="Đã xử lý xong yêu cầu này, không cần link vị trí khách">✅ Hoàn thành</button><button class="btn sm r" data-sfdel="${esc(c.id)}">Bỏ</button></div></div>`).join('') || '<div class="empty">Chưa có yêu cầu gọi ship nào.</div>';
     return `<div class="row sb" style="margin-bottom:10px"><b>${shipCalls.length} yêu cầu chờ xử lý</b></div>${rows}${sf ? shipForm() : ''}`;
   }
   const sfInit = c => {
@@ -697,6 +697,12 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
     if (qk) { const c = shipCalls.find(x => x.id === qk.dataset.sfquick); if (!c || (sf && sf.busy)) return; sfInit(c); await sfMake(); return; }   // khách cũ: 1 chạm là tạo đơn + báo shipper
     if (e.target.closest('[data-sfclose]')) { sf = null; draw(); return; }
     if (e.target.closest('[data-sfmake]')) { await sfMake(); return; }
+    const dn = e.target.closest('[data-sfdone]');
+    if (dn) {   // hoàn thành yêu cầu gọi ship NGAY, kể cả khi chưa có link vị trí khách (đã tự gọi shipper / quán tự giao...)
+      if (!confirm('Đánh dấu HOÀN THÀNH yêu cầu gọi ship này?\n(Không tạo đơn cho shipper, yêu cầu sẽ rời danh sách chờ.)')) return;
+      try { await fb.patchShipCall(dn.dataset.sfdone, { status:'done', doneAt:Date.now() }); if (sf && sf.id === dn.dataset.sfdone) sf = null; toast('Đã hoàn thành yêu cầu gọi ship'); } catch (er) { toast(fb.errMsg(er)); }
+      return;
+    }
     const d = e.target.closest('[data-sfdel]');
     if (d) { if (!confirm('Bỏ yêu cầu gọi ship này?')) return; try { await fb.patchShipCall(d.dataset.sfdel, { status:'cancelled' }); toast('Đã bỏ yêu cầu'); } catch (er) { toast(fb.errMsg(er)); } }
   });

@@ -222,13 +222,6 @@ export async function onForegroundPush(cb) {
 }
 export const createShop = d => addDoc(collection(db, 'shops'), { ...d, createdAt:serverTimestamp() });
 export const patchShop = (id, patch) => updateDoc(doc(db, 'shops', id), patch);
-/* ---- Đơn nháp quán tạo hộ khách (drafts): quán chọn món → tạo link dat.html?d=<id> → khách chỉ chia sẻ vị trí và gửi ---- */
-export const createDraft = async d => (await withTimeout(addDoc(collection(db, 'drafts'), { ...d, status:'open', createdAtMs:Date.now(), createdBy:auth.currentUser.uid }), 30000, QUOTA_MSG)).id;
-export async function listOpenDrafts(shopId) {
-  const s = await getDocs(query(collection(db, 'drafts'), where('shopId', '==', shopId), where('status', '==', 'open'), limit(30)));
-  return s.docs.map(d => ({ id:d.id, ...d.data() })).sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
-}
-export const deleteDraft = id => deleteDoc(doc(db, 'drafts', id));
 /* ---- Gọi ship (shipCalls): quán nhập SĐT khách → Admin xin định vị qua Zalo → Admin tạo đơn Giao hàng cho shipper ---- */
 export const createShipCall = async d => (await withTimeout(addDoc(collection(db, 'shipCalls'), { ...d, status:'new', createdAtMs:Date.now(), createdBy:auth.currentUser.uid }), 30000, QUOTA_MSG)).id;
 export const watchShopShipCalls = (shopId, cb) => watch(query(collection(db, 'shipCalls'), where('shopId', '==', shopId), limit(30)), cb);

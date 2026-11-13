@@ -67,27 +67,19 @@ service cloud.firestore {
 
     match /promos/{id} { allow read: if true; allow write: if isAdmin(); }
 
-    // Đơn nháp do quán tạo hộ khách (drafts/{id}): ID ngẫu nhiên nên ai có link mới mở được (chỉ get, không list).
-    // Quán chỉ tạo/xem/xóa nháp của quán mình; khách (đăng nhập ẩn danh trên trang dat.html) chỉ được đánh dấu "used" sau khi đặt đơn.
-    match /drafts/{id} {
-      allow get: if true;
-      allow list: if isAdmin() || (isSeller() && resource.data.shopId == me().shopId);
-      allow create: if isSeller() && request.resource.data.shopId == me().shopId
-        && request.resource.data.keys().hasOnly(['shopId', 'shopName', 'items', 'customerName', 'customerPhone', 'address', 'note', 'status', 'createdAtMs', 'createdBy'])
-        && request.resource.data.status == 'open'
-        && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.items is list && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 40
-        && request.resource.data.customerName is string && request.resource.data.customerName.size() <= 80
-        && request.resource.data.customerPhone is string && request.resource.data.customerPhone.size() <= 20
-        && request.resource.data.address is string && request.resource.data.address.size() <= 300
-        && request.resource.data.note is string && request.resource.data.note.size() <= 300
-        && request.resource.data.createdAtMs is number;
-      allow update: if isAdmin()
-        || (signedIn() && resource.data.status == 'open' && request.resource.data.status == 'used' && changedOnly(['status', 'usedAt', 'orderId']));
-      allow delete: if isAdmin() || (isSeller() && me().shopId == resource.data.shopId);
+    // Tài khoản ngân hàng nhận tiền của nhà bán hàng (sellerBanks/{uid}): chủ quán TẠO ĐƯỢC ĐÚNG 1 LẦN, sau đó KHÓA (không sửa/xóa) để người khác vào cũng không đổi được. Chỉ Admin sửa/xóa (mở khóa).
+    match /sellerBanks/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if isSeller() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid', 'shopId', 'bankBin', 'bankName', 'bankAccount', 'bankHolder', 'updatedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.shopId == me().shopId
+        && request.resource.data.bankBin is string && request.resource.data.bankBin.matches('^[0-9]{6}$')
+        && request.resource.data.bankAccount is string && request.resource.data.bankAccount.matches('^[0-9]{6,19}$')
+        && request.resource.data.bankName is string && request.resource.data.bankName.size() <= 40
+        && request.resource.data.bankHolder is string && request.resource.data.bankHolder.size() >= 3 && request.resource.data.bankHolder.size() <= 60;
+      allow update, delete: if isAdmin();
     }
-    // Tài khoản ngân hàng nhận tiền của nhà bán hàng (sellerBanks/{uid}): chủ quán và Admin chỉ ĐỌC. Chỉ Apps Script (quyền chủ script) ghi được, sau khi hỏi ngân hàng lấy tên chủ tài khoản
-    match /sellerBanks/{uid} { allow read: if signedIn() && (request.auth.uid == uid || isAdmin()); allow write: if false; }
     // settings/notify chứa Zalo ID nhận báo đơn: CHỈ Admin đọc (Apps Script đọc bằng quyền riêng của chủ script)
     match /settings/{id} { allow read: if id != 'notify' || isAdmin(); allow write: if isAdmin(); }
 

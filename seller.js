@@ -1,11 +1,11 @@
 import { report, periodControl, metrics, note, dailyView, walletCredit } from './revenue.js?v=20261112a';
 import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261023a';
-import { shopLink, copyText, siteBase } from './shoplink.js?v=20261103a';
+import { shopLink, copyText } from './shoplink.js?v=20261103a';
 import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261112a';
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
-  let tab = 'orders', shipCalls = [], sc = { phone:'', cod:'', note:'' }, scBusy = false, cf = 'all', cq = '', draft = { q:{}, name:'', phone:'', addr:'', note:'' }, drafts = null, lastLink = '', draftBusy = false, shop = null, settings = {}, orders = [], err = '', fil = 'active', period = 'month', payouts = [], bank = null, bf = { bin:'', acc:'', holder:'', amt:'', edit:false, busy:false };
+  let tab = 'orders', shipCalls = [], sc = { phone:'', cod:'', note:'' }, scBusy = false, shop = null, settings = {}, orders = [], err = '', fil = 'active', period = 'month', payouts = [], bank = null, bf = { bin:'', acc:'', holder:'', amt:'', edit:false, busy:false };
   /* ---- Ví nhà bán hàng: phần giảm giá do Admin tài trợ (platformOff) của đơn đã giao xong được cộng vào ví. Quán nhập STK (hệ thống kiểm tra tên chủ TK rồi lưu) và gửi yêu cầu rút cho Admin ---- */
   const BANKS = [['Vietcombank', '970436'], ['VietinBank', '970415'], ['BIDV', '970418'], ['Agribank', '970405'], ['MB Bank', '970422'], ['Techcombank', '970407'], ['ACB', '970416'], ['VPBank', '970432'], ['TPBank', '970423'], ['Sacombank', '970403'], ['VIB', '970441'], ['SHB', '970443'], ['HDBank', '970437'], ['OCB', '970448'], ['MSB', '970426'], ['SeABank', '970440'], ['LPBank', '970449'], ['Eximbank', '970431'], ['Nam A Bank', '970428'], ['Bac A Bank', '970409'], ['PVcomBank', '970412']];
   const PST = { pending:['Chờ Admin chuyển', 'bankwait'], paid:['Đã chuyển khoản', 'bank'], rejected:['Bị từ chối (đã hoàn lại ví)', ''] };
@@ -51,38 +51,9 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
       ${list.length ? list.map(orderCard).join('') : '<div class="empty">Chưa có đơn</div>'}`;
   }
   function revenueTab() { const r = report(orders, period); return `<div class="section-heading"><h2>Doanh thu cửa hàng</h2><p>Chi tiết hoạt động kinh doanh của ${esc(shop.name)}</p></div>${periodControl(period)}${metrics(r)}${note}${dailyView(r)}`; }
-  /* ---- Tạo đơn hộ khách: quán chọn món → tạo link → khách mở link, chia sẻ vị trí và gửi ---- */
-  const menuList = () => (shop.menu || []).map((m, i) => ({ i, name:m.name, price:+m.price || 0, cat:String(m.cat || '').trim(), ok:m.available !== false })).filter(m => m.ok && m.name);
-  const nz = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
-  const NOCAT = '__nocat';
-  const selCount = () => draftLines().reduce((a, l) => a + l.qty, 0);
-  /* Chip danh mục: Tất cả · Đã chọn · từng danh mục (kèm số món đã chọn) · Chưa phân loại */
-  function catChips() {
-    const list = menuList(), cats = [...new Set(list.map(m => m.cat).filter(Boolean))], hasNo = list.some(m => !m.cat);
-    if (!cats.length) return '';
-    const cnt = k => list.filter(m => draft.q[m.i] > 0 && (m.cat || NOCAT) === k).reduce((a, m) => a + draft.q[m.i], 0);
-    const chip = (k, t, n) => `<button type="button" class="${cf === k ? 'on' : ''}" data-cf="${esc(k)}">${esc(t)}${n ? ` <span class="n">${n}</span>` : ''}</button>`;
-    return chip('all', 'Tất cả') + chip('sel', '✓ Đã chọn', selCount()) + cats.map(c => chip(c, c, cnt(c))).join('') + (hasNo ? chip(NOCAT, 'Khác', cnt(NOCAT)) : '');
-  }
-  function rowsHtml() {
-    const q = nz(cq.trim());
-    const list = menuList().filter(m => (cf === 'all' || (cf === 'sel' ? draft.q[m.i] > 0 : (m.cat || NOCAT) === cf)) && (!q || nz(m.name).includes(q)));
-    if (!list.length) return `<div class="empty" style="padding:24px 10px">${cf === 'sel' ? 'Chưa chọn món nào' : 'Không tìm thấy món phù hợp'}</div>`;
-    return list.map(m => `<div class="qrow"><div><b>${esc(m.name)}</b><div class="muted">${money(m.price)}</div></div><div class="qctl"><button type="button" data-qm="${m.i}" aria-label="Giảm">−</button><b data-qn="${m.i}">${draft.q[m.i] || 0}</b><button type="button" data-qp="${m.i}" aria-label="Tăng">+</button></div></div>`).join('');
-  }
-  const refreshChips = () => { const c = $('#c-cats', root); if (c) c.innerHTML = catChips(); const n = $('#c-cnt', root); if (n) n.textContent = selCount(); };
-  const refreshList = () => { const r = $('#c-rows', root); if (r) { r.innerHTML = rowsHtml(); r.scrollTop = 0; } refreshChips(); };
-  const draftLines = () => menuList().filter(m => draft.q[m.i] > 0).map(m => ({ name:m.name, price:m.price, qty:draft.q[m.i] }));
-  const draftSub = () => draftLines().reduce((a, l) => a + l.price * l.qty, 0);
-  const draftUrl = id => siteBase() + 'dat.html?d=' + encodeURIComponent(id);
-  const draftMsg = (url, name) => `Quán ${shop.name} đã lên đơn giúp${name ? ' ' + name : ' bạn'}. Bạn bấm link này, cho phép "Vị trí" rồi bấm "Gửi đơn" là xong nhé:\n${url}`;
-  async function loadDrafts() {
-    try { drafts = await fb.listOpenDrafts(me.shopId); } catch (e) { drafts = []; toast(fb.errMsg(e)); }
-    if (tab === 'create') draw();
-  }
   /* ===== Gọi ship: giao đơn ngoài app. Quán chỉ nhập SĐT khách, Admin xin định vị qua Zalo rồi tạo đơn cho shipper ===== */
   function shipTab() {
-    const noGps = shop.lat == null, stt = { new:['Chờ Admin liên hệ khách', 'warn'], ordered:['Đã giao cho shipper', 'ok'], cancelled:['Đã hủy', ''] };
+    const noGps = shop.lat == null, stt = { new:['Chờ Admin liên hệ khách', 'warn'], ordered:['Đã giao cho shipper', 'ok'], done:['Đã hoàn thành', 'ok'], cancelled:['Đã hủy', ''] };
     const rows = shipCalls.map(c => { const t = stt[c.status] || ['', '']; return `<div class="qrow"><div><b>${esc(c.customerPhone)}</b> <span class="muted">· ${fmtTime(c.createdAtMs)}</span>
       <div class="muted">${c.cod ? 'Thu hộ ' + money(c.cod) + (c.note ? ' · ' : '') : ''}${esc(c.note || '')}</div></div>
       <div class="row"><span class="badge ${t[1]}">${t[0]}</span>${c.status === 'new' ? `<button class="btn sm r" data-cancelship="${esc(c.id)}">Hủy</button>` : ''}</div></div>`; }).join('') || '<div class="muted">Chưa có yêu cầu nào.</div>';
@@ -95,28 +66,6 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
       <label class="f">Ghi chú cho shipper<input type="text" id="sc-note" maxlength="300" value="${esc(sc.note)}" placeholder="VD: 2 phần cơm"></label></div></details>
       <button class="btn" data-sendship ${noGps || scBusy ? 'disabled' : ''} style="margin-top:10px">${scBusy ? 'Đang gửi…' : 'Gửi yêu cầu cho Admin'}</button></div>
       <div class="card"><h3>Yêu cầu gần đây</h3>${rows}</div>`;
-  }
-  function createTab() {
-    const list = menuList(), closed = !isOpenNow(shop);
-    const rows = list.length ? rowsHtml() : '<div class="empty">Quán chưa có món nào đang bán. Hãy thêm món ở tab Thực đơn.</div>';
-    const linkCard = lastLink ? `<div class="card" style="background:#f0fbf4;border:1px solid #b7e4c7"><h3>✅ Đã tạo link cho khách</h3>
-      <p class="muted" style="margin:4px 0 8px">Gửi link này cho khách (Zalo, Messenger, tin nhắn…). Khách bấm vào, cho phép vị trí rồi bấm Gửi đơn. Đơn sẽ báo về quán, shipper và Admin như đơn thường.</p>
-      <input type="text" id="c-link" readonly value="${esc(lastLink)}" onclick="this.select()">
-      <div class="row" style="margin-top:10px"><button class="btn" data-copydraft="${esc(lastLink)}">Sao chép tin nhắn gửi khách</button>${navigator.share ? `<button class="btn o" data-sharedraft="${esc(lastLink)}">Chia sẻ…</button>` : ''}</div></div>` : '';
-    const pend = drafts && drafts.length ? `<div class="card"><h3>Link đã tạo, khách chưa đặt</h3>${drafts.map(d => `<div class="qrow"><div><b>${esc(d.customerName || 'Khách')}</b> <span class="muted">· ${esc(d.customerPhone || '')} · ${fmtTime(d.createdAtMs)}</span>
-        <div class="muted">${(d.items || []).map(i => i.qty + ' x ' + esc(i.name)).join(', ')} · <b>${money((d.items || []).reduce((a, i) => a + i.price * i.qty, 0))}</b></div></div>
-        <div class="row"><button class="btn sm" data-copydraft="${esc(draftUrl(d.id))}" data-dname="${esc(d.customerName || '')}">Sao chép</button><button class="btn sm r" data-deldraft="${esc(d.id)}">Xóa</button></div></div>`).join('')}</div>` : (drafts === null ? '<div class="muted" style="margin-bottom:10px">Đang tải link đã tạo…</div>' : '');
-    return linkCard + `<div class="card"><h3>📝 Tạo đơn hộ khách</h3><p class="muted" style="margin:4px 0 4px">Dành cho khách không quen dùng web: bạn chọn món, tạo link rồi gửi cho khách. Khách chỉ cần chia sẻ vị trí và bấm Gửi đơn.</p>
-      ${closed ? '<p style="color:var(--red);font-weight:600;margin-top:6px">Quán đang đóng cửa nên khách chưa gửi đơn được. Hãy bật mở cửa ở tab Cửa hàng.</p>' : ''}
-      ${list.length > 8 ? `<input type="text" id="c-q" value="${esc(cq)}" placeholder="🔍 Tìm món theo tên (${list.length} món)…" autocomplete="off">` : ''}
-      <div class="chips" id="c-cats">${catChips()}</div>
-      <div class="row sb csum"><span>Đã chọn <b id="c-cnt">${selCount()}</b> món · tạm tính <span class="muted">(chưa gồm ship)</span></span><b class="total" id="c-sub">${money(draftSub())}</b></div>
-      <div id="c-rows" class="clist">${rows}</div></div>
-      <div class="card"><h3>Thông tin khách</h3><p class="muted" style="margin:4px 0 0">Shipper cần tên và số điện thoại để liên hệ giao hàng.</p>
-      <div class="grid"><label class="f">Tên khách *<input type="text" id="c-name" maxlength="80" value="${esc(draft.name)}" placeholder="VD: Chị Lan"></label><label class="f">Số điện thoại *<input type="tel" id="c-phone" maxlength="15" inputmode="tel" value="${esc(draft.phone)}" placeholder="09xxxxxxxx"></label></div>
-      <label class="f">Địa chỉ nhận hàng (không bắt buộc, khách có thể bổ sung)<input type="text" id="c-addr" maxlength="200" value="${esc(draft.addr)}" placeholder="Số nhà, thôn/xóm…"></label>
-      <label class="f">Ghi chú cho quán / shipper<input type="text" id="c-note" maxlength="200" value="${esc(draft.note)}" placeholder="Ít cay, gọi trước khi tới… (không bắt buộc)"></label>
-      <button class="btn" style="margin-top:14px" data-makedraft ${draftBusy ? 'disabled' : ''}>🔗 Tạo link gửi khách</button></div>` + pend;
   }
   function menuTab() {
     return `<div class="card" data-msector="${esc(shop.sector || 'food')}"><h3>Thực đơn</h3><p class="muted">Sửa tên, giá, tắt món hết hàng rồi bấm Lưu.${shop.sector === 'fashion' ? ' Điền thêm Size / Màu / Chất liệu để khách bấm “Xem chi tiết”. Ảnh bạn tải lên sẽ được AI chỉnh đẹp rồi tự đăng lên web.' : ''}</p>${menuEditorHtml(shop.menu)}<button class="btn" style="margin-top:14px" data-savemenu>Lưu thực đơn</button></div>`;
@@ -142,8 +91,8 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
   }
   function draw() {
     const pend = orders.filter(o => o.status === 'pending').length;
-    root.innerHTML = `<div class="tabs"><button class="${tab === 'orders' ? 'on' : ''}" data-t="orders">Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}</button><button class="${tab === 'create' ? 'on' : ''}" data-t="create">📝 Tạo đơn hộ</button><button class="${tab === 'ship' ? 'on' : ''}" data-t="ship">🛵 Gọi ship${shipCalls.filter(c => c.status === 'new').length ? `<span class="n">${shipCalls.filter(c => c.status === 'new').length}</span>` : ''}</button><button class="${tab === 'revenue' ? 'on' : ''}" data-t="revenue">📊 Doanh thu</button><button class="${tab === 'wallet' ? 'on' : ''}" data-t="wallet">👛 Ví</button><button class="${tab === 'menu' ? 'on' : ''}" data-t="menu">Thực đơn</button><button class="${tab === 'shop' ? 'on' : ''}" data-t="shop">Cửa hàng</button></div>
-      <main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${!shop ? '<div class="empty">Đang tải cửa hàng…</div>' : tab === 'orders' ? ordersTab() : tab === 'create' ? createTab() : tab === 'ship' ? shipTab() : tab === 'menu' ? menuTab() : tab === 'revenue' ? revenueTab() : tab === 'wallet' ? walletTab() : shopTab()}</main>`;
+    root.innerHTML = `<div class="tabs"><button class="${tab === 'orders' ? 'on' : ''}" data-t="orders">Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}</button><button class="${tab === 'ship' ? 'on' : ''}" data-t="ship">🛵 Gọi ship${shipCalls.filter(c => c.status === 'new').length ? `<span class="n">${shipCalls.filter(c => c.status === 'new').length}</span>` : ''}</button><button class="${tab === 'revenue' ? 'on' : ''}" data-t="revenue">📊 Doanh thu</button><button class="${tab === 'wallet' ? 'on' : ''}" data-t="wallet">👛 Ví</button><button class="${tab === 'menu' ? 'on' : ''}" data-t="menu">Thực đơn</button><button class="${tab === 'shop' ? 'on' : ''}" data-t="shop">Cửa hàng</button></div>
+      <main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${!shop ? '<div class="empty">Đang tải cửa hàng…</div>' : tab === 'orders' ? ordersTab() : tab === 'ship' ? shipTab() : tab === 'menu' ? menuTab() : tab === 'revenue' ? revenueTab() : tab === 'wallet' ? walletTab() : shopTab()}</main>`;
   }
   let first = true;
   track(fb.watchShop(me.shopId, (s, e) => { shop = s; if (e) err = fb.errMsg(e); else if (!s) err = 'Không tìm thấy cửa hàng được gán cho bạn.'; if (tab === 'orders' || tab === 'revenue' || first) draw(); }));
@@ -157,7 +106,6 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
   track(fb.watchMyBank(me.uid, b => { bank = b; if (tab === 'wallet') draw(); }));
   track(true ? fb.watchShopShipCalls(me.shopId, l => { shipCalls = l.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0)); if (!document.activeElement?.closest?.('input,textarea,select')) draw(); }) : () => {});
   bindMenuEditor(root); bindImgUpload(root);
-  root.addEventListener('input', e => { if (e.target.id === 'c-q') { cq = e.target.value; refreshList(); return; } const k = { 'c-name':'name', 'c-phone':'phone', 'c-addr':'addr', 'c-note':'note' }[e.target.id]; if (k) draft[k] = e.target.value; });
   root.addEventListener('input', e => { const m = { 'wb-bank':'bin', 'wb-acc':'acc', 'wb-holder':'holder', 'w-amt':'amt' }[e.target.id]; if (m) bf[m] = e.target.value; });
   root.addEventListener('click', async e => {
     if (e.target.closest('[data-savebank]')) {
@@ -201,32 +149,8 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
     const cs = e.target.closest('[data-cancelship]');
     if (cs) { if (!confirm('Hủy yêu cầu gọi ship này?')) return; try { await fb.patchShipCall(cs.dataset.cancelship, { status:'cancelled' }); toast('Đã hủy'); } catch (er) { toast(fb.errMsg(er)); } }
   });
-  async function makeDraft() {
-    if (draftBusy) return;
-    const lines = draftLines(), name = draft.name.trim(), phone = draft.phone.replace(/[\s.\-]/g, '');
-    if (!lines.length) return toast('Hãy chọn ít nhất 1 món');
-    if (!name) return toast('Vui lòng nhập tên khách');
-    if (!/^(0|\+?84)\d{8,10}$/.test(phone)) return toast('Số điện thoại khách chưa đúng');
-    draftBusy = true;
-    try {
-      const id = await fb.createDraft({ shopId:me.shopId, shopName:shop.name || '', items:lines, customerName:name, customerPhone:phone, address:draft.addr.trim(), note:draft.note.trim() });
-      lastLink = draftUrl(id);
-      drafts = [{ id, shopId:me.shopId, items:lines, customerName:name, customerPhone:phone, createdAtMs:Date.now() }, ...(drafts || [])];
-      draft = { q:{}, name:'', phone:'', addr:'', note:'' };
-      toast('Đã tạo link, hãy gửi cho khách');
-    } catch (er) { toast(fb.errMsg(er)); }
-    draftBusy = false; draw();
-    window.scrollTo({ top:0, behavior:'smooth' });
-  }
   root.addEventListener('click', async e => {
-    const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; draw(); if (tab === 'create' && drafts === null) loadDrafts(); return; }
-    const qp = e.target.closest('[data-qp]'), qm = e.target.closest('[data-qm]');
-    if (qp || qm) { const i = +(qp || qm).dataset[qp ? 'qp' : 'qm']; draft.q[i] = Math.max(0, Math.min(99, (draft.q[i] || 0) + (qp ? 1 : -1))); const n = $(`[data-qn="${i}"]`, root); if (n) n.textContent = draft.q[i]; const sb = $('#c-sub', root); if (sb) sb.textContent = money(draftSub()); refreshChips(); return; }
-    const cfb = e.target.closest('[data-cf]'); if (cfb) { cf = cfb.dataset.cf; refreshList(); return; }
-    const cd = e.target.closest('[data-copydraft]'); if (cd) { if (await copyText(draftMsg(cd.dataset.copydraft, cd.dataset.dname ?? draft.name))) toast('Đã sao chép tin nhắn, dán gửi cho khách'); return; }
-    const sd = e.target.closest('[data-sharedraft]'); if (sd) { try { await navigator.share({ text:draftMsg(sd.dataset.sharedraft, draft.name) }); } catch (er) { /* khách hủy chia sẻ */ } return; }
-    const dd = e.target.closest('[data-deldraft]'); if (dd) { if (!confirm('Xóa link này? Khách sẽ không mở được nữa.')) return; try { await fb.deleteDraft(dd.dataset.deldraft); drafts = (drafts || []).filter(x => x.id !== dd.dataset.deldraft); draw(); toast('Đã xóa link'); } catch (er) { toast(fb.errMsg(er)); } return; }
-    if (e.target.closest('[data-makedraft]')) { await makeDraft(); return; }
+    const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; draw(); return; }
     const periodBtn = e.target.closest('[data-period]'); if (periodBtn) { period = periodBtn.dataset.period; draw(); return; }
     const f = e.target.closest('[data-fil]'); if (f) { fil = f.dataset.fil; draw(); return; }
     if (e.target.closest('[data-copylink]')) { if (await copyText($('#s-link').value)) toast('Đã sao chép link quán'); return; }
