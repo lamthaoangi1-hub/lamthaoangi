@@ -376,9 +376,9 @@
     const food = SHOPS.filter(s => sectorOf(s) === 'food' && s.open !== false);
     if (!food.length) return '';
     const today = tnPick(food, 8);
-    return `<div class="tn-sec"><span class="tn-ico">💡</span><div><h4>Hôm nay ăn gì?</h4><p>Gợi ý cho bạn những món ngon</p></div><button class="tn-more" data-act="see-all">Xem tất cả</button></div>
-      <div class="tn-hs">${today.map(s => `<article class="tn-card" data-shop="${s.id}"><img src="${s.img}" alt="${esc(s.name)}" loading="lazy" decoding="async"><h5>${s.name}</h5><p>${tnRate(s)}</p></article>`).join('')}</div>
-      ${hotSectionHtml('hot-all')}`;
+    return `${hotSectionHtml('hot-all')}
+      <div class="tn-sec"><span class="tn-ico">💡</span><div><h4>Hôm nay ăn gì?</h4><p>Gợi ý cho bạn những món ngon</p></div><button class="tn-more" data-act="see-all">Xem tất cả</button></div>
+      <div class="tn-hs">${today.map(s => `<article class="tn-card" data-shop="${s.id}"><img src="${s.img}" alt="${esc(s.name)}" loading="lazy" decoding="async"><h5>${s.name}</h5><p>${tnRate(s)}</p></article>`).join('')}</div>`;
   }
   /* ---- Quán hot: mỗi lần 1 quán + 3 món, tự chuyển sau 3,5 giây (dùng chung Trang chủ & Cá nhân) ---- */
   const HOT = { i:0, pause:0 };
@@ -389,7 +389,14 @@
     const withMenu = all.filter(hasDish);
     return (withMenu.length ? withMenu : all).slice(0, n);   // chỉ quay vòng các quán đã có món; chưa quán nào có món thì mới hiện quán trống
   };
-  const hotTags = s => `${s.sale ? `<span>Giảm ${s.sale}%</span>` : '<span>Món ngon</span>'}${s.ship ? `<span>Freeship từ ${s.ship}</span>` : '<span>Được yêu thích</span>'}`;
+  const hotTags = s => {
+    const t = [], pp = platPctOf(s);
+    if (pp > 0 && s.open !== false && sectorOf(s) !== 'service') t.push(`Giảm thêm ${pp}% đặt online`);   // Admin tài trợ
+    if (s.sale) t.push(`Giảm ${s.sale}%`);
+    if (s.freeShipAll) t.push('Miễn phí ship'); else if (s.ship) t.push(`Freeship từ ${s.ship}`);
+    ['Món ngon', 'Được yêu thích'].forEach(x => { if (t.length < 2) t.push(x); });
+    return t.slice(0, 3).map(x => `<span>${x}</span>`).join('');
+  };
   const hotHead = act => `<div class="tn-sec"><span class="tn-ico tn-flame">🔥</span><div><h4>Quán hot được yêu thích</h4><p>Những quán nổi bật nhất tuần này</p></div><button class="tn-more" data-act="${act}">Xem tất cả</button></div>`;
   /* 3 món: ưu tiên món đang bán và có ảnh */
   const shuffle = arr => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
