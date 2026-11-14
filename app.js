@@ -906,7 +906,7 @@
         <div class="sp2-acts"><button data-spgroup>${SP_I.group}Đặt nhóm</button><button data-spshare>${SP_I.share}Chia sẻ</button></div>
         ${s.desc ? `<p class="sp2-desc">${s.desc}</p>` : ''}
       </div>
-      <div class="sp2-sticky"><div class="sp2-tabs">${catBtn}${tabs.map(n => `<button class="${(n === SP.cat) || (tabs.length === 1) ? 'on' : ''}" data-spcat="${esc(n)}">${esc(n)}${n !== 'Tất cả' && groups.get(n) ? `<small>${groups.get(n).length}</small>` : ''}</button>`).join('')}<button class="sp2-sbtn" data-spsearch aria-label="Tìm món">${SP_I.search}</button></div>
+      <div class="sp2-sticky"><div class="sp2-tabs">${catBtn}<div class="sp2-tscroll">${tabs.map(n => `<button class="${(n === SP.cat) || (tabs.length === 1) ? 'on' : ''}" data-spcat="${esc(n)}">${esc(n)}${n !== 'Tất cả' && groups.get(n) ? `<small>${groups.get(n).length}</small>` : ''}</button>`).join('')}</div><button class="sp2-sbtn" data-spsearch aria-label="Tìm món">${SP_I.search}</button></div>
         <div class="sp2-search" ${SP.sq ? '' : 'hidden'}><input id="sp-q" type="search" placeholder="Tìm món trong quán…" value="${esc(SP.q || '')}" autocomplete="off"></div></div>
       <div id="sp-groups">${spGroupsHtml(s)}</div>
       <div class="sp-spacer"></div>
@@ -914,7 +914,7 @@
         : `<button class="sp-cartbar empty" id="cart-bar" data-cart><span id="cb-l">Giỏ hàng (0 ${sec === 'fashion' ? 'sản phẩm' : 'món'})</span><b id="cb-t">0đ</b></button>`}`;
     page.classList.toggle('scrolled', sc > 170);
     page.scrollTop = sc;
-    { const tb = $('.sp2-tabs', page), on = tb && $('button.on[data-spcat]', tb); if (tb && on) tb.scrollLeft = on.offsetLeft - (tb.clientWidth - on.offsetWidth) / 2; }   // tab đang chọn luôn nằm giữa thanh
+    { const tb = $('.sp2-tscroll', page), on = tb && $('button.on[data-spcat]', tb); if (tb && on) tb.scrollLeft = Math.max(0, on.offsetLeft - 2); }   // tab đang chọn đứng đầu thanh, ngay sau nút Danh mục
     const qi = $('#sp-q', page);
     if (qi) qi.addEventListener('input', e => { SP.q = e.target.value; const g = $('#sp-groups'); if (g) g.innerHTML = spGroupsHtml(s); });
     updateCartUI();

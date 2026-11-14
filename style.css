@@ -1019,3 +1019,12 @@ body.tab-home .slot{display:flex}
 .cat-it.all{grid-column:1/-1;background:var(--green-xl)}
 .cat-it.sel{background:var(--green-l);border-color:var(--green)}
 .cat-it.sel b{color:var(--green-d)}
+
+/* Sửa thanh danh mục: nút Danh mục & nút tìm đứng cố định, chỉ vùng tab ở giữa cuộn → không đè chữ */
+.sp2-tabs{padding:0 10px 0 14px;gap:8px}
+.sp2-tabs .sp2-cbtn{position:static;margin:0;box-shadow:none}
+.sp2-tscroll{position:relative;flex:1;min-width:0;display:flex;align-items:center;overflow-x:auto;scrollbar-width:none;scroll-behavior:smooth}
+.sp2-tscroll::-webkit-scrollbar{display:none}
+.sp2-tabs .sp2-sbtn{position:static;flex:none;margin:0;width:38px;height:38px;border-radius:50%;background:var(--green-l);color:var(--green-d);display:grid;place-items:center;padding:0;border-bottom:0}
+.sp2-tabs .sp2-sbtn:active{background:var(--green);color:#fff}
+.sp2-sbtn svg{width:21px;height:21px}
