@@ -422,6 +422,42 @@
       }, 230);
     });
   }
+
+  /* ---- Trang "Quán hot": chỉ hiện các quán Admin đã tick 🔥 (không hiện toàn bộ cửa hàng) ---- */
+  let hotPageOpen = false;
+  const HP = { f:'all' };
+  const hotAllShops = () => SHOPS.filter(s => s.hotHome === true)
+    .sort((a, b) => ((b.open !== false) - (a.open !== false)) || (b.hot - a.hot) || (b.featured - a.featured) || (b.sold - a.sold) || (b.rate - a.rate));
+  const HP_FILTERS = [['all', 'Tất cả'], ['open', 'Đang mở'], ['sale', 'Giảm giá'], ['ship', 'Freeship'], ['rate', 'Đánh giá cao']];
+  function hotPageList() {
+    let l = hotAllShops();
+    if (HP.f === 'open') l = l.filter(s => s.open !== false);
+    else if (HP.f === 'sale') l = l.filter(s => s.sale > 0);
+    else if (HP.f === 'ship') l = l.filter(s => s.ship || s.freeShipAll);
+    else if (HP.f === 'rate') l = [...l].sort((a, b) => (b.rate - a.rate) || (b.rc - a.rc));
+    return l;
+  }
+  function hotPageBody() {
+    const l = hotPageList();
+    if (!l.length) return `<div class="empty"><b>${hotAllShops().length ? 'Chưa có quán phù hợp bộ lọc' : 'Chưa có quán hot nào'}</b>${hotAllShops().length ? 'Thử chọn bộ lọc khác nhé.' : 'Các quán hot sẽ sớm có mặt ở đây.'}</div>`;
+    return l.map((s, i) => `<div class="hp-item">${HP.f === 'all' && i < 3 ? `<span class="hp-rank r${i + 1}">${i + 1}</span>` : ''}${shopCard(s, i)}</div>`).join('');
+  }
+  function renderHotPage() {
+    const page = $('#hot-page'); if (!page) return;
+    const sc = page.scrollTop, n = hotAllShops().length;
+    page.innerHTML = `<div class="hp-bar"><button class="hp-back" data-hotback aria-label="Quay lại">${ic('chevLeft')}</button><span class="hp-bt">Quán hot</span></div>
+      <div class="hp-hero"><span class="hp-fire">🔥</span><div><h2>Quán hot được yêu thích</h2><p>${n} quán nổi bật nhất tuần này</p></div></div>
+      <div class="hp-filters">${HP_FILTERS.map(([k, t]) => `<button class="${HP.f === k ? 'on' : ''}" data-hpf="${k}">${t}</button>`).join('')}</div>
+      <div class="hp-list" id="hp-list">${hotPageBody()}</div><div class="pad-bottom"></div>`;
+    page.scrollTop = sc;
+  }
+  function openHotPage() {
+    HP.f = 'all'; renderHotPage();
+    const page = $('#hot-page'); page.classList.add('open'); page.scrollTop = 0;
+    if (!hotPageOpen) history.pushState({ hp:1 }, '', '#hot');
+    hotPageOpen = true;
+  }
+  function hideHotPage() { hotPageOpen = false; const p = $('#hot-page'); if (p) p.classList.remove('open'); }
   let hotTimer;
   function startHot() {
     clearInterval(hotTimer);
@@ -807,6 +843,7 @@
   }
   const SP_NOIMG = '<svg viewBox="0 0 64 64" fill="none" stroke="#b4b9bf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 30c0-8 7-13 14-13s14 5 14 13zM8 36h28M10 36c0 6 3 9 8 9h8c5 0 8-3 8-9"/><path d="M42 24h16l-2 26H44zM40 24h20M49 24l2-8"/></svg>';
   const SP_I = {
+    grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg>',
     group:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.6 2.7-6 6-6s6 2.4 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.2c3 .1 4.9 2.1 4.9 5"/></svg>',
     share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="6" r="2.6"/><circle cx="18" cy="18" r="2.6"/><path d="M8.3 10.8l7.4-3.6M8.3 13.2l7.4 3.6"/></svg>',
     search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
@@ -834,12 +871,27 @@
     }).join('');
     return out || `<div class="empty">${q ? 'Không tìm thấy món phù hợp' : sec === 'service' ? 'Chưa cập nhật dịch vụ' : sec === 'fashion' ? 'Chưa cập nhật sản phẩm' : 'Quán chưa cập nhật thực đơn'}</div>`;
   }
+
+  /* Bảng "Danh mục" của quán: xem toàn bộ danh mục cùng số món, bấm để lọc */
+  function openCatSheet() {
+    const s = SHOPS.find(x => x.id === SP.id); if (!s) return;
+    const g = menuGroups(s), names = [...g.keys()];
+    const unit = sectorOf(s) === 'fashion' ? 'sản phẩm' : sectorOf(s) === 'service' ? 'dịch vụ' : 'món';
+    openSheet(`<h3>Danh mục (${names.length})</h3><div class="sub">Chọn danh mục để xem ${unit} của quán</div>
+      <div class="cat-grid"><button class="cat-it all ${SP.cat === 'Tất cả' ? 'sel' : ''}" data-spcat="Tất cả"><b>Tất cả</b><small>${s.menu.length} ${unit}</small></button>${names.map(n => `<button class="cat-it ${SP.cat === n ? 'sel' : ''}" data-spcat="${esc(n)}"><b>${esc(n)}</b><small>${g.get(n).length} ${unit}</small></button>`).join('')}</div>`);
+  }
+  function spToTop() {
+    const page = $('#shop-page'), st = $('.sp2-sticky', page), gr = $('#sp-groups', page); if (!st || !gr) return;
+    const top = gr.offsetTop - st.offsetHeight - 58;
+    if (page.scrollTop > top) page.scrollTop = Math.max(0, top);
+  }
   function renderShopPage() {
     const s = SHOPS.find(x => x.id === SP.id), page = $('#shop-page'); if (!s) return;
     const sc = page.scrollTop, groups = menuGroups(s), names = [...groups.keys()], sec = sectorOf(s), d = s._d || {};
     if (SP.cat !== 'Tất cả' && !groups.has(SP.cat)) SP.cat = 'Tất cả';
     const tel = String(s.phone || '').replace(/\D/g, '');
     const tabs = names.length > 1 ? ['Tất cả', ...names] : names;
+    const catBtn = names.length > 1 ? `<button class="sp2-cbtn" data-spcats aria-label="Xem tất cả danh mục">${SP_I.grid}<span>Danh mục</span><b>${names.length}</b></button>` : '';
     const hrs = d.autoHours && d.openAt && d.closeAt ? `Hôm nay: ${d.openAt} - ${d.closeAt}` : 'Mở cửa cả ngày';
     const promos = spPromos(s);
     page.innerHTML = `<div class="sp2-bar"><button class="sp2-back" data-shopback aria-label="Quay lại">${ic('chevLeft')}</button><span class="sp2-title">${s.name}</span>
@@ -854,7 +906,7 @@
         <div class="sp2-acts"><button data-spgroup>${SP_I.group}Đặt nhóm</button><button data-spshare>${SP_I.share}Chia sẻ</button></div>
         ${s.desc ? `<p class="sp2-desc">${s.desc}</p>` : ''}
       </div>
-      <div class="sp2-sticky"><div class="sp2-tabs">${tabs.map(n => `<button class="${(n === SP.cat) || (tabs.length === 1) ? 'on' : ''}" data-spcat="${n}">${n}</button>`).join('')}<button class="sp2-sbtn" data-spsearch aria-label="Tìm món">${SP_I.search}</button></div>
+      <div class="sp2-sticky"><div class="sp2-tabs">${catBtn}${tabs.map(n => `<button class="${(n === SP.cat) || (tabs.length === 1) ? 'on' : ''}" data-spcat="${esc(n)}">${esc(n)}${n !== 'Tất cả' && groups.get(n) ? `<small>${groups.get(n).length}</small>` : ''}</button>`).join('')}<button class="sp2-sbtn" data-spsearch aria-label="Tìm món">${SP_I.search}</button></div>
         <div class="sp2-search" ${SP.sq ? '' : 'hidden'}><input id="sp-q" type="search" placeholder="Tìm món trong quán…" value="${esc(SP.q || '')}" autocomplete="off"></div></div>
       <div id="sp-groups">${spGroupsHtml(s)}</div>
       <div class="sp-spacer"></div>
@@ -862,6 +914,7 @@
         : `<button class="sp-cartbar empty" id="cart-bar" data-cart><span id="cb-l">Giỏ hàng (0 ${sec === 'fashion' ? 'sản phẩm' : 'món'})</span><b id="cb-t">0đ</b></button>`}`;
     page.classList.toggle('scrolled', sc > 170);
     page.scrollTop = sc;
+    { const tb = $('.sp2-tabs', page), on = tb && $('button.on[data-spcat]', tb); if (tb && on) tb.scrollLeft = on.offsetLeft - (tb.clientWidth - on.offsetWidth) / 2; }   // tab đang chọn luôn nằm giữa thanh
     const qi = $('#sp-q', page);
     if (qi) qi.addEventListener('input', e => { SP.q = e.target.value; const g = $('#sp-groups'); if (g) g.innerHTML = spGroupsHtml(s); });
     updateCartUI();
@@ -1101,7 +1154,7 @@
   }
   function go(tab, push = true) {
     if (!renderers[tab]) tab = 'home';
-    S.tab = tab; hideShopPage();
+    S.tab = tab; hideShopPage(); hideHotPage();
     $$('.view').forEach(v => v.classList.remove('active'));
     try { renderers[tab](); }
     catch (err) {
@@ -1116,7 +1169,7 @@
     renderNav(); document.body.classList.toggle('tab-home', tab === 'home');
     if (push && location.hash !== '#' + tab) history.pushState(null, '', '#' + tab);
   }
-  window.addEventListener('popstate', () => { if (shopPageOpen) { hideShopPage(); return; } go(location.hash.slice(1) || 'home', false); });
+  window.addEventListener('popstate', () => { if (shopPageOpen) { hideShopPage(); return; } if (hotPageOpen) { hideHotPage(); return; } go(location.hash.slice(1) || 'home', false); });
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
 
   /* ---------------- GIAO HÀNG & MUA HỘ ---------------- */
@@ -1355,9 +1408,12 @@
     const qb = t.closest('[data-qty]');
     if (qb) { if (!LIVE) return toast('Đây là bản demo, chưa đặt món được'); const i = +qb.dataset.qty, s0 = SHOPS.find(x => x.id === CART.shop); CART.q[i] = Math.max(0, (CART.q[i] || 0) + +qb.dataset.d); const c = $('#ctl-' + i); if (c && s0) c.innerHTML = spCtl(s0, i); updateCartUI(); return; }
     if (t.closest('[data-shopback]')) { history.back(); return; }
+    if (t.closest('[data-hotback]')) { history.back(); return; }
+    const hpf = t.closest('[data-hpf]'); if (hpf) { HP.f = hpf.dataset.hpf; renderHotPage(); return; }
+    if (t.closest('[data-spcats]')) { return openCatSheet(); }
     const pdt = t.closest('[data-pdetail]'); if (pdt) { productDetail(SHOPS.find(x => x.id === SP.id), +pdt.dataset.pdetail); return; }
     const pda = t.closest('[data-pdadd]'); if (pda) { const b = document.querySelector(`#shop-page [data-qty="${pda.dataset.pdadd}"][data-d="1"]`); closeSheet(); if (b) b.click(); return; }
-    const spc = t.closest('[data-spcat]'); if (spc) { SP.cat = spc.dataset.spcat; renderShopPage(); return; }
+    const spc = t.closest('[data-spcat]'); if (spc) { SP.cat = spc.dataset.spcat; closeSheet(); renderShopPage(); spToTop(); return; }
     if (t.closest('[data-cart]')) { if (!LIVE) return toast('Đây là bản demo, chưa đặt món được'); return checkoutSheet(); }
     const vp = t.closest('[data-vpick]');
     if (vp) {
@@ -1466,7 +1522,8 @@
     if (a === 'svc-delivery') return openService('delivery');
     if (a === 'svc-errand') return openService('errand');
     if (a === 'spin') return tnSpin();
-    if (a === 'hot-all' || a === 'see-all') { e.preventDefault(); S.home.sector = 'food'; S.home.cat = 'Tất cả'; S.home.q = ''; S.home.sort = 'default'; if (S.tab === 'home') renderHome(); else go('home'); setTimeout(() => { const an = document.getElementById('shops-anchor'); if (an) an.scrollIntoView({ behavior:'smooth', block:'start' }); }, 80); return; }
+    if (a === 'hot-all') { e.preventDefault(); openHotPage(); return; }
+    if (a === 'see-all') { e.preventDefault(); S.home.sector = 'food'; S.home.cat = 'Tất cả'; S.home.q = ''; S.home.sort = 'default'; if (S.tab === 'home') renderHome(); else go('home'); setTimeout(() => { const an = document.getElementById('shops-anchor'); if (an) an.scrollIntoView({ behavior:'smooth', block:'start' }); }, 80); return; }
     if (a === 'fav-all') { $('#fav-body').scrollIntoView({ behavior:'smooth' }); return; }
     if (a === 'orders-search') { S.orders.search = !S.orders.search; if (!S.orders.search) S.orders.q = ''; renderOrders(); if (S.orders.search) $('#orders-q').focus(); return; }
   });
@@ -1691,6 +1748,7 @@
         openSig = SHOPS.map(x => x.open ? 1 : 0).join('');
         if (S.tab === 'home' && $('#banner') && S.home.sector === 'food') $('#banner').innerHTML = bannerInner();
         if (shopPageOpen) { if (SHOPS.some(x => x.id === SP.id)) renderShopPage(); }
+        if (hotPageOpen) renderHotPage();
         if (S.tab === 'home' && $('#home-list')) $('#home-list').innerHTML = shopListHtml();
         if (S.tab === 'home' && $('#tn-extra')) $('#tn-extra').innerHTML = tnExtra();
         else if (S.tab === 'favorites' && $('#fav-body')) { $('#fav-body').innerHTML = favBody(); bindFavSort(); }

@@ -982,3 +982,40 @@ body.tab-home .slot{display:flex}
 .sp2-item .qty button{background:var(--green-l);color:var(--green-d)}
 .sp2-item.off .sp2-in b,.sp2-item.off .sp2-in em,.sp2-item.off .sp2-price,.sp2-item.off .sp2-pic{opacity:.45}
 @media (max-width:360px){.sp2-pic{width:72px;height:72px}.sp2-info h2{font-size:21px}}
+
+/* ===== Trang "Quán hot" ===== */
+#hot-page{position:absolute;inset:0;z-index:29;background:#f3f6f4;overflow-y:auto;overflow-x:hidden;display:none;scrollbar-width:none}
+#hot-page::-webkit-scrollbar{display:none}
+#hot-page.open{display:block;animation:fade .18s both}
+.hp-bar{position:sticky;top:0;z-index:6;height:calc(54px + env(safe-area-inset-top,0px));padding:env(safe-area-inset-top,0px) 12px 0;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#12a150,#0e8a43);color:#fff}
+.hp-back{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.18);color:#fff;flex:none}
+.hp-back svg{width:24px;height:24px}
+.hp-bt{font-family:var(--font-h);font-weight:700;font-size:18px}
+.hp-hero{display:flex;gap:12px;align-items:center;padding:6px 16px 18px;background:linear-gradient(90deg,#12a150,#0e8a43);color:#fff;border-radius:0 0 22px 22px}
+.hp-fire{font-size:38px;line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.25))}
+.hp-hero h2{font-family:var(--font-h);font-size:19px;line-height:1.25;font-weight:700}
+.hp-hero p{font-size:13.5px;opacity:.92;margin-top:2px}
+.hp-filters{display:flex;gap:8px;padding:12px 14px 4px;overflow-x:auto;scrollbar-width:none}
+.hp-filters::-webkit-scrollbar{display:none}
+.hp-filters button{flex:none;height:34px;padding:0 14px;border-radius:17px;background:#fff;border:1.5px solid #e1e4e8;font-size:14px;font-weight:600;color:#555}
+.hp-filters button.on{background:var(--green);border-color:var(--green);color:#fff}
+.hp-list{display:flex;flex-direction:column;gap:12px;padding:10px 14px 0}
+.hp-item{position:relative}
+.hp-rank{position:absolute;left:-4px;top:-6px;z-index:3;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.25);border:2px solid #fff}
+.hp-rank.r1{background:linear-gradient(135deg,#ffb300,#ff7a00)}
+.hp-rank.r2{background:linear-gradient(135deg,#9aa4b2,#6b7686)}
+.hp-rank.r3{background:linear-gradient(135deg,#d08a52,#a35f2c)}
+
+/* ===== Danh mục trong trang quán ===== */
+.sp2-tabs .sp2-cbtn{position:sticky;left:0;z-index:2;flex:none;display:flex;align-items:center;gap:6px;height:34px;margin:0 10px 0 0;padding:0 10px;border-radius:17px;background:var(--green-l);color:var(--green-d);font-size:13px;font-weight:700;text-transform:none;border-bottom:0;box-shadow:6px 0 8px #fff}
+.sp2-cbtn svg{width:17px;height:17px}
+.sp2-cbtn b{min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--green);color:#fff;font-size:12px;display:grid;place-items:center}
+.sp2-tabs button small{margin-left:5px;font-size:11px;font-weight:600;color:#a0a5ad}
+.sp2-tabs button.on small{color:var(--green-d)}
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;max-height:56vh;overflow-y:auto}
+.cat-it{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:12px 14px;border-radius:14px;background:#f6f7f8;border:1.5px solid transparent}
+.cat-it b{font-size:15px;line-height:1.25;color:#1b1f24;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cat-it small{font-size:12.5px;color:#7a7f87}
+.cat-it.all{grid-column:1/-1;background:var(--green-xl)}
+.cat-it.sel{background:var(--green-l);border-color:var(--green)}
+.cat-it.sel b{color:var(--green-d)}
