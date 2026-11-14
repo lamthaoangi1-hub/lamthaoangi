@@ -402,11 +402,19 @@
   const shuffle = arr => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   /* Ngẫu nhiên 3 món đang bán (mỗi lần quán hiện lên bốc lại); ưu tiên món có ảnh, thiếu thì bù món chưa có ảnh */
   const hotDishes = s => { const ok = s.menu.filter(m => m[2] !== false && m[0]); return [...shuffle(ok.filter(m => m[4])), ...shuffle(ok.filter(m => !m[4]))].slice(0, 3); };
+  /* Giá món ở thẻ Quán hot: giá gốc gạch ngang + giá sau giảm (giảm của quán rồi đến phần Admin tài trợ, cùng cách tính khi đặt đơn) */
+  const hotPrice = (s, price) => {
+    const sale = s.sale > 0 ? s.sale : 0, pp = (s.open !== false && sectorOf(s) !== 'service') ? platPctOf(s) : 0;
+    if (!sale && !pp) return `<span>${money(price)}</span>`;
+    const a = price - Math.round(price * sale / 100), now = a - Math.round(a * pp / 100);
+    if (now >= price) return `<span>${money(price)}</span>`;
+    return `<span class="hc-pr"><del>${money(price)}</del><em>${money(now)}</em></span>`;
+  };
   const hotSlide = s => {
     const d = hotDishes(s);
     return `<article class="hot-card" data-shop="${s.id}"><span class="tn-rb">HOT</span>
       <div class="hc-top"><img class="hc-img" src="${s.img}" alt="${esc(s.name)}" decoding="async"><div class="hc-info"><h5>${s.name}</h5><p>${tnRate(s)}</p><div class="tn-tags">${hotTags(s)}</div></div></div>
-      ${d.length ? `<div class="hc-dishes">${d.map(m => `<div class="hc-dish">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy" decoding="async">` : `<div class="ph">${(m[0] || '?').trim().charAt(0).toUpperCase()}</div>`}<b>${m[0]}</b><span>${money(m[1])}</span></div>`).join('')}</div>` : ''}</article>`;
+      ${d.length ? `<div class="hc-dishes">${d.map(m => `<div class="hc-dish">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy" decoding="async">` : `<div class="ph">${(m[0] || '?').trim().charAt(0).toUpperCase()}</div>`}<b>${m[0]}</b>${hotPrice(s, m[1])}</div>`).join('')}</div>` : ''}</article>`;
   };
   function hotRotHtml() {
     const l = hotShops(6); if (!l.length) return '';
