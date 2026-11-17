@@ -223,10 +223,23 @@ export async function onForegroundPush(cb) {
 export const createShop = d => addDoc(collection(db, 'shops'), { ...d, createdAt:serverTimestamp() });
 export const patchShop = (id, patch) => updateDoc(doc(db, 'shops', id), patch);
 /* ---- Gọi ship (shipCalls): quán nhập SĐT khách → Admin xin định vị qua Zalo → Admin tạo đơn Giao hàng cho shipper ---- */
-export const createShipCall = async d => (await withTimeout(addDoc(collection(db, 'shipCalls'), { ...d, status:'new', createdAtMs:Date.now(), createdBy:auth.currentUser.uid }), 30000, QUOTA_MSG)).id;
+export const createShipCall = async d => {
+  const id = (await withTimeout(addDoc(collection(db, 'shipCalls'), { ...d, status:'new', createdAtMs:Date.now(), createdBy:auth.currentUser.uid }), 30000, QUOTA_MSG)).id;
+  sheetCall('syncShipCall', { callId:id });   // lưu bản sao vào Google Sheet (tab GoiShip) để thống kê; chạy nền, lỗi cũng không ảnh hưởng
+  return id;
+};
 export const watchShopShipCalls = (shopId, cb) => watch(query(collection(db, 'shipCalls'), where('shopId', '==', shopId), limit(30)), cb);
 export const watchNewShipCalls = cb => watch(query(collection(db, 'shipCalls'), where('status', '==', 'new')), cb);
-export const patchShipCall = (id, patch) => updateDoc(doc(db, 'shipCalls', id), { ...patch, updatedAt:Date.now() });
+export const patchShipCall = async (id, patch) => {
+  await updateDoc(doc(db, 'shipCalls', id), { ...patch, updatedAt:Date.now() });
+  sheetCall('syncShipCall', { callId:id });   // đổi trạng thái (đã tạo đơn / hoàn thành / hủy) → cập nhật Google Sheet
+};
+/* Thống kê Gọi ship: toàn bộ yêu cầu từ Google Sheet (không tốn lượt đọc Firestore), kèm trạng thái + phí ship của đơn giao shipper tạo từ yêu cầu */
+export async function sheetShipCalls() {
+  const j = await sheetCall('adminList', { what:'shipcalls' }, 60000);
+  if (!j || !j.ok) throw new Error((j && j.error) || SHEET_PAGE_FAIL);
+  return j.rows;
+}
 /* Vị trí khách đã lưu (shipCustomers/{sđt}, chỉ Admin đọc/ghi): lần sau quán chỉ cần nhập SĐT là Admin có sẵn vị trí, không phải xin lại */
 export const shipPhoneKey = p => { const d = String(p || '').replace(/\D/g, ''); return d.startsWith('84') ? '0' + d.slice(2) : d; };
 export const saveShipCustomer = (phone, d) => setDoc(doc(db, 'shipCustomers', shipPhoneKey(phone)), { ...d, phone:shipPhoneKey(phone), updatedAt:Date.now() }, { merge:true });

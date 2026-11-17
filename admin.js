@@ -1,6 +1,6 @@
-import { report, periodControl, metrics, note, dailyView, walletCredit } from './revenue.js?v=20261112a';
+import { report, periodControl, metrics, note, dailyView, walletCredit, shipReport, shipMetrics, shipNote, shipDailyView } from './revenue.js?v=20261117a';
 import { shopLink, copyText } from './shoplink.js?v=20261103d';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261112a';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261117a';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
@@ -11,7 +11,7 @@ const SAMPLE = [
 ];
 
 export const panel = { key:'admin', title:'Quản trị', roles:['admin'], render(root, me) {
-  let tab = 'orders', shops = [], orders = [], live = [], hist = [], histDone = false, histBusy = false, histTotal = null, histErr = '', revRows = null, revBusy = false, revAt = 0, revErr = '', users = [], sync = {}, syncBusy = '', syncMsg = '', promos = [], allPayouts = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all', paste = null, sel = new Set(), bh = { open:'06:00', close:'21:00' };
+  let tab = 'orders', shops = [], orders = [], live = [], hist = [], histDone = false, histBusy = false, histTotal = null, histErr = '', revRows = null, revBusy = false, revAt = 0, revErr = '', revCalls = null, callsErr = '', shipFs = null, users = [], sync = {}, syncBusy = '', syncMsg = '', promos = [], allPayouts = [], settings = {}, edit = null, ofil = 'all', err = '', imp = null, impBusy = false, ufil = 'seller', mk = null, rp = null, period = 'month', revShop = 'all', paste = null, sel = new Set(), bh = { open:'06:00', close:'21:00' };
   const shopName = id => shops.find(s => s.id === id)?.name || '(đã xóa)';
 
   /* ===== Shipper ONLINE (presence/{uid}, shipper tự bật/tắt; realtime) ===== */
@@ -32,6 +32,18 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       <div class="card"><h3>⚪ Đang offline (${off.length})</h3>${tbl(off, false, 'Chưa có shipper nào từng bật online.')}</div>`;
   };
 
+  /* Thống kê Gọi ship (book ship): dữ liệu từ tab GoiShip của Google Sheet, theo kỳ + cửa hàng đang chọn ở trên */
+  const shipStatsView = () => {
+    const head = `<div class="section-heading" style="margin-top:26px"><h2>🛵 Thống kê Gọi ship (book ship)</h2><p>Các yêu cầu quán gọi shipper giao cho khách ngoài app</p></div>`;
+    if (callsErr) return head + `<div class="card" style="color:var(--red)">${esc(callsErr)}</div>`;
+    if (!revCalls) return head + `<div class="card muted">${revBusy ? 'Đang tải dữ liệu từ Google Sheet…' : 'Chưa tải dữ liệu'}</div>`;
+    const miss = shipFs != null ? shipFs - revCalls.length : 0;
+    const syncB = miss > 0 ? `<div class="card" style="background:#fff7ed;border:1px solid #fdba74"><div class="row sb" style="gap:8px"><span>⚠️ Google Sheet đang thiếu <b>${miss.toLocaleString('vi-VN')}</b> yêu cầu Gọi ship cũ<span class="muted"> (Firestore ${shipFs} · Sheet ${revCalls.length})</span></span><button class="btn sm" data-sync="shipCalls" ${syncBusy ? 'disabled' : ''}>${syncBusy === 'shipCalls' ? esc(syncMsg) : 'Đồng bộ ngay'}</button></div></div>` : '';
+    const s = shipReport(revCalls, period, revShop), by = new Map();
+    s.rows.forEach(c => { const v = by.get(c.shopId) || { id:c.shopId, name:(shops.find(x => x.id === c.shopId) || {}).name || c.shopName || '(quán đã xóa)', n:0, done:0, run:0, off:0, fee:0 }; v.n++; if (c.st === 'done') { v.done++; if (c.orderId) v.fee += Number(c.shipFee || 0); } else if (c.st === 'cancelled') v.off++; else v.run++; by.set(c.shopId, v); });
+    const rows = [...by.values()].sort((a, b) => b.n - a.n);
+    return head + syncB + shipMetrics(s) + shipNote + (revShop === 'all' ? `<div class="card"><h3>Gọi ship theo quán</h3><div class="table-scroll"><table><thead><tr><th>Cửa hàng</th><th>Yêu cầu</th><th>Hoàn thành</th><th>Đang xử lý</th><th>Đã hủy</th><th>Phí ship</th><th></th></tr></thead><tbody>${rows.map(v => `<tr><td><strong>${esc(v.name)}</strong></td><td>${v.n}</td><td>${v.done}</td><td>${v.run}</td><td>${v.off}</td><td><strong>${money(v.fee)}</strong></td><td><button class="btn sm o" data-revshop="${esc(v.id)}">Chi tiết</button></td></tr>`).join('') || '<tr><td colspan="7">Chưa có yêu cầu Gọi ship trong kỳ</td></tr>'}</tbody></table></div></div>` : '') + shipDailyView(s);
+  };
   const revenueView = () => {
     const src = revRows || [];   // đơn hoàn thành lấy từ Google Sheet (không đọc Firestore)
     const filtered = revShop === 'all' ? src : src.filter(o => o.shopId === revShop);
@@ -43,7 +55,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       <div class="card"><label class="f">Xem báo cáo<select id="rev-shop"><option value="all">Toàn bộ cửa hàng</option>${shops.map(s => `<option value="${esc(s.id)}" ${revShop===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label></div>
       ${metrics(r, revShop === 'all' ? 'Tổng doanh thu các quán' : 'Doanh thu cửa hàng')}${note}
       ${revShop === 'all' ? `<div class="card"><h3>Bảng xếp hạng doanh thu theo quán</h3><div class="table-scroll"><table><thead><tr><th>Cửa hàng</th><th>Đơn hoàn thành</th><th>Doanh thu</th><th></th></tr></thead><tbody>${rows.map(s=>`<tr><td><strong>${esc(s.name)}</strong></td><td>${s.count}</td><td><strong>${money(s.revenue)}</strong></td><td><button class="btn sm o" data-revshop="${esc(s.id)}">Chi tiết</button></td></tr>`).join('')}${archived.count ? `<tr><td>Quán đã xóa / không tồn tại</td><td>${archived.count}</td><td>${money(archived.revenue)}</td><td></td></tr>` : ''}${!rows.length&&!archived.count ? '<tr><td colspan="4">Chưa có doanh thu trong kỳ</td></tr>' : ''}</tbody></table></div></div>` : ''}
-      ${dailyView(r)}`;
+      ${dailyView(r)}
+      ${shipStatsView()}`;
   };
   const ordersView = () => {
     const l = [...orders].sort(newestFirst).filter(o => ofil === 'all' || o.status === ofil);
@@ -366,7 +379,10 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   const loadRev = async (force) => {
     if (revBusy || (!force && revRows && Date.now() - revAt < 60000)) return;
     revBusy = true; revErr = ''; if (tab === 'revenue' || tab === 'shopwallet' || tab === 'wallet') draw();
+    const pc = fb.sheetShipCalls().then(l => { revCalls = l; callsErr = ''; }, e => { callsErr = fb.errMsg(e); });   // thống kê Gọi ship (lỗi riêng, không làm hỏng báo cáo doanh thu)
+    fb.fsCount('shipCalls').then(n => { shipFs = n; if (tab === 'revenue') draw(); }).catch(() => {});
     try { revRows = await fb.sheetDoneOrders(); revAt = Date.now(); syncSold(); } catch (e) { revErr = fb.errMsg(e); }
+    await pc;
     revBusy = false; if (tab === 'revenue' || tab === 'shopwallet' || tab === 'wallet') draw();
   };
   /* sửa bản đã tải từ Sheet ngay trên màn hình (đơn realtime tự cập nhật qua Firestore) */
@@ -440,7 +456,7 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       try {
         const n = await fb.sheetBackfill(k, (a, done) => { syncMsg = done ? 'Hoàn tất' : 'Đã thêm ' + a + ' dòng, đang làm tiếp…'; draw(); });
         toast(n ? 'Đã thêm ' + n + ' dòng vào Google Sheet' : 'Google Sheet đã đủ dữ liệu');
-        sync = {}; if (k === 'users') await loadUsers(); else await loadHist(true);
+        sync = {}; if (k === 'users') await loadUsers(); else if (k === 'shipCalls') await loadRev(true); else await loadHist(true);
       } catch (er) { toast(fb.errMsg(er)); }
       syncBusy = ''; syncMsg = ''; draw(); return;
     }
