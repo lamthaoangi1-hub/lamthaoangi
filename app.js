@@ -1079,8 +1079,8 @@
 
       <section class="co-card co-loc ${CART.loc ? 'ok' : 'need'}">
         <div class="co-loc-ic">${CART.loc ? '✓' : '📍'}</div>
-        <div class="co-loc-tx"><b>${CART.loc ? 'Đã chia sẻ vị trí giao hàng' : 'Cần chia sẻ vị trí giao hàng'}</b><span>${CART.loc ? '🔒 Vị trí đã khóa, shipper sẽ đi đúng tới điểm này.' : 'Bắt buộc để gửi đơn. Bấm 1 lần để lưu.'}</span>${CART.loc ? '<button type="button" class="co-loc-link" data-pinloc>Ghim lại vị trí</button>' : ''}</div>
-        ${CART.loc ? '' : `<div class="co-loc-acts"><button type="button" class="co-loc-btn" data-shareloc>📍 Lấy vị trí của tôi</button><button type="button" class="co-loc-btn alt" data-pinloc>🗺️ Ghim trên bản đồ</button></div>${CART.locBlocked ? `<div class="co-loc-help"><b>Không lấy được vị trí tự động?</b> Bấm <b>"Ghim trên bản đồ"</b> rồi kéo ghim đỏ tới đúng nhà bạn – không cần bật định vị.${IN_APP ? '<br>Bạn đang mở trong Zalo/Facebook nên hay bị chặn vị trí: bấm dấu ⋯ → <b>"Mở bằng trình duyệt"</b> (Chrome/Safari) sẽ dùng được nút lấy vị trí.' : '<br>Hoặc bật lại: bấm biểu tượng ổ khóa cạnh địa chỉ web → Vị trí → Cho phép (iPhone: Cài đặt → Safari → Vị trí).'}</div>` : ''}`}
+        <div class="co-loc-tx"><b>${CART.loc ? 'Đã chia sẻ vị trí giao hàng' : 'Cần chia sẻ vị trí giao hàng'}</b><span>${CART.loc ? 'Shipper sẽ thấy đúng vị trí của bạn trên bản đồ.' : 'Bắt buộc để gửi đơn. Bấm 1 lần để lưu.'}</span></div>
+        ${CART.loc ? '' : '<button type="button" class="co-loc-btn" data-shareloc>Chia sẻ vị trí</button>'}
       </section>
 
       <section class="co-card co-sum">
@@ -1135,25 +1135,14 @@
   function shareLoc(btn) {
     if (CART.loc) return;
     if (!navigator.geolocation) return toast('Thiết bị không hỗ trợ định vị');
-    const label = btn.textContent;
     btn.disabled = true; btn.textContent = 'Đang lấy vị trí…';
     navigator.geolocation.getCurrentPosition(p => {
-      CART.loc = { lat:+p.coords.latitude.toFixed(6), lng:+p.coords.longitude.toFixed(6), acc:Math.round(p.coords.accuracy) }; CART.locBlocked = false;
+      CART.loc = { lat:+p.coords.latitude.toFixed(6), lng:+p.coords.longitude.toFixed(6), acc:Math.round(p.coords.accuracy) };
       readCheckout(); checkoutSheet(); toast('Đã lưu vị trí của bạn');
     }, e => {
-      /* Bị chặn / không lấy được: hiện hướng dẫn + gợi ý ghim tay trên bản đồ, KHÔNG làm vỡ giao diện */
-      btn.disabled = false; btn.textContent = label;
-      CART.locBlocked = true; readCheckout(); checkoutSheet();
-      toast(e.code === 1 ? 'Điện thoại đang chặn vị trí. Bạn có thể bấm "Ghim trên bản đồ" để chọn tay.' : 'Không lấy được vị trí. Hãy thử "Ghim trên bản đồ".');
+      btn.disabled = false; btn.textContent = '📍 Chia sẻ vị trí giao hàng (bắt buộc)';
+      toast(e.code === 1 ? 'Bạn đã chặn quyền vị trí. Hãy cho phép "Vị trí" cho trang web rồi thử lại.' : 'Không lấy được vị trí, hãy bật GPS rồi thử lại.');
     }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
-  }
-  /* Ghim vị trí giao hàng của khách bằng bản đồ (dùng khi bị chặn định vị / GPS yếu) */
-  const CO_MAXKM = 15;   // ghim cách quán quá số km này thì không nhận (chống kéo nhầm sang tỉnh khác)
-  const coShop = () => SHOPS.find(x => x.id === CART.shop);
-  const coStart = () => { const s0 = coShop(); return s0 && s0.lat != null ? { lat:s0.lat, lng:s0.lng } : { lat:21.32, lng:105.31 }; };
-  function pinLoc() {
-    if (CART.loc && !confirm('Vị trí giao hàng đang được khóa để tránh nhầm đường. Bạn chắc chắn muốn ghim lại?')) return;
-    readCheckout(); openMapPicker('co');
   }
   function reorder(o) {
     if (!LIVE) return toast('Đã thêm món vào giỏ hàng');
@@ -1204,7 +1193,6 @@
   const GOODS = ['Tài liệu', 'Quần áo', 'Đồ ăn', 'Khác'], WEIGHTS = ['Dưới 5 kg', '5 – 10 kg', 'Trên 10 kg'], BUDGETS = [100000, 200000, 500000], MAXKM = 50;
   const svcFresh = type => ({ type, pick:null, drop:null, goods:0, weight:0, payer:'sender', pay:'cash', budget:1, paddr:'', daddr:'', rname:'', rphone:'', cod:'', note:'', list:'', store:'' });
   let SV = svcFresh('delivery'), MAP = null, MP_KEY = 'pick';
-  const IN_APP = /Zalo|FBAN|FBAV|FB_IAB|Instagram|Messenger/i.test(navigator.userAgent || '');
   const kmStr = km => String(km).replace('.', ',');
 
   function svcQuoteBetween(a, b, type, weight) {
@@ -1306,15 +1294,15 @@
   function closeMapPicker() { if (MAP) { try { MAP.remove(); } catch (e) {} MAP = null; } const el = $('#mp'); if (el) el.hidden = true; }
   function mpWire() { MAP.onMove(mpInfo); [100, 400, 1000].forEach(ms => setTimeout(() => { if (MAP) { MAP.resize(); mpInfo(); } }, ms)); }
   async function openMapPicker(key) {
-    if (key !== 'co') svcRead(); MP_KEY = key;
-    const E = SV.type === 'errand', title = key === 'co' ? 'Ghim vị trí giao hàng của bạn' : key === 'pick' ?(E ? 'Ghim nơi mua hàng' : 'Ghim điểm lấy hàng') : (E ? 'Ghim nơi nhận hàng' : 'Ghim điểm giao hàng');
+    svcRead(); MP_KEY = key;
+    const E = SV.type === 'errand', title = key === 'pick' ? (E ? 'Ghim nơi mua hàng' : 'Ghim điểm lấy hàng') : (E ? 'Ghim nơi nhận hàng' : 'Ghim điểm giao hàng');
     let el = $('#mp'); if (!el) { el = document.createElement('div'); el.id = 'mp'; $('#app').appendChild(el); }
     el.innerHTML = `<div class="mp-top"><button type="button" class="mp-x" data-mpclose aria-label="Quay lại">←</button><b>${title}</b></div>
       <form class="mp-search" data-mpform><input id="mp-q" placeholder="Tìm địa chỉ, chợ, trường học…" autocomplete="off"><button type="submit">Tìm</button></form><div class="mp-sug" id="mp-sug"></div>
       <div class="mp-map"><div id="mp-m"></div><i class="mp-pin"></i></div>
-      <div class="mp-bar"><button type="button" class="mp-me" data-mpme>📍 Vị trí của tôi</button><div class="mp-addr" id="mp-a"></div><div class="mp-src" id="mp-src"></div><button type="button" class="sheet-btn" data-mpok>Xác nhận vị trí này</button></div>`;
+      <div class="mp-bar"><button type="button" class="mp-me" data-mpme>📍 Vị trí của tôi</button><div class="mp-addr" id="mp-a"></div><div class="mp-src" id="mp-src"></div><button type="button" class="sheet-btn" data-mpok>Chọn vị trí này</button></div>`;
     el.hidden = false; closeSheet();
-    const cur = key === 'co' ? (CART.loc || coStart()) : (SV[key] || SV[key === 'pick' ? 'drop' : 'pick'] || CART.loc || { lat:21.32, lng:105.31 }), z = key === 'co' ? (CART.loc ? 17 : 15) : (SV[key] ? 17 : 15);
+    const cur = SV[key] || SV[key === 'pick' ? 'drop' : 'pick'] || CART.loc || { lat:21.32, lng:105.31 }, z = SV[key] ? 17 : 15;
     const useLeaflet = async () => { try { await loadLeaflet(); if (!$('#mp-m')) return; if (MAP) { try { MAP.remove(); } catch (e) {} } MAP = leafletMap(cur, z); mpWire(); } catch (e) { closeMapPicker(); svcSheet(); toast('Không tải được bản đồ, hãy kiểm tra mạng'); } };
     if (GOONG.map) {
       try { await loadGoong(); MAP = goongMap(cur, z, () => { if (MAP && MAP.engine === 'Goong' && !MAP.ready) { try { MAP.remove(); } catch (e) {} MAP = null; useLeaflet(); } }); mpWire(); }
@@ -1323,13 +1311,6 @@
   }
   function mpInfo() {
     const el = $('#mp-a'); if (!MAP || !el) return;
-    if (MP_KEY === 'co') {
-      const c0 = MAP.c(), s0 = coShop(), moved = haverKm(c0, coStart()) > 0.02;
-      if (!moved && !CART.loc) { el.innerHTML = '👉 Bước 1: <b>tìm địa chỉ</b> ở ô trên hoặc <b>kéo bản đồ</b> cho ghim đỏ nằm đúng nhà bạn'; return; }
-      const q0 = s0 ? shipQuote(s0, c0) : null;
-      el.innerHTML = q0 && q0.km != null ? (q0.km > CO_MAXKM ? `<span style="color:var(--red)">Cách quán ${kmStr(q0.km)} km – quá xa, hãy kiểm tra lại ghim</span>` : `Cách quán <b>${kmStr(q0.km)} km</b> · Phí ship <b>${money(q0.fee)}</b> – đúng nhà bạn chưa?`) : 'Đúng nhà bạn chưa? Bấm xác nhận bên dưới';
-      return;
-    }
     const other = SV[MP_KEY === 'pick' ? 'drop' : 'pick'], c = MAP.c();
     if (!other) { el.textContent = 'Kéo bản đồ để đưa ghim đỏ tới đúng nơi cần chọn'; return; }
     const q = svcQuoteBetween(c, other, SV.type, SV.weight);
@@ -1385,19 +1366,6 @@
   function mpConfirm() {
     if (!MAP) return;
     const c = MAP.c(), pt = { lat:+c.lat.toFixed(6), lng:+c.lng.toFixed(6) }, key = MP_KEY;
-    if (key === 'co') {
-      const st = coStart(), s0 = coShop();
-      if (!CART.loc && haverKm(pt, st) < 0.02) return toast('Bạn chưa chọn vị trí nhà. Hãy tìm địa chỉ hoặc kéo bản đồ tới nhà bạn');
-      if (s0 && s0.lat != null && haverKm(pt, st) * SHIPCFG.road > CO_MAXKM) return toast('Ghim quá xa quán, hãy kiểm tra lại vị trí');
-      if (!confirm('Giao hàng tới ĐÚNG vị trí ghim đỏ này?\nSau khi xác nhận, vị trí sẽ được KHÓA để shipper đi đúng đường.')) return;
-      closeMapPicker(); CART.loc = { lat:pt.lat, lng:pt.lng, acc:null }; CART.locBlocked = false; checkoutSheet(); toast('Đã khóa vị trí giao hàng');
-      if (!String(CART.address || S.user.address || '').trim()) {
-        const fillA = a => { a = String(a || '').replace(/, Việt Nam$/, '').replace(/,\s*\d{5,6}\b/, ''); if (a && !String(CART.address || '').trim()) { CART.address = a; const i = $('#co-addr'); if (i && !i.value.trim()) i.value = a; } };
-        (GOONG.api ? jget(`https://rsapi.goong.io/Geocode?latlng=${pt.lat},${pt.lng}&api_key=${GOONG.api}`).then(j => fillA(j.results && j.results[0] && j.results[0].formatted_address))
-          : jget(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=vi&lat=${pt.lat}&lon=${pt.lng}`).then(j => fillA(j.display_name))).catch(() => {});
-      }
-      return;
-    }
     closeMapPicker(); SV[key] = pt; svcSheet();
     const fill = a => { a = String(a || '').replace(/, Việt Nam$/, '').replace(/,\s*\d{5,6}\b/, ''); const inp = $('#sv-' + (key === 'pick' && SV.type === 'delivery' ? 'paddr' : key === 'drop' ? 'daddr' : 'store')); if (a && inp && !inp.value.trim()) inp.value = a; };
     const rev = GOONG.api ? jget(`https://rsapi.goong.io/Geocode?latlng=${pt.lat},${pt.lng}&api_key=${GOONG.api}`).then(j => fill(j.results && j.results[0] && j.results[0].formatted_address))
@@ -1440,7 +1408,7 @@
     if ((b = q('[data-svchip]'))) { svcRead(); const [k, v] = b.dataset.svchip.split(':'); SV[k] = k === 'payer' ? v : +v; svcSheet(); return true; }
     if ((b = q('[data-svpick]'))) { openMapPicker(b.dataset.svpick); return true; }
     if ((b = q('[data-svplace]'))) { svcPlace(b); return true; }
-    if (q('[data-mpclose]')) { const co = MP_KEY === 'co'; closeMapPicker(); if (co) checkoutSheet(); else svcSheet(); return true; }
+    if (q('[data-mpclose]')) { closeMapPicker(); svcSheet(); return true; }
     if (q('[data-mpme]')) { mpMe(); return true; }
     if (q('[data-mpok]')) { mpConfirm(); return true; }
     if ((b = q('[data-mpsug]'))) { mpPickSuggestion(b.dataset.mpsug); return true; }
@@ -1471,7 +1439,6 @@
     }
     const po = t.closest('[data-placeorder]'); if (po) return placeOrderNow(po);
     const sl = t.closest('[data-shareloc]'); if (sl) return shareLoc(sl);
-    if (t.closest('[data-pinloc]')) return pinLoc();
     if (svcClick(t)) return;
     const heart = t.closest('[data-heart]');
     if (heart) {
