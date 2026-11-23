@@ -325,8 +325,7 @@
       list.forEach(s => { s._km = (s.lat != null && s.lng != null) ? haverKm(NEAR.loc, { lat:s.lat, lng:s.lng }) : null; });
       list = [...list].sort((a, b) => (a._km == null) - (b._km == null) || (a._km - b._km));   // quán chưa có GPS xuống cuối
     }
-    const q = norm(S.home.q.trim());
-    if (q) list = list.filter(s => norm(s.name + ' ' + s.cat + ' ' + s.menu.map(m => m[0]).join(' ')).includes(q));
+    /* Từ khoá tìm kiếm chỉ hiện ở danh sách gợi ý thả xuống; danh sách quán bên dưới KHÔNG lọc theo từ khoá */
     if (S.home.sort === 'rate') list = [...list].sort((a, b) => b.rate - a.rate);
     if (S.home.sort === 'sale') list = list.filter(s => s.sale).sort((a, b) => b.sale - a.sale);
     if (S.home.sort === 'fast') list = [...list].sort((a, b) => parseInt(a.eta) - parseInt(b.eta));
@@ -341,8 +340,11 @@
   }
   /* Tìm kiếm trang chủ: danh sách gợi ý thả xuống dưới ô tìm kiếm, liệt kê các MÓN khớp từ khoá (bấm vào mở quán và lọc sẵn món đó) */
   function suggHtml() {
-    const dl = dishMatches(); if (!dl.length) return S.home.q.trim() ? '<div class="sg-empty">Không có món nào khớp, xem danh sách quán bên dưới</div>' : '';
-    return `<div class="sg-head">🍽 Món ăn (${dl.length})</div>${dl.map(dishCard).join('')}`;
+    const q = norm(S.home.q.trim()); if (!q) return '';
+    const dl = dishMatches(), sl = SHOPS.filter(x => sectorOf(x) === S.home.sector && norm(x.name + ' ' + x.cat).includes(q)).slice(0, 8);
+    if (!dl.length && !sl.length) return '<div class="sg-empty">Không tìm thấy món hoặc quán phù hợp</div>';
+    const shopRow = x => `<div class="sg-row" data-dish="${esc(x.id)}|-1"><div class="sg-pic"><img src="${x.img}" alt="${esc(x.name)}" loading="lazy" decoding="async"></div><div class="sg-in"><div class="sg-txt"><b>${esc(x.name)}</b><span class="sg-shop">${esc(x.homeCat || x.cat || '')}</span></div></div></div>`;
+    return (dl.length ? `<div class="sg-head">🍽 Món ăn (${dl.length})</div>${dl.map(dishCard).join('')}` : '') + (sl.length ? `<div class="sg-head">🏪 Quán (${sl.length})</div>${sl.map(shopRow).join('')}` : '');
   }
   function updateSugg() {
     const b = $('#home-sugg'); if (!b) return;
@@ -529,7 +531,7 @@
     el.scrollTop = scroll; startHot();
     const q = $('#home-q');
     q.addEventListener('focus', updateSugg);
-    q.addEventListener('input', e => { S.home.q = e.target.value; updateSugg(); $('#home-list').innerHTML = shopListHtml(); const ex = $('#tn-extra'); if (ex) ex.innerHTML = tnExtra(); });
+    q.addEventListener('input', e => { S.home.q = e.target.value; updateSugg(); const ex = $('#tn-extra'); if (ex) ex.innerHTML = tnExtra(); });
   }
   let slideTimer;
   function startSlider() {
@@ -1475,7 +1477,7 @@
     const sm = t.closest('[data-sheetmsg]'); if (sm) { toast(sm.dataset.sheetmsg); closeSheet(); return; }
     const goBtn = t.closest('[data-go]'); if (goBtn) { go(goBtn.dataset.go); return; }
     if (!t.closest('.tn-srch')) { const sg = $('#home-sugg'); if (sg) sg.hidden = true; }
-    const dh = t.closest('[data-dish]'); if (dh) { const [sid] = dh.dataset.dish.split('|'), sh = SHOPS.find(x => x.id === sid), kw = S.home.q.trim(); if (sh) { const sg = $('#home-sugg'); if (sg) sg.hidden = true; openShopPage(sh); if (kw) { SP.q = kw; SP.sq = true; renderShopPage(); } } return; }
+    const dh = t.closest('[data-dish]'); if (dh) { const [sid, ix] = dh.dataset.dish.split('|'), sh = SHOPS.find(x => x.id === sid), kw = S.home.q.trim(); if (sh) { const sg = $('#home-sugg'); if (sg) sg.hidden = true; openShopPage(sh); if (kw && +ix >= 0) { SP.q = kw; SP.sq = true; renderShopPage(); } } return; }
     const shop = t.closest('[data-shop]'); if (shop) { openShopPage(SHOPS.find(x => x.id === shop.dataset.shop)); return; }
 
     if (t.closest('[data-nearallow]')) { nearAsk(); return; }
