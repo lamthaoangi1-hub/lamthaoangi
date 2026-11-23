@@ -398,7 +398,7 @@
     { k:'food', t:'Đồ ăn', img:'cat-1.png' }, { k:'fresh', t:'Thực phẩm sống', img:'icon-fresh.png' },
     { k:'fashion', t:'Thời trang', img:'icon-fashion.png' }, { k:'service', t:'Dịch vụ khác', img:'cat-4.png' },
   ];
-  const tnCats = () => TN_CATS.map(c => `<button class="service ${c.k && c.k === S.home.sector ? 'active' : ''}" ${c.k ? `data-svc="${c.k}"` : `data-act="${c.act}"`}><span class="ic"><img src="${c.img}" alt="" width="40" height="40" loading="eager" decoding="async"></span>${c.t}</button>`).join('');
+  const tnCats = () => TN_CATS.map(c => `<button class="service ${c.k && c.k === S.home.sector ? 'active' : ''}" ${c.k ? `data-svc="${c.k}"` : `data-act="${c.act}"`}><span class="ic"><img src="${c.img}" alt="" width="40" height="40" loading="eager" decoding="async"></span>${c.k === 'fashion' ? '<i class="svc-hot">HOT</i>' : ''}${c.t}</button>`).join('');
   let TN_SEED = Math.random();
   const tnPick = (list, n) => [...list].map((s, i) => [s, Math.abs(Math.sin((i + 1) * 9301 + TN_SEED * 49297)) ]).sort((x, y) => x[1] - y[1]).slice(0, n).map(x => x[0]);
   const tnEta = s => s.eta ? String(s.eta).replace(/\s*phút.*/i, '') + ' phút' : '';

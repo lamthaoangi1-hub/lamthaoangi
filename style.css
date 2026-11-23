@@ -1050,3 +1050,9 @@ body.tab-home .slot{display:flex}
 .sg-price{flex:none;text-align:right;font-size:13px}
 .sg-price strong{display:block;color:#f04e1a;font-weight:700}
 .sg-price s{color:#9aa0a6;font-size:11px}
+
+/* Nhãn HOT nổi chuyển động trên mục Thời trang (trang chủ) */
+.service .svc-hot{position:absolute;top:-4px;left:calc(50% + 8px);z-index:2;font-style:normal;font-size:10px;font-weight:800;line-height:1;letter-spacing:.3px;color:#fff;padding:3px 6px;border-radius:8px 8px 8px 2px;background:linear-gradient(90deg,#ff3d3d,#ff8a00,#ff3d3d);background-size:200% 100%;box-shadow:0 2px 6px rgba(255,61,61,.45);pointer-events:none;animation:svcHotFloat 1.4s ease-in-out infinite,svcHotShine 2.2s linear infinite}
+@keyframes svcHotFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-4px) scale(1.12)}}
+@keyframes svcHotShine{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.service .svc-hot{animation:none}}
