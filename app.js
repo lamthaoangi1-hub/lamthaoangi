@@ -339,7 +339,15 @@
       <button class="heart ${isFav(s.id) ? 'on' : ''}" data-heart="${s.id}" aria-label="Yêu thích">${ic('heart')}</button>
     </article>`;
   }
-  /* Tìm kiếm trang chủ: ngoài quán, hiện luôn các MÓN khớp từ khoá (bấm vào mở quán và lọc sẵn món đó) */
+  /* Tìm kiếm trang chủ: danh sách gợi ý thả xuống dưới ô tìm kiếm, liệt kê các MÓN khớp từ khoá (bấm vào mở quán và lọc sẵn món đó) */
+  function suggHtml() {
+    const dl = dishMatches(); if (!dl.length) return S.home.q.trim() ? '<div class="sg-empty">Không có món nào khớp, xem danh sách quán bên dưới</div>' : '';
+    return `<div class="sg-head">🍽 Món ăn (${dl.length})</div>${dl.map(dishCard).join('')}`;
+  }
+  function updateSugg() {
+    const b = $('#home-sugg'); if (!b) return;
+    const h = S.home.q.trim() ? suggHtml() : ''; b.innerHTML = h; b.hidden = !h; b.scrollTop = 0;
+  }
   function dishMatches() {
     const q = norm(S.home.q.trim()); if (!q) return [];
     const out = [];
@@ -351,15 +359,11 @@
   }
   function dishCard({ s, i, m }) {
     const sale = s.sale > 0 && sectorOf(s) !== 'service' ? s.sale : 0, now = sale ? Math.round(m[1] * (100 - sale) / 100) : m[1];
-    return `<article class="dish-hit" data-dish="${esc(s.id)}|${i}"><div class="dh-pic">${m[4] ? `<img src="${m[4]}" alt="${esc(m[0])}" loading="lazy" decoding="async">` : SP_NOIMG}</div>
-      <div class="dh-in"><div class="dh-txt"><b>${esc(m[0])}</b><span class="dh-shop">🏪 ${esc(s.name)}</span></div><div class="dh-price"><strong>${money(now)}</strong>${sale ? `<s>${money(m[1])}</s>` : ''}</div></div></article>`;
+    return `<article class="sg-row" data-dish="${esc(s.id)}|${i}"><div class="sg-pic">${m[4] ? `<img src="${m[4]}" alt="${esc(m[0])}" loading="lazy" decoding="async">` : SP_NOIMG}</div>
+      <div class="sg-in"><div class="sg-txt"><b>${esc(m[0])}</b><span class="sg-shop">🏪 ${esc(s.name)}</span></div><div class="sg-price"><strong>${money(now)}</strong>${sale ? `<s>${money(m[1])}</s>` : ''}</div></div></article>`;
   }
   function shopListHtml() {
-    const l = filteredShops(), dl = S.home.cat === NEAR_CAT && !NEAR.loc ? [] : dishMatches();
-    if (dl.length) {
-      const dh = `<div class="dish-head">🍽 Món ăn (${dl.length})</div>${dl.map(dishCard).join('')}`;
-      return dh + (l.length ? `<div class="dish-head">🏪 Quán (${l.length})</div>${l.map(shopCard).join('')}` : '');
-    }
+    const l = filteredShops();
     if (LIVE && !SHOPS.length) return `<div class="empty"><b>${shopsLoaded ? 'Chưa có quán nào' : 'Đang tải danh sách quán…'}</b>${shopsLoaded ? 'Các quán sẽ sớm có mặt ở đây.' : ''}</div>`;
     if (LIVE && shopsLoaded && !SHOPS.some(x => sectorOf(x) === S.home.sector)) return `<div class="empty"><b>Sắp ra mắt</b>${SECTORS[S.home.sector].empty}</div>`;
     if (S.home.cat === NEAR_CAT && !NEAR.loc) return nearBox();
@@ -516,7 +520,7 @@
         <div class="tn-row"><span>Giao đến:</span><button class="tn-chip" data-act="area">${esc(S.area)}</button><span class="tn-sp"></span>${bellBtn()}</div>
         <button class="tn-addr" data-act="area">${fx.pinF}<b>${esc(S.user && S.user.address ? S.user.address : 'Chưa chọn địa chỉ')}</b></button>
       </div>
-      <div class="tn-srch"><label class="search">${ic('search')}<input id="home-q" type="search" placeholder="${SECTORS[S.home.sector].ph}" value="${S.home.q.replace(/"/g, '&quot;')}" autocomplete="off"><button class="filter-btn" data-act="filter" aria-label="Bộ lọc">${ic('sliders')}</button></label></div>
+      <div class="tn-srch"><label class="search">${ic('search')}<input id="home-q" type="search" placeholder="${SECTORS[S.home.sector].ph}" value="${S.home.q.replace(/"/g, '&quot;')}" autocomplete="off"><button class="filter-btn" data-act="filter" aria-label="Bộ lọc">${ic('sliders')}</button></label><div class="sugg" id="home-sugg" hidden></div></div>
       <div class="services tn-cats">${tnCats()}</div>
       <div id="tn-extra">${tnExtra()}</div>
       <div class="section-head" id="shops-anchor"><h2>${SECTORS[S.home.sector].head}</h2><button class="see-all" data-act="see-all">Xem tất cả ${ic('chevRight')}</button></div>
@@ -524,7 +528,8 @@
       <div class="shop-list" id="home-list">${shopListHtml()}</div>`;
     el.scrollTop = scroll; startHot();
     const q = $('#home-q');
-    q.addEventListener('input', e => { S.home.q = e.target.value; $('#home-list').innerHTML = shopListHtml(); const ex = $('#tn-extra'); if (ex) ex.innerHTML = tnExtra(); });
+    q.addEventListener('focus', updateSugg);
+    q.addEventListener('input', e => { S.home.q = e.target.value; updateSugg(); $('#home-list').innerHTML = shopListHtml(); const ex = $('#tn-extra'); if (ex) ex.innerHTML = tnExtra(); });
   }
   let slideTimer;
   function startSlider() {
@@ -1469,7 +1474,8 @@
     }
     const sm = t.closest('[data-sheetmsg]'); if (sm) { toast(sm.dataset.sheetmsg); closeSheet(); return; }
     const goBtn = t.closest('[data-go]'); if (goBtn) { go(goBtn.dataset.go); return; }
-    const dh = t.closest('[data-dish]'); if (dh) { const [sid] = dh.dataset.dish.split('|'), sh = SHOPS.find(x => x.id === sid), kw = S.home.q.trim(); if (sh) { openShopPage(sh); if (kw) { SP.q = kw; SP.sq = true; renderShopPage(); } } return; }
+    if (!t.closest('.tn-srch')) { const sg = $('#home-sugg'); if (sg) sg.hidden = true; }
+    const dh = t.closest('[data-dish]'); if (dh) { const [sid] = dh.dataset.dish.split('|'), sh = SHOPS.find(x => x.id === sid), kw = S.home.q.trim(); if (sh) { const sg = $('#home-sugg'); if (sg) sg.hidden = true; openShopPage(sh); if (kw) { SP.q = kw; SP.sq = true; renderShopPage(); } } return; }
     const shop = t.closest('[data-shop]'); if (shop) { openShopPage(SHOPS.find(x => x.id === shop.dataset.shop)); return; }
 
     if (t.closest('[data-nearallow]')) { nearAsk(); return; }
