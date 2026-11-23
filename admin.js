@@ -294,8 +294,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
   const maintView = () => {
     const on = settings.maintenanceOn === true;
     return `<div class="card" style="margin-top:12px;${on ? 'background:#fff1f0;border:2px solid #e5484d' : ''}"><h3>🛠 Bảo trì hệ thống</h3>
-      <p class="muted">Bật khi cần sửa lỗi hoặc nâng cấp: khách vào website sẽ thấy <b>thông báo bảo trì</b> và <b>không đặt được đơn</b> (đồ ăn, giao hàng, mua hộ, link quán gửi). Các đơn đã đặt trước đó vẫn xem được. Trang Admin, quán và shipper vẫn hoạt động bình thường.</p>
-      <label class="sw" style="margin:8px 0"><input type="checkbox" id="mt-on" ${on ? 'checked' : ''}>Đang BẬT chế độ bảo trì (khách không đặt được hàng)</label>
+      <p class="muted">Bật khi cần sửa lỗi hoặc nâng cấp: khách vào website sẽ thấy <b>thông báo bảo trì</b> và <b>không đặt được đơn</b> (đồ ăn, giao hàng, mua hộ, link quán gửi) và <b>quán cũng không gửi được yêu cầu Gọi ship (book ship)</b>. Các đơn / yêu cầu đã có trước đó vẫn xử lý được. Admin vẫn tạo đơn cho shipper từ các yêu cầu Gọi ship đang chờ; quán và shipper vẫn dùng các chức năng khác bình thường.</p>
+      <label class="sw" style="margin:8px 0"><input type="checkbox" id="mt-on" ${on ? 'checked' : ''}>Đang BẬT chế độ bảo trì (khách không đặt được hàng, quán không book ship được)</label>
       <label class="f">Nội dung thông báo cho khách (để trống dùng câu mặc định)<textarea id="mt-msg" rows="3" maxlength="300" placeholder="Hệ thống đang bảo trì đến 15h hôm nay. Xin lỗi vì sự bất tiện này!">${esc(settings.maintenanceMsg || '')}</textarea></label>
       <button class="btn" style="margin-top:12px" data-savemaint>Lưu chế độ bảo trì</button></div>`;
   };
@@ -479,8 +479,8 @@ export const panel = { key:'admin', title:'Quản trị', roles:['admin'], rende
       }
       else if (g('[data-savemaint]')) {
         const on = $('#mt-on').checked, msg = $('#mt-msg').value.trim().slice(0, 300);
-        if (on !== (settings.maintenanceOn === true) && !confirm(on ? 'BẬT bảo trì? Khách sẽ thấy thông báo và KHÔNG đặt được hàng cho đến khi bạn tắt.' : 'TẮT bảo trì? Khách sẽ đặt hàng lại bình thường.')) return;
-        await fb.saveSettings({ maintenanceOn:on, maintenanceMsg:msg }); toast(on ? '🛠 Đã BẬT bảo trì – khách không đặt được hàng' : '✅ Đã TẮT bảo trì – khách đặt hàng bình thường');
+        if (on !== (settings.maintenanceOn === true) && !confirm(on ? 'BẬT bảo trì? Khách sẽ thấy thông báo và KHÔNG đặt được hàng; quán cũng KHÔNG book ship được, cho đến khi bạn tắt.' : 'TẮT bảo trì? Khách sẽ đặt hàng lại bình thường.')) return;
+        await fb.saveSettings({ maintenanceOn:on, maintenanceMsg:msg }); toast(on ? '🛠 Đã BẬT bảo trì – khách không đặt được hàng, quán không book ship được' : '✅ Đã TẮT bảo trì – khách đặt hàng bình thường');
       }
       else if (g('[data-savewx]')) { await saveWx(); }
       else if (g('[data-newshop]')) { edit = { menu:[] }; draw(); }
