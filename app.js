@@ -339,8 +339,27 @@
       <button class="heart ${isFav(s.id) ? 'on' : ''}" data-heart="${s.id}" aria-label="Yêu thích">${ic('heart')}</button>
     </article>`;
   }
+  /* Tìm kiếm trang chủ: ngoài quán, hiện luôn các MÓN khớp từ khoá (bấm vào mở quán và lọc sẵn món đó) */
+  function dishMatches() {
+    const q = norm(S.home.q.trim()); if (!q) return [];
+    const out = [];
+    for (const s of SHOPS) {
+      if (sectorOf(s) !== S.home.sector || !s.menu) continue;
+      s.menu.forEach((m, i) => { if (m[2] !== false && norm(m[0] + ' ' + (m[5] || '')).includes(q)) out.push({ s, i, m, nameHit:norm(m[0]).includes(q) }); });
+    }
+    return out.sort((a, b) => b.nameHit - a.nameHit).slice(0, 40);
+  }
+  function dishCard({ s, i, m }) {
+    const sale = s.sale > 0 && sectorOf(s) !== 'service' ? s.sale : 0, now = sale ? Math.round(m[1] * (100 - sale) / 100) : m[1];
+    return `<article class="dish-hit" data-dish="${esc(s.id)}|${i}"><div class="dh-pic">${m[4] ? `<img src="${m[4]}" alt="${esc(m[0])}" loading="lazy" decoding="async">` : SP_NOIMG}</div>
+      <div class="dh-in"><b>${esc(m[0])}</b><span class="dh-shop">🏪 ${esc(s.name)}</span><div class="sp2-price"><strong>${money(now)}</strong>${sale ? `<s>${money(m[1])}</s><i>-${sale}%</i>` : ''}</div></div></article>`;
+  }
   function shopListHtml() {
-    const l = filteredShops();
+    const l = filteredShops(), dl = S.home.cat === NEAR_CAT && !NEAR.loc ? [] : dishMatches();
+    if (dl.length) {
+      const dh = `<div class="dish-head">🍽 Món ăn (${dl.length})</div>${dl.map(dishCard).join('')}`;
+      return dh + (l.length ? `<div class="dish-head">🏪 Quán (${l.length})</div>${l.map(shopCard).join('')}` : '');
+    }
     if (LIVE && !SHOPS.length) return `<div class="empty"><b>${shopsLoaded ? 'Chưa có quán nào' : 'Đang tải danh sách quán…'}</b>${shopsLoaded ? 'Các quán sẽ sớm có mặt ở đây.' : ''}</div>`;
     if (LIVE && shopsLoaded && !SHOPS.some(x => sectorOf(x) === S.home.sector)) return `<div class="empty"><b>Sắp ra mắt</b>${SECTORS[S.home.sector].empty}</div>`;
     if (S.home.cat === NEAR_CAT && !NEAR.loc) return nearBox();
@@ -1450,6 +1469,7 @@
     }
     const sm = t.closest('[data-sheetmsg]'); if (sm) { toast(sm.dataset.sheetmsg); closeSheet(); return; }
     const goBtn = t.closest('[data-go]'); if (goBtn) { go(goBtn.dataset.go); return; }
+    const dh = t.closest('[data-dish]'); if (dh) { const [sid] = dh.dataset.dish.split('|'), sh = SHOPS.find(x => x.id === sid), kw = S.home.q.trim(); if (sh) { openShopPage(sh); if (kw) { SP.q = kw; SP.sq = true; renderShopPage(); } } return; }
     const shop = t.closest('[data-shop]'); if (shop) { openShopPage(SHOPS.find(x => x.id === shop.dataset.shop)); return; }
 
     if (t.closest('[data-nearallow]')) { nearAsk(); return; }
