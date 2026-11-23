@@ -155,6 +155,13 @@
     openShopPage(sh);
   }
   const SP = { id:null, cat:'Tất cả', q:'', sq:false };
+  const TYPE_EX = {
+    food:['Bạn muốn ăn gì hôm nay?', 'Tìm bún bò, cơm tấm…', 'Trà sữa, nem nướng, bánh mì…', 'Gõ tên món hoặc tên quán…'],
+    fresh:['Bạn muốn mua gì hôm nay?', 'Thịt heo, cá, rau củ…', 'Hải sản tươi, trứng gà…'],
+    fashion:['Bạn muốn tìm cửa hàng nào?', 'Váy, áo thun, giày dép…', 'Phụ kiện, túi xách…'],
+    service:['Bạn cần dịch vụ gì?', 'Chụp ảnh, makeup…', 'Cúng - Lễ, trang trí…']
+  };
+  let typeTimer, typeGen = 0;
   let shopPageOpen = false;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const zaloLink = () => { const z = String(CONTACT.zalo || '').trim(); if (!z) return ''; if (/^(https?:)?\/\//i.test(z)) return z; if (/^(zalo\.me|chat\.zalo\.me)\//i.test(z)) return 'https://' + z; const d = z.replace(/[\s.\-()]/g, '').replace(/^\+?84/, '0'); return /^\d{8,15}$/.test(d) ? 'https://zalo.me/' + d : ''; };
@@ -534,13 +541,6 @@
     q.addEventListener('input', e => { S.home.q = e.target.value; updateSugg(); const ex = $('#tn-extra'); if (ex) ex.innerHTML = tnExtra(); });
   }
   /* Placeholder ô tìm kiếm chạy như đang gõ phím: gõ từng chữ → dừng → xoá từng chữ → câu tiếp theo. Dừng khi khách bấm vào ô hoặc đã có chữ. */
-  const TYPE_EX = {
-    food:['Bạn muốn ăn gì hôm nay?', 'Tìm bún bò, cơm tấm…', 'Trà sữa, nem nướng, bánh mì…', 'Gõ tên món hoặc tên quán…'],
-    fresh:['Bạn muốn mua gì hôm nay?', 'Thịt heo, cá, rau củ…', 'Hải sản tươi, trứng gà…'],
-    fashion:['Bạn muốn tìm cửa hàng nào?', 'Váy, áo thun, giày dép…', 'Phụ kiện, túi xách…'],
-    service:['Bạn cần dịch vụ gì?', 'Chụp ảnh, makeup…', 'Cúng - Lễ, trang trí…']
-  };
-  let typeTimer, typeGen = 0;
   function startTyping() {
     clearTimeout(typeTimer); const gen = ++typeGen;
     const inp = $('#home-q'); if (!inp) return;
