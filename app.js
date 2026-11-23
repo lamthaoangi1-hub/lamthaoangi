@@ -352,7 +352,7 @@
   function dishCard({ s, i, m }) {
     const sale = s.sale > 0 && sectorOf(s) !== 'service' ? s.sale : 0, now = sale ? Math.round(m[1] * (100 - sale) / 100) : m[1];
     return `<article class="dish-hit" data-dish="${esc(s.id)}|${i}"><div class="dh-pic">${m[4] ? `<img src="${m[4]}" alt="${esc(m[0])}" loading="lazy" decoding="async">` : SP_NOIMG}</div>
-      <div class="dh-in"><b>${esc(m[0])}</b><span class="dh-shop">🏪 ${esc(s.name)}</span><div class="sp2-price"><strong>${money(now)}</strong>${sale ? `<s>${money(m[1])}</s><i>-${sale}%</i>` : ''}</div></div></article>`;
+      <div class="dh-in"><div class="dh-txt"><b>${esc(m[0])}</b><span class="dh-shop">🏪 ${esc(s.name)}</span></div><div class="dh-price"><strong>${money(now)}</strong>${sale ? `<s>${money(m[1])}</s>` : ''}</div></div></article>`;
   }
   function shopListHtml() {
     const l = filteredShops(), dl = S.home.cat === NEAR_CAT && !NEAR.loc ? [] : dishMatches();

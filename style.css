@@ -1033,11 +1033,17 @@ body.tab-home .slot{display:flex}
 .hc-dish .hc-pr del{font-size:12px;font-weight:500;color:#9aa1ab}
 .hc-dish .hc-pr em{font-style:normal;font-size:14px;font-weight:700;color:#e5322d}
 
-/* Kết quả món ăn khi tìm kiếm ở trang chủ */
-.dish-head{font-family:var(--font-h);font-weight:700;font-size:15px;color:var(--ink);margin:4px 2px 0}
-.dish-hit{display:flex;gap:12px;align-items:center;background:var(--card);border-radius:16px;padding:10px;border:1px solid #f1f3f5;box-shadow:var(--shadow);cursor:pointer}
-.dish-hit .dh-pic{flex:none;width:72px;height:72px;border-radius:12px;overflow:hidden;background:#f3f4f6;display:flex;align-items:center;justify-content:center}
+/* Kết quả món ăn khi tìm kiếm ở trang chủ: dạng thanh gọn (như gợi ý tìm kiếm) */
+.dish-head{font-family:var(--font-h);font-weight:700;font-size:15px;color:var(--ink);margin:4px 2px -4px}
+.dish-hit{display:flex;gap:10px;align-items:center;background:var(--card);border-radius:12px;padding:7px 10px;border:1px solid #f1f3f5;cursor:pointer;margin-bottom:-6px}
+.dish-hit:active{background:#f3f4f6}
+.dish-hit .dh-pic{flex:none;width:38px;height:38px;border-radius:8px;overflow:hidden;background:#f3f4f6;display:flex;align-items:center;justify-content:center}
 .dish-hit .dh-pic img{width:100%;height:100%;object-fit:cover}
-.dish-hit .dh-in{flex:1;min-width:0}
-.dish-hit .dh-in b{display:block;font-size:15px;line-height:1.25}
-.dish-hit .dh-shop{display:block;color:var(--ink-2);font-size:13px;margin:3px 0}
+.dish-hit .dh-pic svg{width:24px;height:24px}
+.dish-hit .dh-in{flex:1;min-width:0;display:flex;align-items:center;gap:8px}
+.dish-hit .dh-txt{flex:1;min-width:0}
+.dish-hit .dh-txt b{display:block;font-size:14px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dish-hit .dh-shop{display:block;color:var(--ink-2);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dish-hit .dh-price{flex:none;text-align:right;font-size:13px}
+.dish-hit .dh-price strong{display:block;color:#f04e1a;font-weight:700}
+.dish-hit .dh-price s{color:#9aa0a6;font-size:11px}
