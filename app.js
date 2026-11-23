@@ -379,7 +379,7 @@
     if (!q || !list) return renderHome();
     const sec = SECTORS[k];
     $$('#view-home .service').forEach(b => b.classList.toggle('active', b.dataset.svc === k));
-    q.value = ''; q.placeholder = sec.ph;
+    q.value = ''; q.placeholder = sec.ph; startTyping();
     const bw = $('#banner-wrap'); if (bw) bw.hidden = k !== 'food';
     const h = $('#shops-anchor h2'); if (h) h.textContent = sec.head;
     $('#home-chips').innerHTML = chipsHtml();
@@ -530,8 +530,33 @@
       <div class="shop-list" id="home-list">${shopListHtml()}</div>`;
     el.scrollTop = scroll; startHot();
     const q = $('#home-q');
-    q.addEventListener('focus', updateSugg);
+    q.addEventListener('focus', updateSugg);     startTyping();
     q.addEventListener('input', e => { S.home.q = e.target.value; updateSugg(); const ex = $('#tn-extra'); if (ex) ex.innerHTML = tnExtra(); });
+  }
+  /* Placeholder ô tìm kiếm chạy như đang gõ phím: gõ từng chữ → dừng → xoá từng chữ → câu tiếp theo. Dừng khi khách bấm vào ô hoặc đã có chữ. */
+  const TYPE_EX = {
+    food:['Bạn muốn ăn gì hôm nay?', 'Tìm bún bò, cơm tấm…', 'Trà sữa, nem nướng, bánh mì…', 'Gõ tên món hoặc tên quán…'],
+    fresh:['Bạn muốn mua gì hôm nay?', 'Thịt heo, cá, rau củ…', 'Hải sản tươi, trứng gà…'],
+    fashion:['Bạn muốn tìm cửa hàng nào?', 'Váy, áo thun, giày dép…', 'Phụ kiện, túi xách…'],
+    service:['Bạn cần dịch vụ gì?', 'Chụp ảnh, makeup…', 'Cúng - Lễ, trang trí…']
+  };
+  let typeTimer, typeGen = 0;
+  function startTyping() {
+    clearTimeout(typeTimer); const gen = ++typeGen;
+    const inp = $('#home-q'); if (!inp) return;
+    const base = SECTORS[S.home.sector].ph, list = TYPE_EX[S.home.sector] || [base];
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { inp.placeholder = base; return; }
+    let wi = 0, ci = 0, del = false;
+    const tick = () => {
+      if (gen !== typeGen || !document.contains(inp)) return;
+      if (S.tab !== 'home' || document.activeElement === inp || inp.value) { inp.placeholder = base; typeTimer = setTimeout(tick, 600); ci = 0; del = false; return; }
+      const w = list[wi % list.length]; let wait;
+      if (!del) { ci++; wait = 70 + Math.random() * 60; if (ci >= w.length) { del = true; wait = 1600; } }
+      else { ci--; wait = 28; if (ci <= 0) { del = false; wi++; wait = 400; } }
+      inp.placeholder = (w.slice(0, Math.max(ci, 0)) || '\u200b') + (ci > 0 && ci < w.length || !del ? '|' : '');
+      typeTimer = setTimeout(tick, wait);
+    };
+    tick();
   }
   let slideTimer;
   function startSlider() {
