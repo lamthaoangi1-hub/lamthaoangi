@@ -955,7 +955,7 @@
     const s = SHOPS.find(x => x.id === SP.id), page = $('#shop-page'); if (!s) return;
     const sc = page.scrollTop, groups = menuGroups(s), names = [...groups.keys()], sec = sectorOf(s), d = s._d || {};
     if (SP.cat !== 'Tất cả' && !groups.has(SP.cat)) SP.cat = 'Tất cả';
-    const tel = String(s.phone || '').replace(/\D/g, '');
+    const tel = String(s.phone || '').replace(/\D/g, ''), zd = String(d.zalo || '').replace(/\D/g, ''), zl = zd.length >= 9 ? 'https://zalo.me/' + zd : '';
     const tabs = names.length > 1 ? ['Tất cả', ...names] : names;
     const catBtn = names.length > 1 ? `<button class="sp2-cbtn" data-spcats aria-label="Xem tất cả danh mục">${SP_I.grid}<span>Danh mục</span><b>${names.length}</b></button>` : '';
     const hrs = d.autoHours && d.openAt && d.closeAt ? `Hôm nay: ${d.openAt} - ${d.closeAt}` : 'Mở cửa cả ngày';
@@ -969,6 +969,7 @@
         <div class="sp2-hours"><span class="sp2-ico">${SP_I.clock}</span><span>${hrs}</span><span class="sp2-open ${s.open === false ? 'off' : 'on'}">${s.open === false ? closedNote(s) : `${SP_I.check}Đang mở cửa`}</span></div>
         ${s.address ? `<div class="sp2-addr">${ic('mapPin')}<span>${s.address}</span></div>` : ''}
         ${promos.length ? `<div class="sp2-promos">${promos.map(t => `<span class="sp2-pchip"><b>Ưu đãi</b><i>${t}</i></span>`).join('')}</div>` : ''}
+        ${sec === 'fashion' && zl ? `<a class="sp2-zalo" href="${zl}" target="_blank" rel="noopener">💬 Chat Zalo với cửa hàng<small>Trao đổi, hỏi size, đặt mua</small></a>` : ''}
         <div class="sp2-acts"><button data-spgroup>${SP_I.group}Đặt nhóm</button><button data-spshare>${SP_I.share}Chia sẻ</button></div>
         ${s.desc ? `<p class="sp2-desc">${s.desc}</p>` : ''}
       </div>

@@ -85,6 +85,7 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
       <label class="sw"><input type="checkbox" id="s-open" ${shop.open === false ? '' : 'checked'}>Đang mở cửa (công tắc tổng – tắt là đóng cả ngày, không nhận đơn)</label>
       <label class="f">Mô tả<textarea id="s-desc">${n('desc')}</textarea></label>
       <div class="grid"><label class="f">Địa chỉ<input type="text" id="s-address" value="${n('address')}"></label><label class="f">SĐT quán<input type="tel" id="s-phone" value="${n('phone')}"></label>
+      ${shop.sector === 'fashion' ? `<label class="f" style="grid-column:1/-1">💬 SĐT Zalo của cửa hàng (khách bấm nút Zalo để nhắn mua hàng)<input type="tel" id="s-zalo" inputmode="tel" maxlength="15" value="${n('zalo')}" placeholder="09xx xxx xxx"></label>` : ''}
       <label class="f">Thời gian giao (VD: 15 - 25 phút)<input type="text" id="s-eta" value="${n('eta', '15 - 30 phút')}"></label><label class="f">Giảm giá (%)<input type="number" id="s-sale" min="0" max="90" value="${shop.sale ?? 0}"></label></div>
       <label class="f">Ảnh / logo quán</label>${imgUpHtml(shop.img || '', 's-img')}
       <p class="muted" style="margin-top:12px">Phí giao hàng do Admin quy định: <b>${money(shop.shipFee ?? 15000)}</b>${shop.freeShipMin ? `, ${shop.freeShipAll ? 'miễn phí giao hàng' : 'miễn phí ship cơ bản'} cho đơn từ ${money(shop.freeShipMin)}` : ''}. Cần đổi, vui lòng liên hệ Admin.</p>
@@ -172,7 +173,7 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
       if (e.target.closest('[data-saveshop]')) {
         const v = id => $('#' + id).value.trim();
         const hr = readHours('s', root); if (hr.error) return toast(hr.error);
-        await fb.patchShop(me.shopId, { ...hr.fields, open:$('#s-open').checked, desc:v('s-desc'), address:v('s-address'), phone:v('s-phone'), eta:v('s-eta'), sale:Math.min(90, Math.max(0, +v('s-sale') || 0)), img:v('s-img') });
+        await fb.patchShop(me.shopId, { ...hr.fields, open:$('#s-open').checked, desc:v('s-desc'), address:v('s-address'), phone:v('s-phone'), ...($('#s-zalo') ? { zalo:v('s-zalo').replace(/[^\d+]/g, '') } : {}), eta:v('s-eta'), sale:Math.min(90, Math.max(0, +v('s-sale') || 0)), img:v('s-img') });
         toast('Đã lưu cửa hàng');
       }
     } catch (er) { toast(fb.errMsg(er)); }

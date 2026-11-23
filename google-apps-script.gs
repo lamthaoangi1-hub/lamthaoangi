@@ -183,9 +183,23 @@ function uploadImage(body) {
 //   AI_PROVIDER     = muse | gemini   (tùy chọn; bỏ trống = muse nếu có MUSE_API_KEY, ngược lại gemini)
 //   AI_MAX_PER_6H   = số ảnh AI tối đa mỗi tài khoản / 6 giờ (mặc định 40)
 //   MUSE_MODEL / GEMINI_MODEL (tùy chọn; mặc định muse-image-1.0 / gemini-2.5-flash-image)
-const AI_PROMPT = 'Edit this product photo for an online fashion store. Keep the clothing / accessory EXACTLY the same: same shape, cut, color, pattern, print, logo, text and stitching. Do not add, remove or redesign anything on the product. ' +
-  'Only improve the photo: replace the messy background with a clean, plain light-neutral studio background, correct exposure and white balance, soften harsh shadows, remove dust and lint, and center the product in a square 1:1 frame with a little margin. ' +
-  'If a person is wearing the item, keep the person and the garment unchanged and only clean up the background and lighting. Do not add watermarks, captions or extra objects.';
+const AI_PROMPT = 'You are given TWO images. Image 1 is a product photo from a fashion seller. Image 2 is the brand background template: a clean white studio scene with a round white podium with a thin gold ring at the bottom, soft white and gold silk curves, green leaves in the top-left and bottom-right corners, and the logo "Lâm Thao Ăn Gì?" with the website pill "lamthaoangi.com" in the top-right corner. ' +
+  'TASK: cut out the clothing / accessory from Image 1 (remove its original background completely) and place it on the podium of Image 2, centered, standing or displayed naturally on top of the podium, sized to fill roughly 60-70% of the frame height, with a soft realistic contact shadow on the podium. ' +
+  'If a person is wearing the item in Image 1, keep the person and the garment together as one cut-out and place them on the podium. ' +
+  'STRICT RULES: keep the product EXACTLY the same: same shape, cut, color, pattern, print, logo, text and stitching; do not redesign, add or remove anything on the product. Keep the background of Image 2 EXACTLY as it is: same podium, same gold lines, same leaves, and the same logo and website text in the same top-right position, spelled exactly "Lâm Thao Ăn Gì?" and "lamthaoangi.com". ' +
+  'Match the lighting of the product to the bright studio lighting. Output one square 1:1 image. Do not add any other text, watermark, caption or extra objects.';
+
+// Ảnh nền thương hiệu (bg-fashion.jpg nằm cùng thư mục với website). Đổi địa chỉ bằng Script property BG_URL (VD: web Tam Nông dùng domain riêng).
+function aiBgImage_(props) {
+  const url = props.getProperty('BG_URL') || 'https://lamthaoangi.com/bg-fashion.jpg';
+  try {
+    const r = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true });
+    if (r.getResponseCode() === 200) { const bl = r.getBlob(); return { bytes: bl.getBytes(), mime: bl.getContentType() || 'image/jpeg' }; }
+    console.warn('aiBgImage: ' + url + ' → ' + r.getResponseCode());
+  } catch (e) { console.warn('aiBgImage: ' + e); }
+  return null;   // không tải được nền → AI vẫn chạy nhưng chỉ làm nền trắng sạch
+}
+const AI_PROMPT_PLAIN = 'Edit this product photo for an online fashion store. Keep the clothing / accessory EXACTLY the same. Replace the messy background with a clean, plain white studio background, correct exposure and white balance, and center the product in a square 1:1 frame. Do not add watermarks, captions or extra objects.';
 
 function aiEnhanceImage_(uid, bytes, mime) {
   const props = PropertiesService.getScriptProperties();
@@ -195,13 +209,13 @@ function aiEnhanceImage_(uid, bytes, mime) {
   if (!key) return { ok: false, error: 'Admin chưa cài ' + (provider === 'muse' ? 'MUSE_API_KEY' : 'GEMINI_API_KEY') + ' trong Script properties' };
   const cache = CacheService.getScriptCache(), ck = 'ai_' + uid, used = Number(cache.get(ck) || 0), max = Number(props.getProperty('AI_MAX_PER_6H')) || 40;
   if (used >= max) return { ok: false, error: 'đã dùng hết lượt AI tạm thời, thử lại sau' };
-  const r = provider === 'muse' ? aiMuse_(key, props, bytes, mime) : aiGemini_(key, props, bytes, mime);
+  const bg = aiBgImage_(props), r = provider === 'muse' ? aiMuse_(key, props, bytes, mime, bg) : aiGemini_(key, props, bytes, mime, bg);
   if (r.ok) cache.put(ck, String(used + 1), 21600);
   return r;
 }
 
 // Muse Image (Meta Model API – kiểu "responses"): ảnh gửi dạng data URL, ảnh kết quả là base64 trong output[].image_generation_call.result
-function aiMuse_(key, props, bytes, mime) {
+function aiMuse_(key, props, bytes, mime, bg) {
   let r;
   try {
     r = UrlFetchApp.fetch('https://api.meta.ai/v1/responses', {
@@ -209,9 +223,9 @@ function aiMuse_(key, props, bytes, mime) {
       payload: JSON.stringify({
         model: props.getProperty('MUSE_MODEL') || 'muse-image-1.0',
         input: [{ type: 'message', role: 'user', content: [
-          { type: 'input_text', text: AI_PROMPT },
+          { type: 'input_text', text: bg ? AI_PROMPT : AI_PROMPT_PLAIN },
           { type: 'input_image', image_url: 'data:' + mime + ';base64,' + Utilities.base64Encode(bytes) },
-        ] }],
+        ].concat(bg ? [{ type: 'input_image', image_url: 'data:' + bg.mime + ';base64,' + Utilities.base64Encode(bg.bytes) }] : []) }],
         tools: [{ type: 'image_generation' }],
         max_output_tokens: 2048, store: false, stream: false,
       }),
@@ -228,14 +242,14 @@ function aiMuse_(key, props, bytes, mime) {
 }
 
 // Gemini (Google)
-function aiGemini_(key, props, bytes, mime) {
+function aiGemini_(key, props, bytes, mime, bg) {
   const model = props.getProperty('GEMINI_MODEL') || 'gemini-2.5-flash-image';
   let r;
   try {
     r = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
       method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-goog-api-key': key },
       payload: JSON.stringify({
-        contents: [{ parts: [{ text: AI_PROMPT }, { inline_data: { mime_type: mime, data: Utilities.base64Encode(bytes) } }] }],
+        contents: [{ parts: [{ text: bg ? AI_PROMPT : AI_PROMPT_PLAIN }, { inline_data: { mime_type: mime, data: Utilities.base64Encode(bytes) } }].concat(bg ? [{ inline_data: { mime_type: bg.mime, data: Utilities.base64Encode(bg.bytes) } }] : []) }],
         generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
       }),
     });

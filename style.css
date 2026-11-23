@@ -1056,3 +1056,8 @@ body.tab-home .slot{display:flex}
 @keyframes svcHotFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-4px) scale(1.12)}}
 @keyframes svcHotShine{to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){.service .svc-hot{animation:none}}
+
+/* Nút Zalo của shop thời trang (nhà bán cài SĐT Zalo trong trang quán) */
+.sp2-zalo{display:flex;flex-direction:column;align-items:center;gap:2px;margin:12px 0 0;padding:12px 14px;border-radius:14px;background:#0068ff;color:#fff;font-weight:700;font-size:15px;text-decoration:none;box-shadow:0 4px 12px rgba(0,104,255,.3)}
+.sp2-zalo small{font-weight:500;font-size:12px;opacity:.9}
+.sp2-zalo:active{transform:scale(.98)}

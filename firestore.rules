@@ -60,7 +60,7 @@ service cloud.firestore {
       // Vị trí GPS (lat, lng): chủ quán chỉ được lưu 1 lần; chỉ Admin mới đặt lại được
       // Phí giao hàng (shipFee, freeShipMin) CHỈ Admin được sửa
       allow update: if isAdmin() || (isSeller() && me().shopId == shopId
-        && changedOnly(['menu', 'open', 'desc', 'eta', 'sale', 'img', 'phone', 'address', 'lat', 'lng', 'locAcc', 'locAt', 'autoHours', 'openAt', 'closeAt', 'openMin', 'closeMin'])
+        && changedOnly(['menu', 'open', 'desc', 'eta', 'sale', 'img', 'phone', 'zalo', 'address', 'lat', 'lng', 'locAcc', 'locAt', 'autoHours', 'openAt', 'closeAt', 'openMin', 'closeMin'])
         && (resource.data.get('lat', null) == null
             || (request.resource.data.lat == resource.data.lat && request.resource.data.lng == resource.data.lng)));
     }
@@ -111,6 +111,9 @@ service cloud.firestore {
     match /shipCalls/{id} {
       allow read: if isAdmin() || (isSeller() && resource.data.shopId == me().shopId);
       allow create: if isSeller() && request.resource.data.shopId == me().shopId
+        // chế độ bảo trì: quán cũng KHÔNG gửi được yêu cầu Gọi ship mới
+        && (!exists(/databases/$(database)/documents/settings/app)
+            || get(/databases/$(database)/documents/settings/app).data.get('maintenanceOn', false) != true)
         && request.resource.data.keys().hasOnly(['shopId', 'shopName', 'shopPhone', 'shopAddress', 'shopLat', 'shopLng', 'customerPhone', 'cod', 'note', 'status', 'createdAtMs', 'createdBy'])
         && request.resource.data.status == 'new'
         && request.resource.data.createdBy == request.auth.uid
@@ -139,8 +142,8 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.status == 'pending'
-        // chế độ bảo trì (Admin bật ở settings/app.maintenanceOn): khách không đặt được đơn mới
-        && (!exists(/databases/$(database)/documents/settings/app)
+        // chế độ bảo trì (Admin bật ở settings/app.maintenanceOn): khách không đặt được đơn mới (Admin vẫn tạo được để xử lý nốt các yêu cầu Gọi ship đã nhận trước đó)
+        && (isAdmin() || !exists(/databases/$(database)/documents/settings/app)
             || get(/databases/$(database)/documents/settings/app).data.get('maintenanceOn', false) != true)
         && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 40
         && request.resource.data.code is string && request.resource.data.code.size() <= 20
