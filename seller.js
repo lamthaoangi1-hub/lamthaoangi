@@ -1,7 +1,7 @@
-import { report, periodControl, metrics, note, dailyView, walletCredit } from './revenue.js?v=20261117a';
+import { report, periodControl, metrics, note, dailyView, walletCredit } from './revenue.js?v=20261125a';
 import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261023a';
 import { shopLink, copyText } from './shoplink.js?v=20261103a';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261117a';
+import { navHtml, fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261125a';
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
@@ -46,8 +46,8 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
     const act = o => ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(o.status);
     const list = [...orders].sort(newestFirst).filter(o => fil === 'active' ? act(o) : !act(o)).slice(0, 80);
     const today = orders.filter(o => o.status === 'done' && sameDay(o.updatedAt));
-    return `<div class="stat"><div class="card"><b>${orders.filter(o => o.status === 'pending').length}</b><span class="muted">Chờ xác nhận</span></div><div class="card"><b>${today.length}</b><span class="muted">Đơn xong hôm nay</span></div><div class="card"><b>${money(today.reduce((a, o) => a + (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0), 0))}</b><span class="muted">Doanh thu hôm nay</span></div></div>
-      <div class="row" style="margin-bottom:10px"><button class="btn sm ${fil === 'active' ? '' : 'o'}" data-fil="active">Đang xử lý</button><button class="btn sm ${fil === 'past' ? '' : 'o'}" data-fil="past">Đã xong / hủy</button></div>
+    return `<div class="stat sstat"><div class="card"><i class="si or">⏳</i><b>${orders.filter(o => o.status === 'pending').length}</b><span class="muted">Chờ xác nhận</span></div><div class="card"><i class="si gr">✅</i><b>${today.length}</b><span class="muted">Đơn xong hôm nay</span></div><div class="card"><i class="si">💰</i><b>${money(today.reduce((a, o) => a + (o.subtotal || 0) - (o.discount || 0) + (o.platformOff || 0), 0))}</b><span class="muted">Doanh thu hôm nay</span></div></div>
+      <div class="seg"><button class="${fil === 'active' ? 'on' : ''}" data-fil="active">Đang xử lý</button><button class="${fil === 'past' ? 'on' : ''}" data-fil="past">Đã xong / hủy</button></div>
       ${list.length ? list.map(orderCard).join('') : '<div class="empty">Chưa có đơn</div>'}`;
   }
   function revenueTab() { const r = report(orders, period); return `<div class="section-heading"><h2>Doanh thu cửa hàng</h2><p>Chi tiết hoạt động kinh doanh của ${esc(shop.name)}</p></div>${periodControl(period)}${metrics(r)}${note}${dailyView(r)}`; }
@@ -93,7 +93,7 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
   }
   function draw() {
     const pend = orders.filter(o => o.status === 'pending').length;
-    root.innerHTML = `<div class="tabs"><button class="${tab === 'orders' ? 'on' : ''}" data-t="orders">Đơn hàng${pend ? `<span class="n">${pend}</span>` : ''}</button><button class="${tab === 'ship' ? 'on' : ''}" data-t="ship">🛵 Gọi ship${shipCalls.filter(c => c.status === 'new').length ? `<span class="n">${shipCalls.filter(c => c.status === 'new').length}</span>` : ''}</button><button class="${tab === 'revenue' ? 'on' : ''}" data-t="revenue">📊 Doanh thu</button><button class="${tab === 'wallet' ? 'on' : ''}" data-t="wallet">👛 Ví</button><button class="${tab === 'menu' ? 'on' : ''}" data-t="menu">Thực đơn</button><button class="${tab === 'shop' ? 'on' : ''}" data-t="shop">Cửa hàng</button></div>
+    root.innerHTML = `${navHtml([['orders', 'orders', 'Đơn hàng', pend || ''], ['ship', 'ship', 'Gọi ship', shipCalls.filter(c => c.status === 'new').length || ''], ['revenue', 'revenue', 'Doanh thu'], ['wallet', 'wallet', 'Ví'], ['menu', 'menu', 'Thực đơn'], ['shop', 'shop', 'Cửa hàng']], tab)}
       <main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${!shop ? '<div class="empty">Đang tải cửa hàng…</div>' : tab === 'orders' ? ordersTab() : tab === 'ship' ? shipTab() : tab === 'menu' ? menuTab() : tab === 'revenue' ? revenueTab() : tab === 'wallet' ? walletTab() : shopTab()}</main>`;
   }
   let first = true;

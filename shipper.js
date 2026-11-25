@@ -1,4 +1,4 @@
-import { fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payText, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261117a';
+import { navHtml, fb, track, $, $$, esc, money, fmtTime, sameDay, badge, payText, newestFirst, toast, beep, mapLink, dirLink } from './panel.js?v=20261125a';
 
 export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'], render(root, me) {
   let tab = 'open', open = [], mine = [], err = '', pay = [], wf = null;
@@ -89,7 +89,7 @@ export const panel = { key:'shipper', title:'Shipper', roles:['shipper', 'admin'
       : tab === 'mine' ? (active.length ? active.map(o => card(o)).join('') : '<div class="empty">Bạn chưa nhận đơn nào</div>')
       : tab === 'wallet' ? walletBody()
       : `<div class="stat"><div class="card"><b>${today.length}</b><span class="muted">Đơn hôm nay</span></div><div class="card"><b>${money(today.reduce((a, o) => a + shipEarn(o), 0))}</b><span class="muted">Phí ship hôm nay</span></div><div class="card"><b>${hist.length}</b><span class="muted">Tổng đơn đã giao</span></div></div>` + (hist.length ? hist.slice(0, 60).map(o => card(o)).join('') : '<div class="empty">Chưa có lịch sử</div>');
-    root.innerHTML = `<div class="tabs"><button class="${tab === 'open' ? 'on' : ''}" data-t="open">Đơn chờ nhận${open.length ? `<span class="n">${open.length}</span>` : ''}</button><button class="${tab === 'mine' ? 'on' : ''}" data-t="mine">Đang giao${active.length ? `<span class="n">${active.length}</span>` : ''}</button><button class="${tab === 'hist' ? 'on' : ''}" data-t="hist">Lịch sử</button>${canToggle ? `<button class="${tab === 'wallet' ? 'on' : ''}" data-t="wallet">👛 Ví${wallet().bal ? `<span class="n">${Math.floor(wallet().bal / 1000)}K</span>` : ''}</button>` : ''}</div>
+    root.innerHTML = `${navHtml([['open', 'open', 'Chờ nhận', open.length || ''], ['mine', 'mine', 'Đang giao', active.length || ''], ['hist', 'hist', 'Lịch sử']].concat(canToggle ? [['wallet', 'wallet', 'Ví', wallet().bal ? Math.floor(wallet().bal / 1000) + 'K' : '']] : []), tab)}
       <main>${presBar()}<div class="section-heading"><h2>${tab === 'open' ? 'Đơn đang chờ shipper' : tab === 'mine' ? 'Đơn giao của tôi' : tab === 'wallet' ? 'Ví tài xế' : 'Thống kê giao hàng'}</h2><p>${tab === 'wallet' ? 'Tiền do Lâm Thao Ăn Gì chịu phí ship, rút về ngân hàng bất cứ lúc nào' : tab === 'hist' ? 'Phí giao hàng và lịch sử hoàn thành' : 'Theo dõi trạng thái đơn hàng nhanh chóng'}</p></div>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${body}</main>`;
   }
   /* Heartbeat: khi đang ONLINE và đang mở trang, ghi "lastSeen" mỗi 5 phút để Admin biết còn hoạt động (tiết kiệm lượt ghi Firestore) */

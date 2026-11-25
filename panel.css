@@ -154,3 +154,75 @@ main{max-width:1180px;padding:24px 18px 70px}
 .csum{padding:10px 0 8px;border-bottom:1px solid var(--line)}
 .clist{max-height:min(55vh,460px);overflow-y:auto;overscroll-behavior:contain}
 #c-q{margin-top:10px}
+
+/* =====================================================================
+   Giao diện mới 25/11/2026 – CHỈ cho Nhà bán hàng & Shipper (Admin giữ nguyên)
+   Thanh điều hướng dưới cùng + chân trang + header, thẻ, trạng thái trống
+   ===================================================================== */
+body[data-panel="seller"],body[data-panel="shipper"]{background:#eef3f1;padding-bottom:calc(74px + env(safe-area-inset-bottom))}
+
+/* Header */
+body[data-panel="seller"] .top,body[data-panel="shipper"] .top{border-radius:0 0 22px 22px;padding:14px max(16px,calc((100vw - 1180px)/2)) 16px;gap:11px;background:linear-gradient(120deg,#055e46,#0e9a6f)}
+body[data-panel="seller"] .top .av,body[data-panel="shipper"] .top .av{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:50%;background:#fff;color:#07684e;font-weight:800;font-size:18px;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
+body[data-panel="seller"] .top h1,body[data-panel="shipper"] .top h1{font-size:16px;line-height:1.25;min-width:0}
+body[data-panel="seller"] .top small,body[data-panel="shipper"] .top small{margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body[data-panel="seller"] .top a,body[data-panel="seller"] .top button,body[data-panel="shipper"] .top a,body[data-panel="shipper"] .top button{padding:7px 11px;font-size:13px;border-radius:999px;background:rgba(255,255,255,.2)}
+body[data-panel="seller"] .top #lo,body[data-panel="shipper"] .top #lo{background:rgba(0,0,0,.22)}
+body[data-panel="seller"] .top a:active,body[data-panel="seller"] .top button:active,body[data-panel="shipper"] .top a:active,body[data-panel="shipper"] .top button:active{transform:scale(.96)}
+@media(max-width:380px){body[data-panel="seller"] .top a,body[data-panel="shipper"] .top a{display:none}}
+
+/* Thanh điều hướng dưới cùng */
+body[data-panel="seller"] .tabs,body[data-panel="shipper"] .tabs{position:fixed;top:auto;left:0;right:0;bottom:0;z-index:30;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:2px;overflow:visible;padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:rgba(255,255,255,.97);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:0;border-top:1px solid var(--line);box-shadow:0 -8px 24px rgba(16,19,26,.08)}
+body[data-panel="seller"] .tabs button,body[data-panel="shipper"] .tabs button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 2px;border-radius:14px;background:none;color:#7a8594;font-weight:600;font-size:11px;line-height:1.2;white-space:nowrap;min-width:0}
+body[data-panel="seller"] .tabs button:hover,body[data-panel="shipper"] .tabs button:hover{background:none}
+body[data-panel="seller"] .tabs .ic,body[data-panel="shipper"] .tabs .ic{position:relative;display:grid;place-items:center;width:44px;height:28px;border-radius:14px;transition:background .18s,color .18s,transform .18s}
+body[data-panel="seller"] .tabs .lb,body[data-panel="shipper"] .tabs .lb{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+body[data-panel="seller"] .tabs button.on,body[data-panel="shipper"] .tabs button.on{background:none;color:var(--gd);font-weight:800}
+body[data-panel="seller"] .tabs button.on .ic,body[data-panel="shipper"] .tabs button.on .ic{background:var(--gl);color:var(--gd);transform:translateY(-1px)}
+body[data-panel="seller"] .tabs button:active .ic,body[data-panel="shipper"] .tabs button:active .ic{transform:scale(.92)}
+body[data-panel="seller"] .tabs .n,body[data-panel="shipper"] .tabs .n{position:absolute;top:-5px;right:1px;margin:0;min-width:17px;padding:1px 5px;border-radius:9px;background:var(--red);color:#fff;font-style:normal;font-size:10.5px;font-weight:800;line-height:1.3;text-align:center;box-shadow:0 0 0 2px #fff}
+@media(min-width:760px){body[data-panel="seller"] .tabs,body[data-panel="shipper"] .tabs{left:50%;right:auto;bottom:14px;width:min(640px,calc(100vw - 32px));transform:translateX(-50%);border:1px solid var(--line);border-radius:22px;padding-bottom:6px}body[data-panel="seller"],body[data-panel="shipper"]{padding-bottom:96px}}
+body[data-panel="seller"] .toast,body[data-panel="shipper"] .toast{bottom:calc(92px + env(safe-area-inset-bottom))}
+
+/* Nội dung */
+body[data-panel="seller"] main,body[data-panel="shipper"] main{padding:18px 14px 26px}
+body[data-panel="seller"] .card,body[data-panel="shipper"] .card{border:0;border-radius:18px;box-shadow:0 2px 4px rgba(16,19,26,.04),0 10px 26px -14px rgba(16,19,26,.22)}
+body[data-panel="seller"] .section-heading h2,body[data-panel="shipper"] .section-heading h2{font-size:20px}
+body[data-panel="seller"] .btn,body[data-panel="shipper"] .btn{border-radius:12px;min-height:40px}
+body[data-panel="seller"] .btn.sm,body[data-panel="shipper"] .btn.sm{min-height:34px}
+body[data-panel="seller"] .btn:active,body[data-panel="shipper"] .btn:active{transform:scale(.98)}
+
+/* Thẻ thống kê của Nhà bán hàng */
+.sstat{grid-template-columns:1fr 1fr!important}
+.sstat .card{position:relative;min-height:96px;padding:14px 14px 14px 14px;gap:3px}
+.sstat .card b{font-size:24px;letter-spacing:-.5px;color:var(--ink)}
+.sstat .card .muted{font-size:12.5px}
+.sstat .si{display:grid;place-items:center;width:34px;height:34px;margin-bottom:4px;border-radius:11px;background:var(--bl);font-style:normal;font-size:17px}
+.sstat .si.or{background:var(--ol)}.sstat .si.gr{background:var(--gl)}
+.sstat .card:nth-child(3){grid-column:1/-1;flex-direction:row;flex-wrap:wrap;align-items:center;column-gap:12px;min-height:84px;background:linear-gradient(120deg,#055e46,#0e9a6f);color:#fff}
+.sstat .card:nth-child(3) .si{background:rgba(255,255,255,.2);margin:0}
+.sstat .card:nth-child(3) b{color:#fff;font-size:26px;margin-left:auto;order:3}
+.sstat .card:nth-child(3) .muted{color:rgba(255,255,255,.85);order:2;flex:1}
+
+/* Nút chuyển Đang xử lý / Đã xong */
+.seg{display:flex;gap:4px;padding:4px;margin:2px 0 14px;background:#e2e9e6;border-radius:14px}
+.seg button{flex:1;padding:10px 8px;border-radius:11px;font-weight:700;font-size:13.5px;color:#5b6675;transition:background .15s,color .15s}
+.seg button.on{background:#fff;color:var(--gd);box-shadow:0 2px 8px rgba(16,19,26,.12)}
+
+/* Thanh ONLINE của shipper */
+body[data-panel="shipper"] .pres{border:0;border-radius:18px;box-shadow:0 2px 4px rgba(16,19,26,.04),0 10px 26px -14px rgba(16,19,26,.22)}
+body[data-panel="shipper"] .pres.on{background:linear-gradient(120deg,#e3f6ec,#f3fbf7);box-shadow:inset 0 0 0 1.5px #a9dfc1,0 10px 26px -16px rgba(18,161,80,.5)}
+body[data-panel="shipper"] .pres-btn{border-radius:999px}
+
+/* Trạng thái trống */
+body[data-panel="seller"] .empty,body[data-panel="shipper"] .empty{margin:14px 0;padding:34px 16px;border:1.5px dashed #c5d3cc;border-radius:18px;background:rgba(255,255,255,.55);font-size:14.5px;font-weight:600}
+body[data-panel="seller"] .empty::before,body[data-panel="shipper"] .empty::before{content:"📭";display:block;font-size:40px;line-height:1.2;margin-bottom:6px;filter:grayscale(.15)}
+
+/* Chân trang */
+.pfoot{display:none}
+body[data-panel="seller"] .pfoot,body[data-panel="shipper"] .pfoot{display:block;max-width:1180px;margin:6px auto 0;padding:22px 18px 26px;text-align:center;color:var(--ink2)}
+.pfoot .pf-brand b{display:block;font-family:"Baloo 2","Be Vietnam Pro",sans-serif;font-size:19px;font-weight:800;color:var(--gd);letter-spacing:-.2px}
+.pfoot .pf-brand span{display:block;font-size:12.5px;margin-top:1px}
+.pfoot .pf-links{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:12px 0 10px}
+.pfoot .pf-links a{padding:7px 14px;border-radius:999px;background:#fff;color:var(--gd);font-weight:700;font-size:12.5px;text-decoration:none;box-shadow:0 2px 8px rgba(16,19,26,.07)}
+.pfoot .pf-copy{font-size:11.5px;opacity:.85}

@@ -123,7 +123,9 @@ export function startPortal(panels) {
       store.set('panel', cur.key);
       document.title = cur.title + ' – Lâm Thao Ăn Gì?';
       const sw = mine.length > 1 ? `<select id="sw" aria-label="Chuyển giao diện" style="font-weight:600;font-size:14px;padding:6px 8px;border-radius:8px;border:0">${mine.map(x => `<option value="${x.key}" ${x.key === cur.key ? 'selected' : ''}>${esc(x.title)}</option>`).join('')}</select>` : '';
-      app.innerHTML = `<div class="top"><h1>${esc(cur.title)}<small>${esc(p.name || '')} · ${esc(p.phone || '')}</small></h1>${sw}<a href="./">Website</a><button id="lo">Đăng xuất</button></div><div id="body"></div>`;
+      document.body.dataset.panel = cur.key;
+      const foot = cur.key === 'admin' ? '' : `<footer class="pfoot"><div class="pf-brand"><b>Lâm Thao Ăn Gì?</b><span>${cur.key === 'shipper' ? 'Cổng dành cho Shipper' : 'Cổng dành cho Nhà bán hàng'}</span></div><div class="pf-links"><a href="./">Về website</a><a href="https://lamthaoangi.com" target="_blank" rel="noopener">lamthaoangi.com</a></div><div class="pf-copy">© ${new Date().getFullYear()} Lâm Thao Ăn Gì? · Mọi quyền được bảo lưu</div></footer>`;
+      app.innerHTML = `<div class="top"><span class="av" aria-hidden="true">${esc(String(p.name || '?').trim().charAt(0).toUpperCase())}</span><h1>${esc(cur.title)}<small>${esc(p.name || '')} · ${esc(p.phone || '')}</small></h1>${sw}<a href="./">Website</a><button id="lo">Đăng xuất</button></div><div id="body"></div>${foot}`;
       $('#lo').onclick = () => fb.logout();
       if (sw) $('#sw').onchange = e => show(e.target.value);
       cur.render($('#body'), p);
@@ -242,3 +244,18 @@ export function bindImgUpload(root) {
     b.disabled = false; b.textContent = old;
   });
 }
+
+/* ---- Thanh điều hướng dưới cùng (chân trang) cho Nhà bán hàng / Shipper ---- */
+const NAV_ICON = {
+  orders:'<path d="M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1z"/><path d="M8 11h8M8 15h5"/>',
+  ship:'<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
+  revenue:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  wallet:'<path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2z"/><circle cx="16.5" cy="14.5" r="1"/>',
+  menu:'<path d="M4 6h16M4 12h16M4 18h10"/>',
+  shop:'<path d="M4 9l1.5-5h13L20 9"/><path d="M4 9c0 1.4 1.1 2.5 2.5 2.5S9 10.4 9 9c0 1.4 1.1 2.5 2.5 2.5h1C13.9 11.5 15 10.4 15 9c0 1.4 1.1 2.5 2.5 2.5S20 10.4 20 9"/><path d="M5 12v8h14v-8"/><path d="M10 20v-5h4v5"/>',
+  open:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1z"/>',
+  mine:'<path d="M3 11l18-8-8 18-2-8-8-2z"/>',
+  hist:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+};
+/* items: [key, tênIcon, nhãn, huyHiệu(không bắt buộc)] */
+export const navHtml = (items, cur) => `<div class="tabs" role="tablist">${items.map(([k, ic, lb, n]) => `<button role="tab" aria-selected="${cur === k}" class="${cur === k ? 'on' : ''}" data-t="${k}"><span class="ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_ICON[ic] || ''}</svg>${n ? `<em class="n">${n}</em>` : ''}</span><span class="lb">${lb}</span></button>`).join('')}</div>`;
