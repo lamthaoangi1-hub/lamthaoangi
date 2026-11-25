@@ -1,11 +1,11 @@
-import { report, periodControl, metrics, note, dailyView, walletCredit } from './revenue.js?v=20261125a';
+import { report, periodControl, metrics, note, dailyView, walletCredit } from './revenue.js?v=20261125c';
 import { hoursFormHtml, readHours, isOpenNow, hoursText } from './hours.js?v=20261023a';
 import { shopLink, copyText } from './shoplink.js?v=20261103a';
-import { navHtml, fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261125a';
+import { navHtml, fb, track, $, $$, esc, money, fmtTime, toDate, sameDay, badge, payBadge, payText, newestFirst, toast, beep, menuEditorHtml, bindMenuEditor, readMenu, getPos, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261125c';
 
 export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', 'admin'], render(root, me) {
   if (!me.shopId) { root.innerHTML = `<main><div class="card"><h3>Chưa gắn cửa hàng</h3><p class="muted">Tài khoản này chưa được gán cửa hàng. Hãy nhờ Admin gán cửa hàng cho bạn (trang Admin → Người dùng).</p></div></main>`; return; }
-  let tab = 'orders', shipCalls = [], sc = { phone:'', cod:'', note:'' }, scBusy = false, shop = null, settings = {}, orders = [], err = '', fil = 'active', period = 'month', payouts = [], bank = null, bf = { bin:'', acc:'', holder:'', amt:'', edit:false, busy:false };
+  let tab = 'orders', consults = [], cf = 'open', secInit = false, shipCalls = [], sc = { phone:'', cod:'', note:'' }, scBusy = false, shop = null, settings = {}, orders = [], err = '', fil = 'active', period = 'month', payouts = [], bank = null, bf = { bin:'', acc:'', holder:'', amt:'', edit:false, busy:false };
   /* ---- Ví nhà bán hàng: phần giảm giá do Admin tài trợ (platformOff) của đơn đã giao xong được cộng vào ví. Quán nhập STK (hệ thống kiểm tra tên chủ TK rồi lưu) và gửi yêu cầu rút cho Admin ---- */
   const BANKS = [['Vietcombank', '970436'], ['VietinBank', '970415'], ['BIDV', '970418'], ['Agribank', '970405'], ['MB Bank', '970422'], ['Techcombank', '970407'], ['ACB', '970416'], ['VPBank', '970432'], ['TPBank', '970423'], ['Sacombank', '970403'], ['VIB', '970441'], ['SHB', '970443'], ['HDBank', '970437'], ['OCB', '970448'], ['MSB', '970426'], ['SeABank', '970440'], ['LPBank', '970449'], ['Eximbank', '970431'], ['Nam A Bank', '970428'], ['Bac A Bank', '970409'], ['PVcomBank', '970412']];
   const PST = { pending:['Chờ Admin chuyển', 'bankwait'], paid:['Đã chuyển khoản', 'bank'], rejected:['Bị từ chối (đã hoàn lại ví)', ''] };
@@ -50,6 +50,24 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
       <div class="seg"><button class="${fil === 'active' ? 'on' : ''}" data-fil="active">Đang xử lý</button><button class="${fil === 'past' ? 'on' : ''}" data-fil="past">Đã xong / hủy</button></div>
       ${list.length ? list.map(orderCard).join('') : '<div class="empty">Chưa có đơn</div>'}`;
   }
+  /* ===== Thời trang: yêu cầu tư vấn của khách (khách để lại SĐT / Zalo, quán gọi tư vấn) ===== */
+  const CST = { new:['Mới – chờ gọi', 'warn'], called:['Đã gọi tư vấn', 'info'], done:['Đã chốt / hoàn tất', 'ok'], cancelled:['Đã hủy', ''] };
+  const csOpen = c => c.status === 'new' || c.status === 'called';
+  function consultCard(c) {
+    const st = CST[c.status] || ['', ''], ph = String(c.phone || '').replace(/\D/g, ''), zl = String(c.zalo || c.phone || '').replace(/\D/g, '').replace(/^0/, '84');
+    return `<div class="card cs-card ${c.status === 'new' ? 'cs-new' : ''}"><div class="row sb"><b>#${esc(c.code)}</b><span class="badge ${st[1]}">${st[0]}</span></div><div class="muted">${fmtTime(c.createdAtMs)}</div>
+      <div class="cs-who"><b>${esc(c.customerName)}</b><span>📞 ${esc(c.phone)}${c.zalo && c.zalo !== c.phone ? ` · Zalo ${esc(c.zalo)}` : ''}</span></div>
+      <div class="cs-items">${(c.items || []).map(i => `<div><span>${i.qty}× ${esc(i.name)}</span><b>${money((i.price || 0) * (i.qty || 1))}</b></div>`).join('')}<div class="cs-tot"><span>Tạm tính</span><b>${money(c.total)}</b></div></div>
+      ${c.note ? `<div class="cs-note">💬 ${esc(c.note)}</div>` : ''}
+      <div class="cs-acts"><a class="btn" href="tel:${ph}">📞 Gọi ngay</a><a class="btn o" href="https://zalo.me/${zl}" target="_blank" rel="noopener">💬 Nhắn Zalo</a></div>
+      ${csOpen(c) ? `<div class="cs-acts2">${c.status === 'new' ? `<button class="btn sm gray" data-cst="${esc(c.id)}" data-to="called">Đã gọi tư vấn</button>` : ''}<button class="btn sm" data-cst="${esc(c.id)}" data-to="done">Chốt đơn / Hoàn tất</button><button class="btn sm r" data-cst="${esc(c.id)}" data-to="cancelled">Hủy</button></div>` : ''}</div>`;
+  }
+  function consultTab() {
+    const all = [...consults].sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0)), nOpen = all.filter(csOpen).length, list = all.filter(c => cf === 'open' ? csOpen(c) : !csOpen(c));
+    return `<div class="section-heading"><h2>Yêu cầu tư vấn</h2><p>Khách để lại số điện thoại / Zalo. Hãy gọi tư vấn sớm để chốt đơn.</p></div>
+      <div class="seg"><button class="${cf === 'open' ? 'on' : ''}" data-cfil="open">Cần xử lý${nOpen ? ` (${nOpen})` : ''}</button><button class="${cf === 'past' ? 'on' : ''}" data-cfil="past">Đã xử lý</button></div>
+      ${list.length ? list.map(consultCard).join('') : `<div class="empty">${cf === 'open' ? 'Chưa có yêu cầu nào cần xử lý' : 'Chưa có yêu cầu nào đã xử lý'}</div>`}`;
+  }
   function revenueTab() { const r = report(orders, period); return `<div class="section-heading"><h2>Doanh thu cửa hàng</h2><p>Chi tiết hoạt động kinh doanh của ${esc(shop.name)}</p></div>${periodControl(period)}${metrics(r)}${note}${dailyView(r)}`; }
   /* ===== Gọi ship: giao đơn ngoài app. Quán chỉ nhập SĐT khách, Admin xin định vị qua Zalo rồi tạo đơn cho shipper ===== */
   function shipTab() {
@@ -92,12 +110,21 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
       <button class="btn" style="margin-top:14px" data-saveshop>Lưu cửa hàng</button></div>`;
   }
   function draw() {
-    const pend = orders.filter(o => o.status === 'pending').length;
-    root.innerHTML = `${navHtml([['orders', 'orders', 'Đơn hàng', pend || ''], ['ship', 'ship', 'Gọi ship', shipCalls.filter(c => c.status === 'new').length || ''], ['revenue', 'revenue', 'Doanh thu'], ['wallet', 'wallet', 'Ví'], ['menu', 'menu', 'Thực đơn'], ['shop', 'shop', 'Cửa hàng']], tab)}
-      <main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${!shop ? '<div class="empty">Đang tải cửa hàng…</div>' : tab === 'orders' ? ordersTab() : tab === 'ship' ? shipTab() : tab === 'menu' ? menuTab() : tab === 'revenue' ? revenueTab() : tab === 'wallet' ? walletTab() : shopTab()}</main>`;
+    const pend = orders.filter(o => o.status === 'pending').length, fashion = !!shop && shop.sector === 'fashion', nShip = shipCalls.filter(c => c.status === 'new').length, nCs = consults.filter(c => c.status === 'new').length;
+    if (fashion && ['orders', 'revenue', 'wallet'].includes(tab)) tab = 'consult';   // cửa hàng thời trang không giao hàng / thanh toán trên web
+    const items = fashion ? [['consult', 'orders', 'Tư vấn', nCs || ''], ['ship', 'ship', 'Gọi ship', nShip || ''], ['menu', 'menu', 'Sản phẩm'], ['shop', 'shop', 'Cửa hàng']]
+      : [['orders', 'orders', 'Đơn hàng', pend || ''], ['ship', 'ship', 'Gọi ship', nShip || ''], ['revenue', 'revenue', 'Doanh thu'], ['wallet', 'wallet', 'Ví'], ['menu', 'menu', 'Thực đơn'], ['shop', 'shop', 'Cửa hàng']];
+    root.innerHTML = `${navHtml(items, tab)}
+      <main>${err ? `<div class="card" style="color:var(--red)">${esc(err)}</div>` : ''}${!shop ? '<div class="empty">Đang tải cửa hàng…</div>' : tab === 'consult' ? consultTab() : tab === 'orders' ? ordersTab() : tab === 'ship' ? shipTab() : tab === 'menu' ? menuTab() : tab === 'revenue' ? revenueTab() : tab === 'wallet' ? walletTab() : shopTab()}</main>`;
   }
   let first = true;
-  track(fb.watchShop(me.shopId, (s, e) => { shop = s; if (e) err = fb.errMsg(e); else if (!s) err = 'Không tìm thấy cửa hàng được gán cho bạn.'; if (tab === 'orders' || tab === 'revenue' || first) draw(); }));
+  let csSub = false;
+  const subConsults = () => { if (csSub) return; csSub = true; let firstC = true; track(fb.watchShopConsults(me.shopId, l => {
+    if (!firstC && l.filter(c => c.status === 'new').length > consults.filter(c => c.status === 'new').length) { beep(); toast('Có khách xin tư vấn!'); }
+    consults = l; firstC = false; if (tab === 'consult') draw(); })); };
+  track(fb.watchShop(me.shopId, (s, e) => { shop = s; if (e) err = fb.errMsg(e); else if (!s) err = 'Không tìm thấy cửa hàng được gán cho bạn.';
+    if (s && s.sector === 'fashion') { subConsults(); if (!secInit) { secInit = true; tab = 'consult'; } }
+    if (tab === 'orders' || tab === 'revenue' || tab === 'consult' || first) draw(); }));
   track(fb.watchShopOrders(me.shopId, (l, e) => {
     if (e) err = fb.errMsg(e);
     if (!first && l.filter(o => o.status === 'pending').length > orders.filter(o => o.status === 'pending').length) { beep(); toast('Có đơn mới!'); }
@@ -156,6 +183,13 @@ export const panel = { key:'seller', title:'Nhà bán hàng', roles:['seller', '
     const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; draw(); return; }
     const periodBtn = e.target.closest('[data-period]'); if (periodBtn) { period = periodBtn.dataset.period; draw(); return; }
     const f = e.target.closest('[data-fil]'); if (f) { fil = f.dataset.fil; draw(); return; }
+    const cfb = e.target.closest('[data-cfil]'); if (cfb) { cf = cfb.dataset.cfil; draw(); return; }
+    const cst = e.target.closest('[data-cst]');
+    if (cst) {
+      const to = cst.dataset.to; if (to === 'cancelled' && !confirm('Hủy yêu cầu tư vấn này?')) return;
+      try { await fb.patchConsult(cst.dataset.cst, { status:to }); toast(to === 'done' ? 'Đã đánh dấu hoàn tất' : to === 'called' ? 'Đã ghi nhận đã gọi tư vấn' : 'Đã hủy'); } catch (er) { toast(fb.errMsg(er)); }
+      return;
+    }
     if (e.target.closest('[data-copylink]')) { if (await copyText($('#s-link').value)) toast('Đã sao chép link quán'); return; }
     try {
       const sl = e.target.closest('[data-shareloc]');

@@ -1114,6 +1114,7 @@
   function checkoutSheet() {
     const { s, lines } = cartData(); if (!s || !lines.length) return toast('Giỏ hàng đang trống');
     if (!S.user) { closeSheet(); toast('Vui lòng đăng nhập để đặt món'); S.authTab = 'login'; return go('auth'); }
+    if (sectorOf(s) === 'fashion') return consultSheet();   // Thời trang: không giao hàng / thanh toán trên web, khách để lại SĐT + Zalo để cửa hàng gọi tư vấn
     const sheetEl = $('#sheet'), keepScroll = !sheetEl.hidden && sheetEl.querySelector('.co') ? sheetEl.scrollTop : 0;   // vẽ lại khi đổi cách thanh toán / áp mã / chia sẻ vị trí: giữ nguyên vị trí cuộn
     const c = calc(s, lines, CART.promo);
     const addr = CART.address ?? S.user.address ?? '';
@@ -1159,6 +1160,54 @@
       <div class="co-foot"><button class="sheet-btn" data-placeorder ${CART.loc && !MAINT.on ? '' : 'disabled'}>${MAINT.on ? '🛠 Đang bảo trì – chưa nhận đơn' : CART.loc ? 'Đặt đơn · ' + money(c.total) : 'Chia sẻ vị trí để đặt đơn'}</button></div>
     </div>`);
     if (keepScroll) sheetEl.scrollTop = keepScroll;
+  }
+  /* ---- Thời trang: form "Gửi yêu cầu tư vấn" (thay cho form đặt đơn giao hàng) ---- */
+  const normPhone = v => { let d = String(v || '').replace(/\D/g, ''); if (d.startsWith('84')) d = '0' + d.slice(2); return d; };
+  function consultSheet() {
+    const { s, lines } = cartData(); if (!s || !lines.length) return toast('Bạn chưa chọn sản phẩm nào');
+    const qtyN = lines.reduce((n, l) => n + l.qty, 0), total = lines.reduce((n, l) => n + l.price * l.qty, 0), CS = CART.cs || (CART.cs = {});
+    openSheet(`<div class="co">
+      <div class="co-head"><h3>Gửi yêu cầu tư vấn</h3><div class="co-shop">🏪 ${esc(s.name)}</div></div>
+      <p class="co-hint" style="margin:0 2px 10px">Để lại thông tin, cửa hàng sẽ <b>gọi điện hoặc nhắn Zalo</b> tư vấn size, màu và chốt đơn cho bạn. Chưa cần thanh toán.</p>
+
+      <section class="co-card"><div class="co-title">Sản phẩm quan tâm <span>${qtyN} sản phẩm</span></div>
+        ${lines.map(l => `<div class="co-item"><span class="co-qty">${l.qty}×</span><span class="co-name">${esc(l.name)}</span><b>${money(l.price * l.qty)}</b></div>`).join('')}
+        <div class="co-row" style="margin-top:8px"><span>Tạm tính <small>(chưa gồm phí giao hàng)</small></span><b>${money(total)}</b></div>
+      </section>
+
+      <section class="co-card"><div class="co-title">Thông tin liên hệ</div>
+        <label class="co-f"><span>Họ và tên <i>*</i></span><input id="cs-name" placeholder="Tên của bạn" value="${esc(CS.name ?? S.user.name ?? '')}" autocomplete="name"></label>
+        <label class="co-f"><span>Số điện thoại <i>*</i></span><input id="cs-phone" type="tel" inputmode="tel" maxlength="15" placeholder="09xx xxx xxx" value="${esc(CS.phone ?? S.user.phone ?? '')}" autocomplete="tel"></label>
+        <label class="co-f"><span>Số Zalo <small style="font-weight:500">(bỏ trống nếu trùng số điện thoại)</small></span><input id="cs-zalo" type="tel" inputmode="tel" maxlength="15" placeholder="Số Zalo của bạn" value="${esc(CS.zalo ?? '')}"></label>
+        <label class="co-f"><span>Ghi chú cho cửa hàng</span><input id="cs-note" maxlength="300" placeholder="Size, màu, chiều cao / cân nặng… (không bắt buộc)" value="${esc(CS.note ?? '')}"></label>
+      </section>
+
+      <div class="co-foot"><button class="sheet-btn" data-consultsend ${MAINT.on ? 'disabled' : ''}>${MAINT.on ? '🛠 Đang bảo trì – chưa nhận yêu cầu' : '📨 Gửi yêu cầu tư vấn'}</button></div>
+    </div>`);
+  }
+  async function sendConsult(btn) {
+    if (maintBlock()) return;
+    const { s, lines } = cartData(); if (!s || !lines.length) return;
+    const val = id => ($('#' + id)?.value || '').trim(), CS = CART.cs || (CART.cs = {});
+    CS.name = val('cs-name'); CS.phone = val('cs-phone'); CS.zalo = val('cs-zalo'); CS.note = val('cs-note');
+    const phone = normPhone(CS.phone), zalo = CS.zalo ? normPhone(CS.zalo) : phone;
+    if (CS.name.length < 2) return toast('Vui lòng nhập họ và tên');
+    if (!/^0\d{9,10}$/.test(phone)) return toast('Số điện thoại chưa đúng (VD: 0912345678)');
+    if (!/^0\d{9,10}$/.test(zalo)) return toast('Số Zalo chưa đúng, hoặc để trống nếu trùng số điện thoại');
+    btn.disabled = true; btn.textContent = 'Đang gửi…';
+    const data = { code:'TV' + Date.now().toString().slice(-6), uid:S.user.uid, shopId:s.id, shopName:s._d.name, shopPhone:s._d.phone || '', customerName:CS.name, phone, zalo, note:CS.note,
+      items:lines.map(l => ({ name:l.raw, price:l.price, qty:l.qty })), total:lines.reduce((n, l) => n + l.price * l.qty, 0) };
+    try {
+      const id = await FB.createConsult(data);
+      FB.notifyConsult(id);   // Zalo cho quán + Gmail / Zalo cho Admin (chạy nền)
+      CART.q = {}; CART.cs = null;
+      const zl = 'https://zalo.me/' + String(s._d.zalo || '').replace(/\D/g, '');
+      openSheet(`<div style="text-align:center;padding:10px 4px 4px"><div style="font-size:52px;line-height:1.1">✅</div><h3 style="margin-top:8px">Đã gửi yêu cầu tư vấn!</h3>
+        <p class="sub" style="margin:8px 0 14px;line-height:1.5">Cửa hàng <b>${esc(s.name)}</b> sẽ gọi vào số <b>${esc(phone)}</b>${zalo !== phone ? ` hoặc nhắn Zalo <b>${esc(zalo)}</b>` : ''} để tư vấn cho bạn sớm nhất.<br>Mã yêu cầu: <b>${esc(data.code)}</b></p>
+        ${String(s._d.zalo || '').replace(/\D/g, '').length >= 9 ? `<a class="sheet-btn" style="display:block;text-decoration:none;background:#0068ff" href="${zl}" target="_blank" rel="noopener">💬 Nhắn Zalo cho cửa hàng</a>` : ''}
+        <button class="sheet-btn" style="background:var(--chip);color:var(--ink)" onclick="document.getElementById('sheet-backdrop').click()">Đóng</button></div>`);
+      if ($('#shop-page')?.classList.contains('open')) renderShopPage();
+    } catch (e) { btn.disabled = false; btn.textContent = '📨 Gửi yêu cầu tư vấn'; toast(FB.errMsg(e)); }
   }
   const readCheckout = () => { CART.address = $('#co-addr')?.value ?? CART.address; CART.note = $('#co-note')?.value ?? CART.note; };
   async function placeOrderNow(btn) {
@@ -1494,6 +1543,7 @@
       return checkoutSheet();
     }
     const po = t.closest('[data-placeorder]'); if (po) return placeOrderNow(po);
+    const cse = t.closest('[data-consultsend]'); if (cse) return sendConsult(cse);
     const sl = t.closest('[data-shareloc]'); if (sl) return shareLoc(sl);
     if (svcClick(t)) return;
     const heart = t.closest('[data-heart]');
@@ -1859,7 +1909,7 @@
   }
 
   /* Tải sẵn lớp dữ liệu Firebase ngay từ đầu (song song với việc vẽ trang) thay vì đợi vẽ xong mới tải */
-  const fbReady = import('./fb.js?v=20261117a'); fbReady.catch(() => {});
+  const fbReady = import('./fb.js?v=20261125c'); fbReady.catch(() => {});
   function boot() {
     const first = location.hash.slice(1);
     go(renderers[first] ? first : 'home', false);

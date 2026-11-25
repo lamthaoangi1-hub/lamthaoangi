@@ -222,6 +222,23 @@ export async function onForegroundPush(cb) {
 }
 export const createShop = d => addDoc(collection(db, 'shops'), { ...d, createdAt:serverTimestamp() });
 export const patchShop = (id, patch) => updateDoc(doc(db, 'shops', id), patch);
+/* ---- Yêu cầu tư vấn thời trang (consults): khách để lại SĐT / Zalo, nhà bán hàng gọi tư vấn ---- */
+export const createConsult = async d => (await withTimeout(addDoc(collection(db, 'consults'), { ...d, status:'new', createdAtMs:Date.now() }), 30000, QUOTA_MSG)).id;
+export const watchShopConsults = (shopId, cb) => watch(query(collection(db, 'consults'), where('shopId', '==', shopId), limit(80)), cb);
+export const patchConsult = (id, patch) => updateDoc(doc(db, 'consults', id), { ...patch, updatedAt:Date.now() });
+export async function notifyConsult(consultId) {   // báo nhà bán hàng (Zalo) + Admin (Gmail / Zalo), chạy nền, lỗi cũng không ảnh hưởng việc gửi yêu cầu
+  if (!UPLOAD_URL) return;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const token = await idToken();
+      const res = await fetch(UPLOAD_URL, { method:'POST', body:JSON.stringify({ action:'notifyConsult', token, consultId }) });
+      const j = await res.json().catch(() => null);
+      console.log('[Báo yêu cầu tư vấn]', j);
+      if (j && j.ok) return;
+    } catch (e) { console.warn('Không gửi được thông báo tư vấn', e); }
+    await new Promise(r => setTimeout(r, 3000));
+  }
+}
 /* ---- Gọi ship (shipCalls): quán nhập SĐT khách → Admin xin định vị qua Zalo → Admin tạo đơn Giao hàng cho shipper ---- */
 export const createShipCall = async d => {
   const id = (await withTimeout(addDoc(collection(db, 'shipCalls'), { ...d, status:'new', createdAtMs:Date.now(), createdBy:auth.currentUser.uid }), 30000, QUOTA_MSG)).id;
