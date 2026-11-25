@@ -241,3 +241,8 @@ body[data-panel="seller"] .pfoot,body[data-panel="shipper"] .pfoot{display:block
 .cs-acts .btn{text-decoration:none;min-height:46px;font-size:15px}
 .cs-acts2{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .cs-acts2 .btn{flex:1;min-width:110px}
+
+/* Đăng hàng loạt từ ảnh */
+[data-mphoto]{display:none}
+[data-msector="fashion"] [data-mphoto]{display:inline-block}
+.mitem.np .mrow input[data-k="price"]{border-color:var(--red,#dc2626);background:#fff5f5}

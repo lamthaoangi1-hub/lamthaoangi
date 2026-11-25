@@ -1,6 +1,7 @@
 /* Khung dùng chung cho 3 trang quản lý: đăng nhập, kiểm tra quyền, tiện ích hiển thị */
 import * as fb from './fb.js?v=20261125c';
 export { fb };
+import { pool, callApi, groupByCat } from './bulk-photo.js?v=20261125d';
 import { parseMenuText, parseMenuSheets, readSheets, downloadMenuTemplate } from './bulk.js?v=20261023a';
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -138,7 +139,8 @@ export function startPortal(panels) {
 /* ---- Trình sửa thực đơn dùng chung (Admin + Nhà bán hàng) ---- */
 export const menuRowHtml = (m = {}) => `<div class="mitem" data-mrow><div class="mrow"><input type="text" placeholder="Tên món" value="${esc(m.name || '')}" data-k="name"><input type="number" min="0" step="1000" placeholder="Giá (đ)" value="${m.price ?? ''}" data-k="price"><label class="sw" style="margin:0"><input type="checkbox" data-k="available" ${m.available === false ? '' : 'checked'}>Còn</label><button type="button" class="btn sm r" data-mdel title="Xóa món">×</button></div><div class="mrow2"><input type="text" placeholder="Nhóm món (VD: Đồ ăn nhanh)" value="${esc(m.cat || '')}" data-k="cat">${imgUpHtml(m.img || '')}</div><div class="mrow3"><input type="text" placeholder="Thông tin / mô tả (VD: size S-M-L, màu đỏ, chất liệu cotton; hoặc nội dung gói dịch vụ)" value="${esc(m.desc || '')}" data-k="desc" maxlength="300"></div><div class="mrow4"><input type="text" placeholder="Size (VD: S, M, L, XL hoặc 38-39-40)" value="${esc(m.sizes || '')}" data-k="sizes" maxlength="80"><input type="text" placeholder="Màu (VD: Đen, Trắng, Be)" value="${esc(m.colors || '')}" data-k="colors" maxlength="80"><input type="text" placeholder="Chất liệu (VD: Cotton 100%)" value="${esc(m.mat || '')}" data-k="mat" maxlength="80"></div></div>`;
 export const menuEditorHtml = menu => `<div class="mrow hd"><span>Tên món</span><span>Giá</span><span>Còn bán</span><span></span></div><div id="menu-rows">${(menu || []).map(menuRowHtml).join('')}</div>
-  <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px"><button type="button" class="btn sm o" data-madd>+ Thêm món</button><button type="button" class="btn sm o" data-mpaste>📋 Dán danh sách món</button><button type="button" class="btn sm o" data-mxl>⬆ Nhập từ Excel</button><button type="button" class="btn sm gray" data-mtpl>⬇ File Excel mẫu</button><input type="file" accept=".xlsx,.xls,.csv" data-mxfile hidden></div>
+  <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px"><button type="button" class="btn sm o" data-madd>+ Thêm món</button><button type="button" class="btn sm o" data-mpaste>📋 Dán danh sách món</button><button type="button" class="btn sm" data-mphoto>📸 Đăng hàng loạt từ ảnh</button><button type="button" class="btn sm o" data-mxl>⬆ Nhập từ Excel</button><button type="button" class="btn sm gray" data-mtpl>⬇ File Excel mẫu</button><input type="file" accept=".xlsx,.xls,.csv" data-mxfile hidden><input type="file" accept="image/*" multiple data-mphotofile hidden></div>
+  <div class="card" data-mphotobox hidden style="margin-top:10px;background:#f6faf7"></div>
   <div class="card" data-mpastebox hidden style="margin-top:10px;background:#f6faf7"><p class="muted" style="margin:0 0 6px">Mỗi dòng 1 món, ví dụ:<br><code>Phở bò tái | 55000 | Món chính</code> &nbsp; <code>Trà đá - 10k</code> &nbsp; <code>Cơm sườn 45.000</code><br>Copy nhiều dòng từ Excel (cột Món, Giá, Nhóm) rồi dán vào đây cũng được. Món trùng tên sẽ được cập nhật giá.</p>
   <textarea data-mpastetxt rows="7" placeholder="Phở bò tái | 55000 | Món chính&#10;Trà đá - 10k"></textarea><div class="row" style="margin-top:8px"><button type="button" class="btn sm" data-mpastego>Thêm vào thực đơn</button><button type="button" class="btn sm gray" data-mpasteclose>Đóng</button></div></div>`;
 /* Thêm/cập nhật nhiều món vào bảng thực đơn đang sửa (chưa lưu cho tới khi bấm nút Lưu) */
@@ -159,6 +161,7 @@ function mergeMenu(root, items, bad = []) {
 }
 const normName = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ');
 export function bindMenuEditor(root) {
+  root.addEventListener('input', e => { if (e.target.matches?.('[data-k=price]') && e.target.value) e.target.closest('[data-mrow]')?.classList.remove('np'); });
   root.addEventListener('click', async e => {
     if (e.target.closest('[data-madd]')) $('#menu-rows', root).insertAdjacentHTML('beforeend', menuRowHtml());
     const d = e.target.closest('[data-mdel]'); if (d) d.closest('[data-mrow]').remove();
@@ -168,14 +171,86 @@ export function bindMenuEditor(root) {
       const t = $('[data-mpastetxt]', root), r = parseMenuText(t.value);
       mergeMenu(root, r.items, r.bad); if (r.items.length) { t.value = ''; $('[data-mpastebox]', root).hidden = true; }
     }
+    if (e.target.closest('[data-mphoto]')) photoBulkForm(root);
     if (e.target.closest('[data-mxl]')) $('[data-mxfile]', root).click();
     if (e.target.closest('[data-mtpl]')) { try { await downloadMenuTemplate(); } catch (er) { toast(er.message); } }
   });
   root.addEventListener('change', async e => {
-    const f = e.target; if (!f.matches || !f.matches('[data-mxfile]')) return;
+    const f = e.target;
+    if (f.matches && f.matches('[data-mphotofile]')) { const fs = [...f.files]; f.value = ''; if (fs.length) runPhotoBulk(root, fs); return; }
+    if (!f.matches || !f.matches('[data-mxfile]')) return;
     const file = f.files[0]; f.value = ''; if (!file) return;
     try { toast('Đang đọc file…'); const r = parseMenuSheets(await readSheets(file)); mergeMenu(root, r.items, r.bad); } catch (er) { toast(er.message || 'Không đọc được file'); }
   });
+}
+/* ====== Đăng hàng loạt từ ảnh ====== */
+const MAX_PHOTOS = 300;
+let photoCtl = null;
+const warnLeave = e => { e.preventDefault(); e.returnValue = ''; };
+function photoBulkForm(root) {
+  const box = $('[data-mphotobox]', root); box.hidden = false;
+  box.innerHTML = `<h4 style="margin:0 0 6px">📸 Đăng hàng loạt từ ảnh</h4>
+  <p class="muted" style="margin:0 0 8px">Chọn nhiều ảnh cùng lúc (tối đa ${MAX_PHOTOS}). Mỗi ảnh = 1 sản phẩm. AI tự đặt tên, nhóm, màu, mô tả. Bạn chỉ cần kiểm tra giá rồi bấm <b>Lưu thực đơn</b>.</p>
+  <div class="mrow2"><input type="number" min="0" step="1000" placeholder="Giá mặc định (đ) – sửa sau cũng được" data-pb="price"><input type="text" placeholder="Size mặc định (VD: Freesize hoặc S, M, L)" data-pb="sizes" maxlength="80"></div>
+  <label class="sw" style="margin-top:8px"><input type="checkbox" data-pb="enhance">✨ Chỉnh ảnh bằng AI lên nền thương hiệu (chậm: 15–30 giây/ảnh, tốn lượt AI)</label>
+  <div class="row" style="margin-top:8px;gap:6px"><button type="button" class="btn sm" data-pbgo>Chọn ảnh từ máy</button><button type="button" class="btn sm gray" data-pbclose>Đóng</button></div><div data-pbstat style="margin-top:10px"></div>`;
+  box.onclick = e => {
+    if (e.target.closest('[data-pbgo]')) $('[data-mphotofile]', root).click();
+    if (e.target.closest('[data-pbclose]')) { if (photoCtl) photoCtl.cancel = true; box.hidden = true; }
+    if (e.target.closest('[data-pbcancel]') && photoCtl) { photoCtl.cancel = true; toast('Đang dừng… các ảnh đã xử lý vẫn được giữ lại'); }
+    if (e.target.closest('[data-pbretry]')) { const fs = photoCtl?.failed || []; if (fs.length) runPhotoBulk(root, fs, true); }
+    const ap = e.target.closest('[data-pbapply]');
+    if (ap) {
+      const cat = ap.dataset.pbapply, v = Math.max(0, Math.round(Number($(`[data-pbcat="${CSS.escape(cat)}"]`, box).value) || 0)); if (!v) return toast('Nhập giá trước');
+      let n = 0; $$('[data-mrow][data-pbnew]', root).forEach(r => { if ((r.querySelector('[data-k=cat]').value.trim() || 'Khác') === cat) { r.querySelector('[data-k=price]').value = v; r.classList.remove('np'); n++; } });
+      toast(`Đã đặt giá ${money(v)} cho ${n} sản phẩm nhóm “${cat}”`);
+    }
+  };
+}
+async function runPhotoBulk(root, files, isRetry = false) {
+  const box = $('[data-mphotobox]', root), stat = $('[data-pbstat]', box);
+  if (photoCtl && photoCtl.running) return toast('Đang xử lý lô trước, vui lòng đợi');
+  files = files.filter(f => /^image\//.test(f.type)); if (files.length > MAX_PHOTOS) { toast(`Chỉ nhận tối đa ${MAX_PHOTOS} ảnh mỗi lần, đã lấy ${MAX_PHOTOS} ảnh đầu`); files = files.slice(0, MAX_PHOTOS); }
+  if (!files.length) return toast('Không có file ảnh nào');
+  if (!fb.uploadUrl) return toast('Chưa bật lưu ảnh Google Drive. Xem HUONG-DAN.md');
+  const price = Math.max(0, Math.round(Number($('[data-pb=price]', box)?.value) || 0)), sizes = ($('[data-pb=sizes]', box)?.value || '').trim(), enhance = !!$('[data-pb=enhance]', box)?.checked;
+  const ctl = photoCtl = { cancel: false, running: true, failed: [], done: 0, total: files.length, rows: [], quota: '' };
+  window.addEventListener('beforeunload', warnLeave);
+  const rowsBox = $('#menu-rows', root);
+  const draw = (phase, extra = '') => { const pc = Math.round(((phase === 1 ? ctl.done : ctl.done2) / (phase === 1 ? ctl.total : ctl.rows.length || 1)) * 100); stat.innerHTML = `<div style="height:8px;border-radius:4px;background:#e3ebe5;overflow:hidden"><div style="height:100%;width:${pc}%;background:var(--g,#16a34a)"></div></div><p class="muted" style="margin:6px 0 0">${phase === 1 ? `AI đang đọc ảnh: <b>${ctl.done}/${ctl.total}</b>` : `AI đang chỉnh ảnh nền: <b>${ctl.done2}/${ctl.rows.length}</b>`}${ctl.failed.length ? ` · lỗi ${ctl.failed.length}` : ''} ${extra}</p><button type="button" class="btn sm gray" data-pbcancel style="margin-top:6px">Dừng</button>`; };
+  draw(1);
+  await pool(files, 3, async (file, k) => {
+    try {
+      const data = await toB64(await shrink(file, 1024)), token = await fb.idToken();
+      const j = await callApi(fb.uploadUrl, { action: 'aiProduct', token, name: `lt-${Date.now()}-${k}.jpg`, mime: 'image/jpeg', data });
+      if (j.quota) { ctl.cancel = true; ctl.quota = j.error; ctl.failed.push(file); return; }
+      const i = j.info || {};
+      rowsBox.insertAdjacentHTML('beforeend', menuRowHtml({ name: i.name || file.name.replace(/\.[^.]+$/, ''), price, available: true, cat: i.cat || '', img: j.url, desc: i.desc || '', sizes, colors: i.colors || '', mat: i.mat || '' }));
+      const r = rowsBox.lastElementChild; r.dataset.pbnew = '1'; r.dataset.fid = j.id; if (!price) r.classList.add('np'); ctl.rows.push(r);
+    } catch (e) { ctl.failed.push(file); }
+    ctl.done++; draw(1);
+  }, ctl);
+  /* B2 (tùy chọn): chỉnh ảnh nền */
+  ctl.done2 = 0;
+  if (enhance && !ctl.cancel && ctl.rows.length) {
+    draw(2);
+    await pool(ctl.rows, 2, async r => {
+      try {
+        const token = await fb.idToken(), j = await callApi(fb.uploadUrl, { action: 'aiEnhance', token, id: r.dataset.fid }, 2);
+        if (j.ok && j.ai) { const w = $('[data-imgup]', r); const old = $('input[type=hidden]', w).value; setImg(w, j.url); w.dataset.orig = old; $('[data-useorig]', w).hidden = false; }
+        else if (j.quota || /lượt AI/.test(j.error || '')) ctl.cancel = true;
+      } catch (e) {}
+      ctl.done2++; draw(2);
+    }, ctl);
+  }
+  ctl.running = false; window.removeEventListener('beforeunload', warnLeave);
+  const g = groupByCat(ctl.rows.map(r => ({ cat: r.querySelector('[data-k=cat]').value.trim() })));
+  const needPrice = ctl.rows.filter(r => r.classList.contains('np')).length;
+  stat.innerHTML = `<p style="margin:0 0 6px"><b>✅ Đã thêm ${ctl.rows.length} sản phẩm</b>${ctl.failed.length ? ` · <span style="color:var(--red)">${ctl.failed.length} ảnh lỗi</span> <button type="button" class="btn sm o" data-pbretry>Thử lại ảnh lỗi</button>` : ''}${ctl.cancel && !ctl.quota ? ' · đã dừng giữa chừng' : ''}</p>
+  ${ctl.quota ? `<p style="color:var(--red);margin:0 0 6px">${esc(ctl.quota)}</p>` : ''}
+  ${needPrice ? `<p class="muted" style="margin:0 0 6px">Đặt giá nhanh theo nhóm (ô giá đỏ = chưa có giá):</p>${Object.entries(g).map(([c, ix]) => `<div class="row" style="gap:6px;margin-top:4px;align-items:center"><span style="flex:1">${esc(c)} <small class="muted">(${ix.length})</small></span><input type="number" min="0" step="1000" placeholder="Giá" data-pbcat="${esc(c)}" style="width:110px;margin:0"><button type="button" class="btn sm o" data-pbapply="${esc(c)}">Áp dụng</button></div>`).join('')}` : ''}
+  <p class="muted" style="margin:8px 0 0">⚠ Chưa lưu! Kiểm tra lại rồi bấm <b>Lưu thực đơn</b> ở cuối trang.</p>`;
+  if (ctl.rows.length) rowsBox.lastElementChild?.scrollIntoView({ block: 'nearest' });
 }
 export const readMenu = root => $$('[data-mrow]', root).map(r => ({
   name: $('[data-k=name]', r).value.trim(), price: Math.max(0, Math.round(Number($('[data-k=price]', r).value) || 0)), available: $('[data-k=available]', r).checked,
@@ -199,7 +274,7 @@ export function getPos() {
 ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
 
 /* ---- Tải ảnh lên Google Drive (qua Google Apps Script) ---- */
-async function shrink(file, max = 900) {
+export async function shrink(file, max = 900) {
   const bmp = await createImageBitmap(file);
   const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);

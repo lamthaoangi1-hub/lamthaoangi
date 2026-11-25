@@ -1,6 +1,6 @@
 import { report, periodControl, metrics, note, dailyView, walletCredit, shipReport, shipMetrics, shipNote, shipDailyView } from './revenue.js?v=20261125c';
 import { shopLink, copyText } from './shoplink.js?v=20261103d';
-import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261125c';
+import { fb, track, $, $$, esc, money, fmtTime, toDate, badge, payBadge, payText, STATUS, newestFirst, toast, menuEditorHtml, bindMenuEditor, readMenu, mapLink, imgUpHtml, bindImgUpload } from './panel.js?v=20261125d';
 import { parseWorkbook, parseShopsText } from './import-sheet.js?v=20261023a';
 import { readSheets, downloadShopTemplate } from './bulk.js?v=20261023a';
 import { isOpenNow, hoursText, hoursFormHtml, readHours, hoursFields, toMin } from './hours.js?v=20261023a';
