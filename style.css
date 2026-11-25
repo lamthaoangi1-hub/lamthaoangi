@@ -1061,3 +1061,69 @@ body.tab-home .slot{display:flex}
 .sp2-zalo{display:flex;flex-direction:column;align-items:center;gap:2px;margin:12px 0 0;padding:12px 14px;border-radius:14px;background:#0068ff;color:#fff;font-weight:700;font-size:15px;text-decoration:none;box-shadow:0 4px 12px rgba(0,104,255,.3)}
 .sp2-zalo small{font-weight:500;font-size:12px;opacity:.9}
 .sp2-zalo:active{transform:scale(.98)}
+
+/* =====================================================================
+   Trang cửa hàng THỜI TRANG (25/11/2026) – giao diện riêng, không dùng khung quán ăn
+   ===================================================================== */
+.sp2-cover.fx{height:150px;background:#eee8da}
+.fx-bgw{position:absolute;inset:0;overflow:hidden}
+.fx-bgw .sp2-bg{filter:blur(26px) saturate(1.15);transform:scale(1.4);opacity:.65}
+.sp2-cover.fx::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0) 35%,rgba(255,255,255,.7));pointer-events:none}
+.sp2-cover.fx .sp2-thumb{right:auto;left:50%;transform:translateX(-50%);bottom:-54px;width:112px;height:112px;border-radius:24px;object-fit:contain;padding:5px;border:4px solid #fff;box-shadow:0 8px 24px rgba(60,45,15,.22)}
+.fx-info{padding:66px 16px 16px;text-align:center}
+.fx-info h2{padding-right:0;font-size:22px;margin-bottom:10px}
+.fx-meta{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap}
+.fx-tag{padding:5px 13px;border-radius:999px;background:#f4ecdc;color:#7a5a1e;font-weight:700;font-size:13px}
+.fx-rate{display:inline-flex;align-items:center;gap:5px;font-size:14px;color:#555}
+.fx-rate .sp2-star{font-size:18px}
+.fx-status{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
+.fx-status .sp2-open{margin-left:0;padding:6px 12px;font-size:13.5px}
+.fx-hrs{color:#6b7280;font-size:13.5px}
+.fx-info .sp2-addr{justify-content:center;text-align:left}
+.fx-info .sp2-promos{margin-top:14px}
+.fx-info .sp2-desc{margin-top:14px;padding:12px 14px;border-radius:14px;background:#faf7f0;color:#5b5446;text-align:left}
+.fx-cta{display:flex;gap:10px;margin-top:16px;align-items:stretch}
+.fx-cta .sp2-zalo{flex:1;margin:0}
+.fx-call{flex:none;min-width:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:8px 12px;border-radius:14px;border:1.5px solid #d6dbe2;background:#fff;color:#1b1f24;font-weight:700;font-size:12.5px;text-decoration:none}
+.fx-call span{font-size:18px;line-height:1.1}
+.fx-call:active{background:#f4f6f8;transform:scale(.97)}
+
+/* Thanh danh mục dạng viên thuốc */
+.sp2-sticky.fx{border-top:0;box-shadow:0 6px 16px -10px rgba(0,0,0,.3)}
+.sp2-sticky.fx .sp2-tabs{border-bottom:0;padding:10px 14px}
+.sp2-sticky.fx .sp2-tscroll{gap:8px}
+.sp2-sticky.fx .sp2-tabs button{height:36px;padding:0 15px;margin:0;border-radius:999px;border:1.5px solid #e6dfd0;background:#fff;text-transform:none;font-size:14px;font-weight:600;color:#5b5446}
+.sp2-sticky.fx .sp2-tabs button.on{background:#1b1f24;border-color:#1b1f24;color:#fff}
+.sp2-sticky.fx .sp2-tabs button small{margin-left:5px;opacity:.7;font-size:12px;color:inherit}
+.sp2-sticky.fx .sp2-tabs .sp2-cbtn{background:#f4ecdc;color:#7a5a1e;border-color:transparent}
+.sp2-sticky.fx .sp2-tabs .sp2-cbtn b{background:#7a5a1e}
+.sp2-sticky.fx .sp2-tabs .sp2-sbtn{border:0;background:#fff;width:40px;height:36px}
+.sp2-sticky.fx .sp2-search{padding:0 14px 10px}
+
+/* Thẻ sản phẩm */
+.fx-groups{background:#f6f3ec;padding:6px 0 10px;min-height:200px}
+.fx-groups .pg-wrap{margin:14px 14px 0}
+.fx-groups .pg-h{font-size:17px;color:#1b1f24;margin-bottom:10px}
+.fx-groups .pg-grid{gap:12px}
+.fx-groups .pg-card{border:0;border-radius:18px;box-shadow:0 8px 22px -14px rgba(60,45,15,.45);background:#fff}
+.pg-img{position:relative;display:block;width:100%;cursor:pointer;background:#fff}
+.pg-img img,.pg-img .ph{border-radius:0;aspect-ratio:1/1;width:100%;object-fit:cover;display:block}
+.pg-badge{position:absolute;top:9px;left:9px;padding:3px 9px;border-radius:8px;background:#d92d20;color:#fff;font-size:12px;font-weight:800;box-shadow:0 2px 6px rgba(217,45,32,.35)}
+.pg-soldout{position:absolute;inset:0;display:grid;place-items:center;background:rgba(255,255,255,.62);color:#444;font-weight:800;font-size:14px}
+.fx-groups .pg-in{padding:11px 12px 12px}
+.fx-groups .pg-in b{font-size:14.5px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pg-sizes{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.pg-sizes i{font-style:normal;font-size:11px;font-weight:700;padding:2px 7px;border:1px solid #ddd5c4;border-radius:6px;color:#5b5446}
+.pg-price{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-top:9px}
+.pg-price strong{font-size:17px;font-weight:800;color:#d92d20;letter-spacing:-.2px}
+.pg-price s{font-size:12px;color:#9a9484}
+.pg-act{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:11px}
+.pg-act .pg-detail{flex:1;margin:0;height:38px;border-radius:12px;border:1.5px solid #1b1f24;color:#1b1f24;background:#fff;font-size:13px}
+.pg-act .pg-detail:active{background:#f1ede4}
+.pg-act .sp-add{width:38px;height:38px;border-radius:12px;background:#1b1f24;box-shadow:none;font-size:22px}
+.pg-act .sp-out{padding:8px 10px;font-size:12px}
+.pg-act .qty{gap:6px}
+.pg-act .qty button{width:30px;height:30px;background:#f1ede4;color:#1b1f24}
+.pd-price s{color:#9a9484;font-weight:500;font-size:14px;margin-left:4px}
+.pd-price i{font-style:normal;background:#d92d20;color:#fff;border-radius:6px;padding:2px 7px;font-size:12px;font-weight:800;vertical-align:middle}
+@media(max-width:360px){.fx-groups .pg-grid{gap:9px}.fx-groups .pg-wrap{margin:12px 10px 0}.pg-price strong{font-size:15.5px}}

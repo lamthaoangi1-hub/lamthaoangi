@@ -860,17 +860,17 @@
   /* ---------------- SHOP DETAIL ---------------- */
   /* ---------------- TRANG QUÁN (toàn màn hình) ---------------- */
   function menuGroups(s) {
-    const g = new Map();
-    s.menu.forEach((m, i) => { const c = m[3] || 'Món khác'; if (!g.has(c)) g.set(c, []); g.get(c).push(i); });
+    const g = new Map(), dn = sectorOf(s) === 'fashion' ? 'Sản phẩm' : 'Món khác';
+    s.menu.forEach((m, i) => { const c = m[3] || dn; if (!g.has(c)) g.set(c, []); g.get(c).push(i); });
     return g;
   }
   function spCtl(s, i) {
     const m = s.menu[i];
-    if (m[2] === false) return '<span class="sp-out">Hết món</span>';
+    if (m[2] === false) return `<span class="sp-out">${sectorOf(s) === 'fashion' ? 'Hết hàng' : 'Hết món'}</span>`;
     if (s.open === false) return '';
     const q = CART.q[i] || 0;
     return q ? `<span class="qty"><button data-qty="${i}" data-d="-1" aria-label="Bớt">−</button><i>${q}</i><button data-qty="${i}" data-d="1" aria-label="Thêm">+</button></span>`
-      : `<button class="sp-add" data-qty="${i}" data-d="1" aria-label="Thêm món">+</button>`;
+      : `<button class="sp-add" data-qty="${i}" data-d="1" aria-label="${sectorOf(s) === 'fashion' ? 'Thêm vào giỏ' : 'Thêm món'}">+</button>`;
   }
   function spItem(s, i) {
     const m = s.menu[i], sale = s.sale > 0 && sectorOf(s) !== 'service' ? s.sale : 0, now = sale ? Math.round(m[1] * (100 - sale) / 100) : m[1];
@@ -880,9 +880,11 @@
   }
   /* Thời trang: sản phẩm hiện dạng thẻ lớn, 2 thẻ / 1 hàng, đủ ảnh + tên + thông tin sản phẩm */
   function spProduct(s, i) {
-    const m = s.menu[i];
-    return `<div class="pg-card ${m[2] === false ? 'off' : ''}">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy">` : `<div class="ph">${(m[0] || '?').trim().charAt(0).toUpperCase()}</div>`}
-      <div class="pg-in"><b>${m[0]}</b>${m[5] ? `<p>${m[5]}</p>` : ''}<button class="pg-detail" data-pdetail="${i}">Xem chi tiết</button><div class="pg-foot"><span>${money(m[1])}</span><div id="ctl-${i}">${spCtl(s, i)}</div></div></div></div>`;
+    const m = s.menu[i], sale = s.sale > 0 ? s.sale : 0, now = sale ? Math.round(m[1] * (100 - sale) / 100) : m[1], sizes = splitOpts(m[6]);
+    return `<div class="pg-card ${m[2] === false ? 'off' : ''}"><div class="pg-img" role="button" data-pdetail="${i}" aria-label="Xem chi tiết ${esc(m[0])}">${m[4] ? `<img src="${m[4]}" alt="${m[0]}" loading="lazy">` : `<div class="ph">${(m[0] || '?').trim().charAt(0).toUpperCase()}</div>`}${sale && m[2] !== false ? `<span class="pg-badge">-${sale}%</span>` : ''}${m[2] === false ? '<span class="pg-soldout">Hết hàng</span>' : ''}</div>
+      <div class="pg-in"><b>${m[0]}</b>${sizes.length ? `<div class="pg-sizes">${sizes.slice(0, 5).map(x => `<i>${x}</i>`).join('')}${sizes.length > 5 ? '<i>…</i>' : ''}</div>` : ''}
+        <div class="pg-price"><strong>${money(now)}</strong>${sale ? `<s>${money(m[1])}</s>` : ''}</div>
+        <div class="pg-act"><button class="pg-detail" data-pdetail="${i}">Chi tiết</button><div id="ctl-${i}">${spCtl(s, i)}</div></div></div></div>`;
   }
   /* Thời trang: khung "Xem chi tiết" – ảnh lớn, giá, size, màu, chất liệu, mô tả đầy đủ */
   function splitOpts(v) {
@@ -893,9 +895,10 @@
   }
   function productDetail(s, i) {
     const m = s.menu[i]; if (!m) return;
+    const sale = s.sale > 0 ? s.sale : 0, now = sale ? Math.round(m[1] * (100 - sale) / 100) : m[1];
     const sizes = splitOpts(m[6]), colors = splitOpts(m[7]), chips = a => `<div class="pd-chips">${a.map(x => `<span>${x}</span>`).join('')}</div>`;
     openSheet(`${m[4] ? `<img class="pd-img" src="${m[4]}" alt="${m[0]}">` : ''}
-      <div class="pd-name">${m[0]}</div><div class="pd-price">${money(m[1])}</div>
+      <div class="pd-name">${m[0]}</div><div class="pd-price">${money(now)}${sale ? ` <s>${money(m[1])}</s> <i>-${sale}%</i>` : ''}</div>
       ${sizes.length ? `<div class="pd-row"><small>Size</small>${chips(sizes)}</div>` : ''}
       ${colors.length ? `<div class="pd-row"><small>Màu sắc</small>${chips(colors)}</div>` : ''}
       ${m[8] ? `<div class="pd-row"><small>Chất liệu</small><div class="pd-text">${m[8]}</div></div>` : ''}
@@ -919,7 +922,7 @@
   /* Dải "Ưu đãi" của quán: giảm giá quán, freeship, giảm thêm đặt online, voucher đang chạy */
   function spPromos(s) {
     const a = [], sec = sectorOf(s); if (sec === 'service') return a;
-    if (s.sale) a.push(`Giảm ${s.sale}% toàn thực đơn`);
+    if (s.sale) a.push(`Giảm ${s.sale}% ${sec === 'fashion' ? 'toàn bộ sản phẩm' : 'toàn thực đơn'}`);
     if (s.freeShipAll) a.push('Miễn phí ship mọi đơn'); else if (s.ship) a.push(`Freeship cho đơn từ ${s.ship}`);
     { const pp = platPctOf(s); if (pp > 0) a.push(`Giảm thêm ${pp}% cho đơn đặt online`); }
     PROMOS.slice(0, 4).forEach(p => { try { a.push(promoLabel(p) + (+p.min > 0 ? ' cho đơn từ ' + money(+p.min) : '')); } catch (e) { /* bỏ qua voucher lỗi */ } });
@@ -935,7 +938,7 @@
         : sec === 'service' ? `<div class="sp-group"><h3>${n}<small>(${ids.length})</small></h3>${ids.map(i => spService(s, i)).join('')}</div>`
         : `<section class="sp2-sec"><h3>${n}</h3>${ids.map(i => spItem(s, i)).join('')}</section>`;
     }).join('');
-    return out || `<div class="empty">${q ? 'Không tìm thấy món phù hợp' : sec === 'service' ? 'Chưa cập nhật dịch vụ' : sec === 'fashion' ? 'Chưa cập nhật sản phẩm' : 'Quán chưa cập nhật thực đơn'}</div>`;
+    return out || `<div class="empty">${q ? (sec === 'fashion' ? 'Không tìm thấy sản phẩm phù hợp' : 'Không tìm thấy món phù hợp') : sec === 'service' ? 'Chưa cập nhật dịch vụ' : sec === 'fashion' ? 'Chưa cập nhật sản phẩm' : 'Quán chưa cập nhật thực đơn'}</div>`;
   }
 
   /* Bảng "Danh mục" của quán: xem toàn bộ danh mục cùng số món, bấm để lọc */
@@ -959,23 +962,24 @@
     const tabs = names.length > 1 ? ['Tất cả', ...names] : names;
     const catBtn = names.length > 1 ? `<button class="sp2-cbtn" data-spcats aria-label="Xem tất cả danh mục">${SP_I.grid}<span>Danh mục</span><b>${names.length}</b></button>` : '';
     const hrs = d.autoHours && d.openAt && d.closeAt ? `Hôm nay: ${d.openAt} - ${d.closeAt}` : 'Mở cửa cả ngày';
-    const promos = spPromos(s);
+    const promos = spPromos(s), fx = sec === 'fashion';
     page.innerHTML = `<div class="sp2-bar"><button class="sp2-back" data-shopback aria-label="Quay lại">${ic('chevLeft')}</button><span class="sp2-title">${s.name}</span>
         <button class="heart sp2-heart ${isFav(s.id) ? 'on' : ''}" data-heart="${s.id}" data-sheet="1" aria-label="Yêu thích">${ic('heart')}</button></div>
-      <div class="sp2-cover"><img class="sp2-bg" src="${s.img}" alt=""><img class="sp2-thumb" src="${s.img}" alt="${s.name}"></div>
-      <div class="sp2-info">
+      ${fx ? `<div class="sp2-cover fx"><div class="fx-bgw"><img class="sp2-bg" src="${s.img}" alt=""></div><img class="sp2-thumb" src="${s.img}" alt="${s.name}"></div>` : `<div class="sp2-cover"><img class="sp2-bg" src="${s.img}" alt=""><img class="sp2-thumb" src="${s.img}" alt="${s.name}"></div>`}
+      <div class="sp2-info ${fx ? 'fx-info' : ''}">
         <h2>${s.name}</h2>
-        <div class="sp2-rate"><span class="sp2-star">★</span><b>${s.rate ? s.rate.toFixed(1) : 'Mới'}</b><span class="sp2-rc">(${s.rc || 0})</span>${sec !== 'service' ? `<i class="sp2-dot">·</i><span class="sp2-eta">${ic('clock')}${s.eta} chuẩn bị món</span>` : ''}</div>
-        <div class="sp2-hours"><span class="sp2-ico">${SP_I.clock}</span><span>${hrs}</span><span class="sp2-open ${s.open === false ? 'off' : 'on'}">${s.open === false ? closedNote(s) : `${SP_I.check}Đang mở cửa`}</span></div>
+        ${fx ? `<div class="fx-meta"><span class="fx-tag">👗 Thời trang</span>${+s.rc > 0 && s.rate ? `<span class="fx-rate"><span class="sp2-star">★</span><b>${s.rate.toFixed(1)}</b><span class="sp2-rc">(${s.rc} đánh giá)</span></span>` : ''}</div>
+        <div class="fx-status"><span class="sp2-open ${s.open === false ? 'off' : 'on'}">${s.open === false ? closedNote(s) : `${SP_I.check}Đang mở cửa`}</span><span class="fx-hrs">${hrs}</span></div>` : `<div class="sp2-rate"><span class="sp2-star">★</span><b>${s.rate ? s.rate.toFixed(1) : 'Mới'}</b><span class="sp2-rc">(${s.rc || 0})</span>${sec !== 'service' ? `<i class="sp2-dot">·</i><span class="sp2-eta">${ic('clock')}${s.eta} chuẩn bị món</span>` : ''}</div>
+        <div class="sp2-hours"><span class="sp2-ico">${SP_I.clock}</span><span>${hrs}</span><span class="sp2-open ${s.open === false ? 'off' : 'on'}">${s.open === false ? closedNote(s) : `${SP_I.check}Đang mở cửa`}</span></div>`}
         ${s.address ? `<div class="sp2-addr">${ic('mapPin')}<span>${s.address}</span></div>` : ''}
         ${promos.length ? `<div class="sp2-promos">${promos.map(t => `<span class="sp2-pchip"><b>Ưu đãi</b><i>${t}</i></span>`).join('')}</div>` : ''}
-        ${sec === 'fashion' && zl ? `<a class="sp2-zalo" href="${zl}" target="_blank" rel="noopener">💬 Chat Zalo với cửa hàng<small>Trao đổi, hỏi size, đặt mua</small></a>` : ''}
-        <div class="sp2-acts"><button data-spgroup>${SP_I.group}Đặt nhóm</button><button data-spshare>${SP_I.share}Chia sẻ</button></div>
+        ${fx ? (zl || tel ? `<div class="fx-cta">${zl ? `<a class="sp2-zalo" href="${zl}" target="_blank" rel="noopener">💬 Chat Zalo với cửa hàng<small>Hỏi size, tư vấn, đặt mua</small></a>` : ''}${tel ? `<a class="fx-call" href="tel:${tel}"><span>📞</span>Gọi</a>` : ''}</div>` : '')
+          : `<div class="sp2-acts"><button data-spgroup>${SP_I.group}Đặt nhóm</button><button data-spshare>${SP_I.share}Chia sẻ</button></div>`}
         ${s.desc ? `<p class="sp2-desc">${s.desc}</p>` : ''}
       </div>
-      <div class="sp2-sticky"><div class="sp2-tabs">${catBtn}<div class="sp2-tscroll">${tabs.map(n => `<button class="${(n === SP.cat) || (tabs.length === 1) ? 'on' : ''}" data-spcat="${esc(n)}">${esc(n)}${n !== 'Tất cả' && groups.get(n) ? `<small>${groups.get(n).length}</small>` : ''}</button>`).join('')}</div><button class="sp2-sbtn" data-spsearch aria-label="Tìm món">${SP_I.search}</button></div>
-        <div class="sp2-search" ${SP.sq ? '' : 'hidden'}><input id="sp-q" type="search" placeholder="Tìm món trong quán…" value="${esc(SP.q || '')}" autocomplete="off"></div></div>
-      <div id="sp-groups">${spGroupsHtml(s)}</div>
+      <div class="sp2-sticky ${fx ? 'fx' : ''}"><div class="sp2-tabs">${catBtn}<div class="sp2-tscroll">${tabs.map(n => `<button class="${(n === SP.cat) || (tabs.length === 1) ? 'on' : ''}" data-spcat="${esc(n)}">${esc(n)}${n !== 'Tất cả' && groups.get(n) ? `<small>${groups.get(n).length}</small>` : ''}</button>`).join('')}</div><button class="sp2-sbtn" data-spsearch aria-label="${fx ? 'Tìm sản phẩm' : 'Tìm món'}">${SP_I.search}</button></div>
+        <div class="sp2-search" ${SP.sq ? '' : 'hidden'}><input id="sp-q" type="search" placeholder="${fx ? 'Tìm sản phẩm trong cửa hàng…' : 'Tìm món trong quán…'}" value="${esc(SP.q || '')}" autocomplete="off"></div></div>
+      <div id="sp-groups" class="${fx ? 'fx-groups' : ''}">${spGroupsHtml(s)}</div>
       <div class="sp-spacer"></div>
       ${sec === 'service' ? (tel ? `<div class="sv-bar"><a class="sv-call" href="tel:${tel}">📞 Gọi ngay</a><a class="sv-zalo" href="https://zalo.me/${tel}" target="_blank" rel="noopener">💬 Nhắn Zalo</a></div>` : '')
         : `<button class="sp-cartbar empty" id="cart-bar" data-cart><span id="cb-l">Giỏ hàng (0 ${sec === 'fashion' ? 'sản phẩm' : 'món'})</span><b id="cb-t">0đ</b></button>`}`;
