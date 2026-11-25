@@ -1167,8 +1167,7 @@
     const { s, lines } = cartData(); if (!s || !lines.length) return toast('Bạn chưa chọn sản phẩm nào');
     const qtyN = lines.reduce((n, l) => n + l.qty, 0), total = lines.reduce((n, l) => n + l.price * l.qty, 0), CS = CART.cs || (CART.cs = {});
     openSheet(`<div class="co">
-      <div class="co-head"><h3>Gửi yêu cầu tư vấn</h3><div class="co-shop">🏪 ${esc(s.name)}</div></div>
-      <p class="co-hint" style="margin:0 2px 10px">Để lại thông tin, cửa hàng sẽ <b>gọi điện hoặc nhắn Zalo</b> tư vấn size, màu và chốt đơn cho bạn. Chưa cần thanh toán.</p>
+      <div class="co-head"><h3>Gửi yêu cầu tư vấn</h3></div>
 
       <section class="co-card"><div class="co-title">Sản phẩm quan tâm <span>${qtyN} sản phẩm</span></div>
         ${lines.map(l => `<div class="co-item"><span class="co-qty">${l.qty}×</span><span class="co-name">${esc(l.name)}</span><b>${money(l.price * l.qty)}</b></div>`).join('')}
